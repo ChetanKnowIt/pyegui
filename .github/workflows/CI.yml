@@ -176,6 +176,7 @@ jobs:
           path: 'dist/'
       - run: |
           ls
+          mkdir -p dist
           mv wheels-*/* dist/
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
