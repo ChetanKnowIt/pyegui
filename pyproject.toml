@@ -26,5 +26,7 @@ features = ["pyo3/extension-module"]
 
 [project.urls]
 Homepage = "https://github.com/GachiLord/pyegui"
+Documentation = "https://gachilord.github.io/pyegui/"
+Repository = "https://github.com/GachiLord/pyegui"
 Issues = "https://github.com/GachiLord/pyegui/issues"
 
