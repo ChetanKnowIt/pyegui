@@ -179,3 +179,37 @@ jobs:
         with:
           command: upload
           args: --non-interactive --skip-existing wheels-*/*
+
+  build_docs:
+    # Specify runner +  build & upload the static files as an artifact
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build static files
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - run: |
+          pip install sphinx sphinx-rtd-theme pyegui
+          sphinx-build -v ./docs/ ./docs/.build
+      - name: Upload static files as artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
+        with:
+          path: docs/.build
+
+  deploy_docs:
+    permissions:
+      id-token: write
+      contents: write
+      pages: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build_docs
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
