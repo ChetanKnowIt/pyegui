@@ -170,8 +170,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - name: Download artifacts
       - uses: actions/checkout@v6
+      - name: Download artifacts
       - uses: actions/download-artifact@v4
         with:
           path: 'dist/'
