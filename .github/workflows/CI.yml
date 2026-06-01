@@ -174,10 +174,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: 'dist/'
+      - run:
+          mv dist/wheels-*/* dist/
+          rmdir dist/wheels-*/*
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: 'dist/wheels-*/*'
 
   build_docs:
     # Specify runner +  build & upload the static files as an artifact
