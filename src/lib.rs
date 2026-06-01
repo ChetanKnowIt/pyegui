@@ -631,9 +631,11 @@ unsafe fn text_edit_multiline(
 }
 
 /// Returns true if the button was clicked this frame
+///
+/// Example::
 /// 
-/// if button_clicked("click me"):
-///   print("click me, my friend")
+///     if button_clicked("click me"):
+///       print("click me, my friend")
 #[pyfunction]
 unsafe fn button_clicked(text: &str) -> PyResult<bool> {
   let ui = current_ui(&UI)?;
@@ -642,9 +644,11 @@ unsafe fn button_clicked(text: &str) -> PyResult<bool> {
 }
 
 /// Returns true if the small button was clicked this frame
+///
+/// Example::
 /// 
-/// if small_button_clicked("click me"):
-///   print("click me, my friend")
+///     if small_button_clicked("click me"):
+///       print("click me, my friend")
 #[pyfunction]
 unsafe fn small_button_clicked(text: &str) -> PyResult<bool> {
   let ui = current_ui(&UI)?;
