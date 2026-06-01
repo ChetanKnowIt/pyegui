@@ -179,7 +179,7 @@ jobs:
           mv dist distraw
           mkdir -p dist
           mv distraw/wheels-*/* dist
-      - uses: actions/checkout@v6
+          ls dist
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
