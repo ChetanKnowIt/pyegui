@@ -180,10 +180,13 @@ jobs:
           subject-path: 'wheels-*/*'
       - name: Publish to PyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/setup-python@v6
         env:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
           TWINE_USERNAME: __token__
-        run: python3 -m twine upload --verbose wheels-*/*
+        run: |
+          pip install twine
+          python3 -m twine upload --verbose wheels-*/*
 
   build_docs:
     # Specify runner +  build & upload the static files as an artifact
