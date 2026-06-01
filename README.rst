@@ -53,17 +53,17 @@ Full list of implemented features is available
 Install
 -------
 
-Prebuilt binaries are provided for Linux and Windows. On other platforms
+Prebuilt binaries are provided for Linux Windows and macOS. On other platforms
 pip will build wheel for your OS. In this case you'll need Rust compiler
 and `maturin <https://github.com/PyO3/maturin>`__
 
-Install from pypi
+Install from pypi:
 
 .. code:: bash
 
    pip install pyegui
 
-Install from source
+Install from source:
 
 .. code:: bash
 
@@ -83,14 +83,10 @@ This is how you write a "hello world" app.
      # draw UI here
      heading("Hello, World!")
 
-   run_native("Example app", update_func)
+   if __name__ == "__main__":
+     run_native("Example app", update_func)
 
-You can find more examples in this
-`folder <https://github.com/GachiLord/pyegui/tree/main/examples>`__.
-Also Python's ``help(pyegui.some_function)`` will be quite
-effective(there are examples for every function). Read the source code
-of this binding and the original
-`library <https://github.com/emilk/egui>`__.
+You can find more examples in the `documentation <https://gachilord.github.io/pyegui>`__.
 
 Update functions
 ~~~~~~~~~~~~~~~~
@@ -118,7 +114,7 @@ global aspects of your app(e.g fonts and theme).
      heading("Using light theme even if system's is dark")
 
 Update functions may be nested. Such functions create a new UI scope
-that can have different styles and befaviour.
+that can have different styles and behaviour.
 
 .. code:: python
 
@@ -141,7 +137,7 @@ Variables
 
 Many widgets require access to a state via a reference, which can't be
 done for integers, floats and strings in Python. That's why such helper
-classes as Str, Bool, Int, Float, RGB and Date exist.
+classes as Str, Bool, Int and Float exist.
 
 They are essentially the following:
 
