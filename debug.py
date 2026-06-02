@@ -6,8 +6,10 @@ logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.DEBUG)
 
 def update_func(ctx):
-  heading("Debugging your mom")
-  heading("I'm pretty good at that")
+    with Group():
+        heading("Debugging your mom")
+        heading("I'm pretty good at that")
+    heading("I'm pretty good at that")
 
 
 run_native("Debug", update_func)

@@ -469,6 +469,67 @@ impl Scope {
     }
 }
 
+/// Visually groups the contents together.
+///
+/// Usage::
+///
+///     with Group():
+///        heading("hi")
+///        heading("there")
+#[pyclass]
+struct Group {
+    prepared: egui::frame::Prepared,
+}
+
+#[pymethods]
+impl Group {
+
+    #[new]
+    fn __new__() -> PyResult<Self> {
+        unsafe {
+            let parent_ui = current_ui(&UI)?;
+
+            let frame = egui::Frame::group(&parent_ui.style());
+            let prepared = frame.begin(parent_ui);
+
+            Ok(Self {prepared})
+        }
+    }
+
+    #[staticmethod]
+    fn __init__() -> PyResult<Self> {
+        Self::__new__()
+    }
+
+    fn __enter__(&mut self) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            ui_stack.push(&raw mut self.prepared.content_ui);
+            Ok(())
+        }
+    }
+
+    fn __exit__(&self, _exception_type: Bound<'_, PyAny>, _exception_value: Bound<'_, PyAny>, _exception_traceback: Bound<'_, PyAny>) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            let _ = ui_stack.pop().ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?;
+
+            let mut parent_ui = ui_stack.last()
+                .ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?
+                .as_mut()
+                .ok_or(PyRuntimeError::new_err(UI_PTR_NULL_ERR))?;
+
+            self.prepared.paint(&mut parent_ui);
+            self.prepared.allocate_space(&mut parent_ui);
+            // parent_ui.advance_cursor_after_rect(child_ui.min_rect());
+
+            Ok(())
+        }
+    }
+}
+
 // Start function
 
 struct PyeguiApp<'py> {
@@ -1392,6 +1453,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
   m.add_class::<Layout>()?;
   m.add_class::<LayoutType>()?;
   m.add_class::<Scope>()?;
+  m.add_class::<Group>()?;
   // functions
   m.add_function(wrap_pyfunction!(run_native, m)?)?;
   m.add_function(wrap_pyfunction!(heading, m)?)?;
