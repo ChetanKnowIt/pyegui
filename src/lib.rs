@@ -419,6 +419,8 @@ impl Layout {
 ///        set_opacity(0.5)
 ///        heading("hi")
 ///        heading("there")
+///
+///     heading("normal opacity")
 #[pyclass]
 struct Scope {
     ui: egui::Ui,
