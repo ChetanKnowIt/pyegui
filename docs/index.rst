@@ -18,4 +18,5 @@
    module/ui
    module/context
    module/widgets
+   module/layout
    module/helpers

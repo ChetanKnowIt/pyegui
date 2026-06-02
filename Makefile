@@ -23,6 +23,9 @@ doc: develop
 develop:
 	.venv/bin/maturin develop
 
+develop-release:
+	.venv/bin/maturin develop --release
+
 venv:
 	python3 -m venv .venv
 	.venv/bin/pip install maturin

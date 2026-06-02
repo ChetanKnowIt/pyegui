@@ -258,6 +258,156 @@ impl Date {
     }
 }
 
+
+/// Values of this enum are used in Layout 
+///
+/// Usage::
+///
+///     with Scope(ScopeType.VerticalCentered):
+///        heading("This widget will be centered by X-axis")
+///
+/// **Horizontal**
+///
+/// Start a ui with horizontal layout. After you have called this, the function registers the contents as any other widget.
+/// 
+/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. The initial height is style.spacing.interact_size.y. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
+/// 
+/// If you don’t want the contents to be centered, use Self::horizontal_top instead.
+///
+/// **HorizontalCentered**
+///
+/// Like Horizontal, but allocates the full vertical height and then centers elements vertically.
+///
+/// **HorizontalTop**
+///
+/// Like Self::horizontal, but aligns content with top.
+///
+/// **HorizontalWrapped**
+///
+/// Start a ui with horizontal layout that wraps to a new row when it reaches the right edge of the max_size. After you have called this, the function registers the contents as any other widget.
+/// 
+/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. The initial height is style.spacing.interact_size.y. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
+/// 
+/// **Vertical**
+///
+/// Start a ui with vertical layout. Widgets will be left-justified.
+///
+/// **VerticalCentered**
+///
+/// Start a ui with vertical layout. Widgets will be horizontally centered.
+///
+/// **VerticalCenteredJustified**
+/// Start a ui with vertical layout. Widgets will be horizontally centered and justified (fill full width).
+///
+/// **CenteredAndJustified**
+///
+/// This will make the next added widget centered and justified in the available space.
+///
+/// Only one child widget is allowed!
+
+
+#[pyclass]
+#[derive(Clone)]
+enum LayoutType {
+    Horizontal,
+    HorizontalCentered,
+    HorizontalTop,
+    HorizontalWrapped,
+    Vertical,
+    VerticalCentered,
+    VerticalCenteredJustified,
+    CenteredAndJustified,
+}
+
+/// Layout class can be used to specify layout of widgets that go after with statement.
+///
+/// Usage::
+///
+///     with Scope(ScopeType.VerticalCentered):
+///        heading("This widget will be centered by X-axis")
+#[pyclass]
+struct Layout {
+    ui: egui::Ui,
+}
+
+#[pymethods]
+impl Layout {
+
+    #[new]
+    fn __new__(layout_type: LayoutType) -> PyResult<Self> {
+        unsafe {
+            let parent_ui = current_ui(&UI)?;
+
+            // build layout based on scope type
+            let layout = match layout_type {
+                LayoutType::HorizontalCentered => {
+                    egui::Layout::left_to_right(egui::Align::Center).with_cross_align(egui::Align::Center)
+                },
+                LayoutType::Horizontal => {
+                    egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false).with_cross_align(egui::Align::Min)
+                }
+                LayoutType::HorizontalTop => {
+                    egui::Layout::left_to_right(egui::Align::Center).with_cross_align(egui::Align::Min)
+                }
+                LayoutType::HorizontalWrapped => {
+                    egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false).with_cross_align(egui::Align::Min)
+                }
+                LayoutType::Vertical => {
+                    egui::Layout::top_down(egui::Align::Min)
+                }
+                LayoutType::VerticalCentered => {
+                    egui::Layout::top_down(egui::Align::Center)
+                }
+                LayoutType::VerticalCenteredJustified => {
+                    egui::Layout::top_down(egui::Align::Center).with_cross_justify(true)
+                }
+                LayoutType::CenteredAndJustified => {
+                    egui::Layout::centered_and_justified(egui::Direction::TopDown)
+                }
+            };
+
+            let ui = parent_ui.new_child(egui::UiBuilder::new().layout(layout));
+
+            Ok(Self {ui})
+        }
+    }
+
+    #[staticmethod]
+    fn __init__(scope_type: LayoutType) -> PyResult<Self> {
+        Self::__new__(scope_type)
+    }
+
+    fn __enter__(&mut self) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            ui_stack.push(&raw mut self.ui);
+            Ok(())
+        }
+    }
+
+    fn __exit__(&self, _exception_type: Bound<'_, PyAny>, _exception_value: Bound<'_, PyAny>, _exception_traceback: Bound<'_, PyAny>) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            let child_ui = ui_stack.pop()
+                .ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?
+                .as_mut()
+                .ok_or(PyRuntimeError::new_err(UI_PTR_NULL_ERR))?;
+
+            let parent_ui = ui_stack.last()
+                .ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?
+                .as_mut()
+                .ok_or(PyRuntimeError::new_err(UI_PTR_NULL_ERR))?;
+
+
+            parent_ui.advance_cursor_after_rect(child_ui.min_rect());
+
+            Ok(())
+        }
+    }
+}
+
 // Start function
 
 struct PyeguiApp<'py> {
@@ -1178,6 +1328,8 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
   m.add_class::<RGB>()?;
   m.add_class::<Date>()?;
   m.add_class::<Context>()?;
+  m.add_class::<Layout>()?;
+  m.add_class::<LayoutType>()?;
   // functions
   m.add_function(wrap_pyfunction!(run_native, m)?)?;
   m.add_function(wrap_pyfunction!(heading, m)?)?;

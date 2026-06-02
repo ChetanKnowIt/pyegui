@@ -3,5 +3,5 @@ UI functions
 
 .. automodule:: pyegui
    :members:
-   :exclude-members: RGB, Date, Context, Str, Bool, Int, Float 
+   :exclude-members: RGB, Date, Context, Str, Bool, Int, Float, Layout, LayoutType
 
