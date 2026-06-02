@@ -13,12 +13,10 @@ def update_func(ctx):
 
   separator()
 
-  def hor():
+  with Layout(LayoutType.Horizontal):
     selectable_value(page, PAGE_1, "Go to page 1")
     selectable_value(page, PAGE_2, "Go to page 2")
     selectable_value(page, PAGE_3, "Go to page 3")
-
-  horizontal(hor)
 
   separator()
 

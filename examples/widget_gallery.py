@@ -33,17 +33,15 @@ def update_func(ctx):
 
   checkbox(checkbox_value, "check me")
 
-  def radios():
+  with Layout(LayoutType.Horizontal):
     radio_value(color, RED, "red")
     radio_value(color, GREEN, "green")
     radio_value(color, BLUE, "blue")
-  horizontal(radios)
 
-  def selectables():
+  with Layout(LayoutType.Horizontal):
     selectable_value(color, RED, "red")
     selectable_value(color, GREEN, "green")
     selectable_value(color, BLUE, "blue")
-  horizontal(selectables)
 
   combo_box(color, [RED, GREEN, BLUE], ["red", "green", "blue"], "Choose your fate") 
 
@@ -80,11 +78,10 @@ def update_func(ctx):
 
   group(hideable)
 
-  def footer():
+  with Layout(LayoutType.Horizontal):
     checkbox(is_visible, "Visible")
     checkbox(is_interactive, "Interactive")
     slider_float(opacity_value, 0.0, 1.0, "Opacity")
-  horizontal(footer)
 
 
 if __name__ == "__main__":

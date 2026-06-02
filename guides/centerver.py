@@ -1,7 +1,7 @@
 from pyegui import *
 
 def update_func(ctx):
-    with Layout(LayoutType.HorizontalCentered):
+    with Layout(LayoutType.VerticalCentered):
         heading("I'm horizontal")
 
 if __name__ == "__main__":

@@ -81,4 +81,10 @@ Center elements vertically
 Center elements horizontally 
 -----------------------------
 
-At this moment you can't. Sorry
+.. literalinclude:: ../guides/centerver.py
+   :language: python
+   :linenos:
+
+.. image:: _static/centerver.png
+   :alt: horizontally centered label screenshot
+
