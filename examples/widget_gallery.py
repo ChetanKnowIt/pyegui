@@ -66,7 +66,7 @@ def update_func(ctx):
 
   heading("Configure block in the frame")
 
-  def hideable():
+  with Group():
     set_opacity(opacity_value.value)
     if not is_visible.value:
       set_invisible()
@@ -75,8 +75,6 @@ def update_func(ctx):
       
     heading("This block may be hidden")
     button_clicked("Try to click me")
-
-  group(hideable)
 
   with Layout(LayoutType.Horizontal):
     checkbox(is_visible, "Visible")
