@@ -260,15 +260,31 @@ impl Date {
 
 
 /// Values of this enum are used in Layout 
+#[pyclass]
+#[derive(Clone)]
+enum LayoutType {
+    Horizontal,
+    HorizontalCentered,
+    HorizontalTop,
+    HorizontalWrapped,
+    Vertical,
+    VerticalCentered,
+    VerticalCenteredJustified,
+    CenteredAndJustified,
+}
+
+/// Layout class can be used to specify layout of widgets that go after with statement.
 ///
 /// Usage::
 ///
-///     with Scope(ScopeType.VerticalCentered):
-///        heading("This widget will be centered by X axis")
+///     with Layout(LayoutType.VerticalCentered):
+///        heading("This widget will be horizontally centered")
+///
+/// Layout types:
 ///
 /// **Horizontal**
 ///
-/// Start a ui with horizontal layout. After you have called this, the function registers the contents as any other widget.
+/// Start a ui with horizontal layout.
 /// 
 /// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
 /// 
@@ -284,7 +300,7 @@ impl Date {
 ///
 /// **HorizontalWrapped**
 ///
-/// Start a ui with horizontal layout that wraps to a new row when it reaches the right edge. After you have called this, the function registers the contents as any other widget.
+/// Start a ui with horizontal layout that wraps to a new row when it reaches the right edge.
 /// 
 /// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
 /// 
@@ -305,27 +321,6 @@ impl Date {
 /// This will make the next added widget centered and justified in the available space.
 ///
 /// Only one child widget is allowed!
-
-
-#[pyclass]
-#[derive(Clone)]
-enum LayoutType {
-    Horizontal,
-    HorizontalCentered,
-    HorizontalTop,
-    HorizontalWrapped,
-    Vertical,
-    VerticalCentered,
-    VerticalCenteredJustified,
-    CenteredAndJustified,
-}
-
-/// Layout class can be used to specify layout of widgets that go after with statement.
-///
-/// Usage::
-///
-///     with Scope(ScopeType.VerticalCentered):
-///        heading("This widget will be centered by X-axis")
 #[pyclass]
 struct Layout {
     ui: egui::Ui,
