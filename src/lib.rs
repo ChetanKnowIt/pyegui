@@ -409,6 +409,69 @@ impl Layout {
     }
 }
 
+
+/// Create a scope for the contents.
+/// You can use this to temporarily change the Style of a sub-region
+///
+/// Usage::
+///
+///     with Scope():
+///        set_opacity(0.5)
+///        heading("hi")
+///        heading("there")
+#[pyclass]
+struct Scope {
+    ui: egui::Ui,
+}
+
+#[pymethods]
+impl Scope {
+
+    #[new]
+    fn __new__() -> PyResult<Self> {
+        unsafe {
+            let parent_ui = current_ui(&UI)?;
+            let ui = parent_ui.new_child(egui::UiBuilder::new());
+            Ok(Self {ui})
+        }
+    }
+
+    #[staticmethod]
+    fn __init__() -> PyResult<Self> {
+        Self::__new__()
+    }
+
+    fn __enter__(&mut self) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            ui_stack.push(&raw mut self.ui);
+            Ok(())
+        }
+    }
+
+    fn __exit__(&self, _exception_type: Bound<'_, PyAny>, _exception_value: Bound<'_, PyAny>, _exception_traceback: Bound<'_, PyAny>) -> PyResult<()> {
+        unsafe {
+            let ui_stack = ui_stack(&UI)?;
+
+            let child_ui = ui_stack.pop()
+                .ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?
+                .as_mut()
+                .ok_or(PyRuntimeError::new_err(UI_PTR_NULL_ERR))?;
+
+            let parent_ui = ui_stack.last()
+                .ok_or(PyRuntimeError::new_err(UI_CALL_OUTSIDE_UPDATE_FUNC))?
+                .as_mut()
+                .ok_or(PyRuntimeError::new_err(UI_PTR_NULL_ERR))?;
+
+
+            parent_ui.advance_cursor_after_rect(child_ui.min_rect());
+
+            Ok(())
+        }
+    }
+}
+
 // Start function
 
 struct PyeguiApp<'py> {
@@ -1331,6 +1394,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
   m.add_class::<Context>()?;
   m.add_class::<Layout>()?;
   m.add_class::<LayoutType>()?;
+  m.add_class::<Scope>()?;
   // functions
   m.add_function(wrap_pyfunction!(run_native, m)?)?;
   m.add_function(wrap_pyfunction!(heading, m)?)?;
