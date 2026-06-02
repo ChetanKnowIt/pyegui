@@ -264,15 +264,15 @@ impl Date {
 /// Usage::
 ///
 ///     with Scope(ScopeType.VerticalCentered):
-///        heading("This widget will be centered by X-axis")
+///        heading("This widget will be centered by X axis")
 ///
 /// **Horizontal**
 ///
 /// Start a ui with horizontal layout. After you have called this, the function registers the contents as any other widget.
 /// 
-/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. The initial height is style.spacing.interact_size.y. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
+/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
 /// 
-/// If you don’t want the contents to be centered, use Self::horizontal_top instead.
+/// If you don’t want the contents to be centered, use HorizontalTop instead.
 ///
 /// **HorizontalCentered**
 ///
@@ -280,13 +280,13 @@ impl Date {
 ///
 /// **HorizontalTop**
 ///
-/// Like Self::horizontal, but aligns content with top.
+/// Like Horizontal, but aligns content with top.
 ///
 /// **HorizontalWrapped**
 ///
-/// Start a ui with horizontal layout that wraps to a new row when it reaches the right edge of the max_size. After you have called this, the function registers the contents as any other widget.
+/// Start a ui with horizontal layout that wraps to a new row when it reaches the right edge. After you have called this, the function registers the contents as any other widget.
 /// 
-/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. The initial height is style.spacing.interact_size.y. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
+/// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
 /// 
 /// **Vertical**
 ///
@@ -297,6 +297,7 @@ impl Date {
 /// Start a ui with vertical layout. Widgets will be horizontally centered.
 ///
 /// **VerticalCenteredJustified**
+///
 /// Start a ui with vertical layout. Widgets will be horizontally centered and justified (fill full width).
 ///
 /// **CenteredAndJustified**
