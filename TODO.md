@@ -23,7 +23,7 @@
 * available_size_before_wrap
 * available_width
 * ~~button~~
-* centered_and_justified
+* ~~centered_and_justified~~
 * ~~checkbox~~
 * clip_rect
 * close_menu
@@ -56,7 +56,7 @@
 * expand_to_include_x
 * expand_to_include_y
 * fonts
-* group
+* ~~group~~
 * ~~heading~~
 * ~~horizontal~~
 * ~~horizontal_centered~~
@@ -106,7 +106,7 @@
 * rect_contains_pointer
 * reset_style
 * response?
-* scope
+* ~~scope~~
 * scroll_to_cursor
 * scroll_to_cursor_animation
 * scroll_to_rect
@@ -151,9 +151,9 @@
 * ~~toggle_value~~
 * ui_contains_pointer
 * unique_id
-* vertical
-* vertical_centered
-* vertical_centered_justified
+* ~~vertical~~
+* ~~vertical_centered~~
+* ~~vertical_centered_justified~~
 * visuals
 * visuals_mut
 * ~~weak~~
