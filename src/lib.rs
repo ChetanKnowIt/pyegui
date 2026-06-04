@@ -969,6 +969,39 @@ unsafe fn horizontal_wrapped(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
 }
 
 
+/// Start a ui with vertical layout. Widgets will be left-justified.
+#[pyfunction]
+unsafe fn vertical(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+
+  current_ui(&UI)?.vertical(|ui| run_nested_update_func(ui, update_fun)).inner
+}
+
+
+/// Start a ui with vertical layout. Widgets will be horizontally centered.
+#[pyfunction]
+unsafe fn vertical_centered(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+
+  current_ui(&UI)?.vertical_centered(|ui| run_nested_update_func(ui, update_fun)).inner
+}
+
+
+/// Start a ui with vertical layout. Widgets will be horizontally centered and justified (fill full width).
+#[pyfunction]
+unsafe fn vertical_centered_justified(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+
+  current_ui(&UI)?.vertical_centered_justified(|ui| run_nested_update_func(ui, update_fun)).inner
+}
+
+
+/// This will make the next added widget centered and justified in the available space.
+/// 
+/// Only one widget may be added inside update_func!
+#[pyfunction]
+unsafe fn centered_and_justified(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+
+  current_ui(&UI)?.centered_and_justified(|ui| run_nested_update_func(ui, update_fun)).inner
+}
+
 /// A CollapsingHeader that starts out collapsed.
 ///
 /// Example::
@@ -1472,6 +1505,10 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
   m.add_function(wrap_pyfunction!(horizontal_centered, m)?)?;
   m.add_function(wrap_pyfunction!(horizontal_top, m)?)?;
   m.add_function(wrap_pyfunction!(horizontal_wrapped, m)?)?;
+  m.add_function(wrap_pyfunction!(vertical, m)?)?;
+  m.add_function(wrap_pyfunction!(vertical_centered, m)?)?;
+  m.add_function(wrap_pyfunction!(vertical_centered_justified, m)?)?;
+  m.add_function(wrap_pyfunction!(centered_and_justified, m)?)?;
   m.add_function(wrap_pyfunction!(collapsing, m)?)?;
   m.add_function(wrap_pyfunction!(indent, m)?)?;
   m.add_function(wrap_pyfunction!(group, m)?)?;
