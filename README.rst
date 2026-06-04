@@ -132,6 +132,34 @@ that can have different styles and behaviour.
      if button_clicked("You can click me"):
        print("Clicked")
 
+Containers
+~~~~~~~~~~~~~~~~
+
+Containers is a syntactic sugar for code that needs update functions.
+Function calls are replaced by Python's ``with`` statement.
+
+The code that centers widgets vertically:
+
+.. code:: python
+
+   def update_func(ctx):
+
+     def nested():
+       label("I'm a label inside nested update function")
+       label("New label")
+
+     horizontal_centered(nested)
+
+Can be written without callbacks:
+
+.. code:: python
+
+   def update_func(ctx):
+
+     with Layout(LayoutType.HorizontalCentered):
+       label("I'm a label inside nested update function")
+       label("New label")
+
 Variables
 ~~~~~~~~~
 
