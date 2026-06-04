@@ -88,3 +88,17 @@ Center elements horizontally
 .. image:: _static/centerver.png
    :alt: horizontally centered label screenshot
 
+
+Center elements vertically and horizontally 
+----------------------------------------------
+
+You can do that for one element:
+
+.. code:: python
+
+   with Layout(LayoutType.CenteredAndJustified):
+      heading("Perfect center")
+
+For more elements, read why you can't:
+
+https://users.rust-lang.org/t/help-with-alignment-in-eframe-egui/133702
