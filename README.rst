@@ -53,7 +53,7 @@ Full list of implemented features is available
 Install
 -------
 
-Prebuilt binaries are provided for Linux Windows and macOS. On other platforms
+Prebuilt binaries are provided for Linux, Windows and macOS. On other platforms
 pip will build wheel for your OS. In this case you'll need Rust compiler
 and `maturin <https://github.com/PyO3/maturin>`__
 
