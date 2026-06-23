@@ -1069,6 +1069,37 @@ unsafe fn group(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
         .inner
 }
 
+/// Create a vertical scroll area.
+///
+/// Example::
+///
+///     def update_func():
+///       heading("hi")
+///       heading("there")
+///       # a lot of elements
+///     
+///     scroll_area_vertical(update_func)
+#[pyfunction]
+unsafe fn scroll_area_vertical(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+    egui::ScrollArea::vertical().show(current_ui(&UI)?, |ui| run_nested_update_func(ui, update_fun)).inner
+}
+
+
+/// Create a horizontal scroll area.
+///
+/// Example::
+///
+///     def update_func():
+///       heading("hi")
+///       heading("there")
+///       # a lot of elements
+///     
+///     scroll_area_horizontal(update_func)
+#[pyfunction]
+unsafe fn scroll_area_horizontal(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+    egui::ScrollArea::horizontal().show(current_ui(&UI)?, |ui| run_nested_update_func(ui, update_fun)).inner
+}
+
 /// Create a scoped child ui.
 ///
 /// You can use this to temporarily change the Style of a sub-region.
@@ -1549,6 +1580,8 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(collapsing, m)?)?;
     m.add_function(wrap_pyfunction!(indent, m)?)?;
     m.add_function(wrap_pyfunction!(group, m)?)?;
+    m.add_function(wrap_pyfunction!(scroll_area_vertical, m)?)?;
+    m.add_function(wrap_pyfunction!(scroll_area_horizontal, m)?)?;
     m.add_function(wrap_pyfunction!(scope, m)?)?;
     m.add_function(wrap_pyfunction!(slider_float, m)?)?;
     m.add_function(wrap_pyfunction!(slider_int, m)?)?;
