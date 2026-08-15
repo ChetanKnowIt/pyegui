@@ -21,6 +21,16 @@ pages
 .. image:: _static/pages.png
    :alt: pages screenshot
 
+fileviwer
+-------------
+
+.. literalinclude:: ../examples/fileviwer.py
+   :language: python
+   :linenos:
+
+.. image:: _static/fileviwer.png
+   :alt: pages screenshot
+
 python IDE
 -------------
 
