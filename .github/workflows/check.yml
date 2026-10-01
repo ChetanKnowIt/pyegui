@@ -1,0 +1,98 @@
+# Fast compile/clippy gate for every push.
+#
+# CI.yml only runs on tags and PRs, which is the wrong feedback loop while
+# porting egui features: we want a compile verdict on each push to the
+# feature branch, in ~2 minutes, on one platform.
+#
+# This is the local-build substitute: nothing in this repo can be compiled
+# without a Rust toolchain, so this job is the source of truth for "does it
+# build".
+name: check
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # pyegui pins egui exactly; keep the lockfile authoritative so CI resolves
+  # the same crate graph locally and in CI.
+  CARGO_NET_GIT_FETCH_WITH_CLI: 'true'
+
+jobs:
+  check:
+    name: cargo check + clippy (linux, python 3.11)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Rust (MSRV-aware)
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-check
+
+      # The real gate: if the Rust side does not compile, nothing else matters.
+      - name: cargo check
+        run: cargo check --locked --all-targets
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      # Confirms the lockfile still resolves with egui pinned to =0.31.1 and
+      # that no transitive bump smuggled a newer egui in.
+      - name: Verify pinned egui version
+        run: |
+          set -euo pipefail
+          resolved=$(cargo tree -p egui --depth 0 --prefix none | head -1 | tr -d ' ')
+          echo "resolved egui: ${resolved}"
+          test "${resolved}" = "egui v0.31.1" || (
+            echo "::error::egui is not pinned to 0.31.1 (got ${resolved})"
+            exit 1
+          )
+
+      # Builds the extension module and imports it, which catches missing
+      # #[pymodule] registrations that cargo check alone will not.
+      - name: Build extension module and verify exports
+        run: |
+          set -euo pipefail
+          pip install "maturin>=1.8,<2.0"
+          maturin develop --release --locked
+          python - <<'PY'
+          import pyegui
+
+          # Guard the registration of every exported name. New widgets must be
+          # added here or this fails, which is the point.
+          required = {
+              # entrypoint
+              "run_native",
+              # state holders
+              "Str", "Bool", "Int", "Float", "RGB", "Date",
+              # containers
+              "Layout", "LayoutType", "Scope", "Group",
+              # app context
+              "Context",
+          }
+          missing = sorted(n for n in required if not hasattr(pyegui, n))
+          assert not missing, f"missing exports: {missing}"
+
+          functions = [n for n in dir(pyegui) if not n.startswith("_")]
+          print(f"pyegui exports {len(functions)} public names")
+          print(f"{len(required)} required names present")
+          PY

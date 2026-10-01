@@ -10,8 +10,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.24.0", features = ["chrono", "abi3-py311", "generate-import-lib", "extension-module"] }
-eframe = "0.31.1"
-egui_extras = { version = "0.31.1", features = ["datepicker", "all_loaders"] }
+# egui is pinned exactly: pyegui exposes egui's API surface directly, so an
+# upstream minor bump is a breaking change for this crate (see README Roadmap).
+eframe = "=0.31.1"
+egui = "=0.31.1"
+egui_extras = { version = "=0.31.1", features = ["datepicker", "all_loaders"] }
 image = { version = "0.25", features = ["jpeg", "png"] }
 chrono = "0.4.40"
 log = { version = "0.4.27", features = ["release_max_level_info"] }

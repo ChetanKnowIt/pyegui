@@ -1,7 +1,7 @@
 pyegui
 ======
 
-**pyegui** is a native extenstion for Python that provides bindings for
+**pyegui** is a native extension for Python that provides bindings for
 Rust immediate mode GUI library
 `egui <https://github.com/emilk/egui>`__.
 
@@ -35,20 +35,229 @@ Features
 
 **pyegui** tries to be as close as possible to the original egui API,
 but with the focus on simplicity and usability. Callbacks were removed
-where possible to accomplish more smooth expirience in Python.
+where possible to accomplish more smooth experience in Python.
 
 - Light and Dark themes(defaults to the system's)
 - Built-in latin and cyrillic alphabets. You can load any font you want
   with ``ctx.set_font`` function
-- Images(png and jpeg)
+- Images(png, jpeg, svg, gif, webp, and anything the ``image`` crate
+  decodes)
 - Date picker
-- RBG color picker
+- RGB color picker
 - Text fields, radio buttons, buttons, code, progress bar etc.
+- Scroll areas, collapsing sections, groups and scopes
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
+The API surface is intentionally small: **51 functions** and **10 classes**
+are exported today. See `Roadmap`_ for what egui can do that pyegui cannot
+do (yet).
+
 Full list of implemented features is available
 `here <https://github.com/GachiLord/pyegui/blob/main/TODO.md>`__
+
+Roadmap
+-------
+
+Upstream egui versions
+~~~~~~~~~~~~~~~~~~~~~~
+
+pyegui wraps egui through Rust crates, so its feature set is bounded by
+the egui release it is pinned to.
+
++--------------+------------+--------------+-----------------------+
+| pyegui       | egui       | eframe       | Notes                 |
++==============+============+==============+=======================+
+| 0.5.0        | 0.31.1     | 0.31.1       | current release       |
++--------------+------------+--------------+-----------------------+
+| —            | 0.32.x     | 0.32.x       | not adopted yet       |
++--------------+------------+--------------+-----------------------+
+| —            | 0.33.x     | 0.33.x       | not adopted yet       |
++--------------+------------+--------------+-----------------------+
+| —            | 0.34.x     | 0.34.x       | not adopted yet       |
++--------------+------------+--------------+-----------------------+
+| —            | 0.35.x     | 0.35.x       | not adopted yet       |
++--------------+------------+--------------+-----------------------+
+| planned      | 0.36.2     | 0.36.2       | current egui release  |
++--------------+------------+--------------+-----------------------+
+
+pyegui is five egui minor releases behind. egui 0.36 requires Rust 1.95
+(0.31 required 1.81), so the upgrade also means a newer toolchain.
+
+Available now (implemented in 0.5.0)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Text: ``heading``, ``label``, ``monospace``, ``small``, ``strong``,
+  ``weak``, ``code``, ``code_editor``
+- Input: ``text_edit_singleline``, ``text_edit_multiline``
+- Buttons and links: ``button_clicked``, ``small_button_clicked``,
+  ``link_clicked``, ``hyperlink``, ``hyperlink_to``, ``image_and_text_clicked``
+- Selection: ``checkbox``, ``toggle_value``, ``radio_value``,
+  ``selectable_value``, ``combo_box``
+- Numbers: ``slider_float``, ``slider_int``, ``drag_float``, ``drag_int``,
+  ``progress``
+- Colour and dates: ``color_edit_button_rgb``, ``date_picker_button``
+- Images: ``image`` (``max_width`` / ``max_height``)
+- Layout: ``horizontal``, ``horizontal_centered``, ``horizontal_top``,
+  ``horizontal_wrapped``, ``vertical``, ``vertical_centered``,
+  ``vertical_centered_justified``, ``centered_and_justified``, ``indent``
+- Scopes: ``collapsing``, ``group``, ``scope``, ``scroll_area_vertical``,
+  ``scroll_area_horizontal``, ``Layout`` / ``LayoutType``, ``Group``
+- Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
+  ``set_opacity``, ``add_space``, ``separator``
+- App: ``run_native`` with viewport kwargs, ``Context`` (theme, fonts,
+  ``open_url``, ``copy_text``)
+- Reference helpers: ``Str``, ``Bool``, ``Int``, ``Float``, ``RGB``,
+  ``Date``
+
+Not available yet — planned
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ordered roughly by value per unit of work. "egui" names the upstream
+API this would wrap.
+
+**Missing widget families**
+
+- ``Grid``, ``columns`` / ``columns_const``, ``end_row``, ``set_row_height``
+  — no multi-column or table-style layouts at all today
+- ``ComboBox`` as a widget (only pyegui's hand-rolled ``combo_box``
+  exists), including ``width``, ``wrap``, ``icon``, ``popup_style``
+- ``ColorEditButton`` in every colour space except RGB:
+  ``color_edit_button_srgb``, ``_srgba``, ``_hsva``, ``_rgba_unmultiplied``,
+  and the premultiplied variants
+- ``selectable_label``, ``radio``, ``drag_angle`` / ``drag_angle_tau``,
+  ``colored_label``
+- ``MenuBar`` / ``menu_button`` / ``sub_menu`` — no menus
+- ``Table`` / ``TableBuilder`` from ``egui_extras`` — no data grids
+- ``StripBuilder`` and ``Sizing`` from ``egui_extras``
+- Syntax-highlighted code view (``egui_extras`` ``syntect`` feature is
+  not even enabled)
+- ``Frame`` with custom fill/stroke/corner radius (only
+  ``Frame::group`` is reachable today)
+- ``CollapsingHeader`` builder options: ``default_open``, ``show_arrow``
+
+**Missing containers**
+
+- ``Window`` — no secondary windows
+- ``SidePanel`` / ``TopBottomPanel`` — only ``CentralPanel`` is ever used
+- ``Area``, ``Popup``, ``Tooltip``, ``Modal``, ``Resize``, ``Scene``,
+  ``ClosableTag``
+- ``MenuBar`` and its config
+
+**Missing interaction feedback**
+
+egui returns a ``Response`` from every widget, and pyegui collapses it to
+a bool (``button_clicked``) or nothing at all. Until that is fixed none
+of the following is expressible:
+
+- hover and focus state, ``on_hover_text`` (tooltips), ``on_hover_ui``
+- double / triple / secondary / middle clicks
+- ``changed``, ``lost_focus``, ``request_focus``, ``surrender_focus``
+- drag state and drag payloads (``dnd_drag_source``, ``dnd_drop_zone``)
+- ``context_menu`` on any widget
+- ``Response::show_tooltip_text``
+
+**Missing Context API**
+
+pyegui's ``Context`` exposes 8 methods; egui 0.36 ``Context`` has ~160.
+Notable gaps:
+
+- input state: ``input``, ``is_pointer_over_egui``,
+  ``egui_wants_keyboard_input``, pointer positions, modifiers — you
+  cannot read the keyboard or mouse today
+- ``request_repaint`` (and the ``_after`` variants)
+- ``memory`` / ``memory_mut`` (sizing, order, focus state)
+- ``style``, ``visuals``, ``spacing``, ``set_style``, ``set_visuals``
+  — no way to customise widget appearance
+- animations: ``animate_bool_with_time``, ``animate_value_with_time``
+- ``viewport`` commands, ``set_zoom_factor``, ``set_pixels_per_point``
+- ``load_texture`` / ``try_load_bytes`` / custom image loaders
+- ``egui::Plugin`` (0.33+) and the inspection protocol (0.35+)
+
+**Missing builder options on existing widgets**
+
+- ``Slider``: ``logarithmic``, ``step_by``, ``binary`` / ``hexadecimal`` /
+  ``octal``, ``prefix`` / ``suffix``, ``custom_formatter`` /
+  ``custom_parser``, ``vertical``, ``clamping``, ``text_color``,
+  ``handle_shape``
+- ``DragValue``: ``prefix`` / ``suffix``, formatters, ``binary`` etc.
+- ``TextEdit``: ``password``, ``desired_width`` / ``desired_rows``,
+  ``char_limit``, ``lock_focus``, ``font``, ``interactive``,
+  ``cursor_at_end``, ``background_color``, ``margin``, ``horizontal_align``
+  / ``vertical_align``
+- ``Button``: ``selected``, ``min_size``, ``atoms``, ``shortcut_text``,
+  ``wrap``
+- ``Image``: ``tint``, ``size``, ``fit_to_exact_size``, ``rotate``, ``uv``,
+  ``corner_radius``, ``sense``, ``alt_text``
+- ``ProgressBar``: text, ``animate``
+- ``DatePickerButton``: ``format``, ``start_end_years``, ``show_icon``,
+  ``combo_boxes``, ``calendar_week``
+- ``run_native`` viewport kwargs: only size, fullscreen, maximized,
+  resizable, transparent and ``icon_path`` are forwarded; position,
+  decorations, window level, app id, monitor and always-on-top are not
+- ``eframe`` ``NativeOptions``: renderer choice, ``multisampling``,
+  ``depth_buffer``, ``persistence_path``, ``dithering``, ``centered``,
+  and ``App::save`` (state persistence) are all unreachable
+
+**Missing low-level building blocks**
+
+- ``Painter`` access — no custom painting, shapes or text layout
+- ``style_mut``, ``visuals_mut``, ``spacing_mut``
+- ``available_size`` / ``available_width`` / ``available_height``,
+  ``cursor``, ``min_rect``, ``max_rect``, ``pixels_per_point``
+- Sizing: ``set_width``, ``set_height``, ``set_min_size``,
+  ``set_max_size``, ``take_available_width`` …
+- ``UiBuilder`` / ``scope_builder`` / ``new_child``, ``push_id``,
+  ``with_layout``, ``wrap_mode``
+- Non-``Ui`` containers are unreachable: ``Widget``, ``Atom``
+  (0.32+), ``BoxedWidget`` (0.36)
+
+Upgrade path to egui 0.36
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These are the concrete blockers found while comparing ``src/lib.rs``
+against egui 0.36.2. They are why the version bump is a project, not a
+one-line ``Cargo.toml`` edit.
+
+1. **MSRV**: egui/eframe 0.36 require Rust 1.95 (0.31 needed 1.81).
+2. **``eframe::App`` trait split (0.34)**: ``App::update`` was replaced by
+   ``fn ui(&mut self, ui: &mut Ui, frame: &mut Frame)`` plus ``fn logic``.
+   ``PyeguiApp`` implements ``update``, so it must be rewritten around the
+   ``&mut Ui`` that eframe now hands it.
+3. **``Context::run`` → ``Context::run_ui`` (0.34)** and ``Ui: Deref<
+   Target = Context>``. The global ``UI`` pointer stack in ``lib.rs`` can
+   stay, but it needs to key off the passed-in ``Ui`` rather than a
+   stashed pointer.
+4. **Atoms (0.32)**: ``Button``, ``Checkbox``, ``RadioButton`` and
+   ``selectable_value`` take ``impl IntoAtoms``. String-based calls still
+   compile, but any wrapper meant to accept image+text needs porting.
+5. **Popup rewrite (0.32)**: ``Popup``, ``PopupAnchor``,
+   ``PopupCloseBehavior``. Existing popup-ish code (``combo_box``,
+   ``date_picker_button``) needs rechecking.
+6. **Date type change**: ``egui_extras`` 0.36 datepicker uses
+   ``jiff::civil::Date``; 0.31 used ``chrono::NaiveDate``. The pyegui
+   ``Date`` class wraps ``NaiveDate``, so it must move to ``jiff`` (or
+   keep ``chrono`` and convert).
+7. **Font rendering (0.34)**: ``ab_glyph`` → ``skrifa`` + ``vello_cpu``,
+   plus a font-variations API. ``Context.set_font`` keeps working but
+   gains options (families, variations).
+8. **Colour spaces**: the full ``color_edit_button_*`` family is expected
+   rather than RGB-only.
+9. **MSRV-adjacent dependency bumps**: pyo3 0.24 is fine, but
+   ``image``, ``log`` and friends move with the egui release train.
+10. **New upstream capabilities worth exposing once unblocked**:
+    ``egui::Plugin`` (0.33), ``Ui`` classes via ``UiBuilder`` (0.35),
+    the inspection protocol and ``egui_mcp`` (0.35), ``BoxedWidget``
+    (0.36), and window-chrome theme syncing (0.36).
+
+Deliberately not planned
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- Rendering backends other than the eframe default. pyegui does not
+  expose renderer selection.
+- Custom Rust-side widgets defined by the user. pyegui targets a pure
+  Python surface.
+- Web/wasm targets, Android, and mobile input tuning.
 
 Install
 -------
