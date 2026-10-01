@@ -259,6 +259,34 @@ Deliberately not planned
   Python surface.
 - Web/wasm targets, Android, and mobile input tuning.
 
+Contributing
+------------
+
+pyegui is a Rust extension module, and this repository is developed
+**without a local Rust toolchain** -- no ``rustup``, no ``cargo``, no
+``docker``, and no ``maturin`` in the venv. GitHub Actions is therefore the
+only place pyegui is ever compiled, and every build claim in a pull request
+must come from an actual workflow run rather than a local invocation.
+
+The full setup, including the per-push ``check`` gate, the lockfile
+regeneration workflow, and which ``Makefile`` targets cannot run here, is
+documented in ``docs/development.rst`` (published as "Development and CI"
+in the documentation site).
+
+In short:
+
+- ``check.yml`` runs on every push to ``main`` and ``feature/**``: ``cargo
+  check --locked``, advisory ``cargo clippy``, a hard assertion that egui
+  resolves to exactly 0.31.1, then ``maturin develop`` plus a Python import
+  that asserts every expected export exists.
+- Push work to the ``fork`` remote; ``origin`` is read-only.
+- Commit only once ``check`` is green.
+
+.. code:: bash
+
+   git push fork feature/<name>
+   gh run list --repo ChetanKnowIT/pyegui --branch feature/<name>
+
 Install
 -------
 

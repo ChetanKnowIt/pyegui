@@ -12,6 +12,12 @@
    examlpes
 
 .. toctree::
+   :caption: Contributing:
+   :hidden:
+
+   development
+
+.. toctree::
    :caption: API reference:
    :hidden:
 
