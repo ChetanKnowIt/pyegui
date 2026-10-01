@@ -78,12 +78,18 @@ jobs:
       - name: Verify pinned egui version
         run: |
           set -euo pipefail
-          resolved=$(cargo tree -p egui --depth 0 --prefix none | head -1 | tr -d ' ')
-          echo "resolved egui: ${resolved}"
-          test "${resolved}" = "egui v0.31.1" || (
-            echo "::error::egui is not pinned to 0.31.1 (got ${resolved})"
-            exit 1
-          )
+          for crate in egui eframe egui_extras; do
+            # --prefix none leaves no leading spaces, but normalise anyway so
+            # the comparison cannot silently pass on a malformed line.
+            resolved=$(cargo tree -p "${crate}" --depth 0 --prefix none \
+                       | head -1 | tr -d '[:space:]')
+            expected="${crate}v0.31.1"
+            echo "resolved ${crate}: ${resolved}"
+            if [ "${resolved}" != "${expected}" ]; then
+              echo "::error::${crate} is not pinned to 0.31.1 (got ${resolved}, want ${expected})"
+              exit 1
+            fi
+          done
 
       # Builds the extension module and imports it, which catches missing
       # #[pymodule] registrations that cargo check alone will not.
