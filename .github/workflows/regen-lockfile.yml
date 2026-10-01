@@ -1,0 +1,39 @@
+# One-shot: regenerate Cargo.lock after a dependency change and upload it as an
+# artifact, since this repo has no local Rust toolchain and `cargo update` needs
+# network access.
+#
+# This workflow is deleted once the regenerated lockfile is committed.
+name: regen-lockfile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regen:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Regenerate lockfile
+        run: |
+          set -euo pipefail
+          # Drop the old resolution so the new exact pins are honoured rather
+          # than merged with stale caret-resolved entries.
+          cargo update --workspace
+          echo "--- egui resolution:"
+          cargo tree -p egui --depth 0 --prefix none | head -1
+          cargo tree -p eframe --depth 0 --prefix none | head -1
+          cargo tree -p egui_extras --depth 0 --prefix none | head -1
+
+      - name: Upload regenerated Cargo.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockfile
+          path: Cargo.lock
