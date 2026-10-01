@@ -6,6 +6,9 @@
 name: regen-lockfile
 
 on:
+  push:
+    branches:
+      - 'feature/**'
   workflow_dispatch:
 
 permissions:
