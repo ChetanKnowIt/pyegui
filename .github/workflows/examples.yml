@@ -54,20 +54,24 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Order matters here, and it cost two runs to find out.
+          #
+          # `apt-get install imagemagick` pulls in the distro's python3 and
+          # its pip. That older pip rejects the wheel maturin builds:
+          #
+          #   ERROR: pyegui-...-manylinux_2_35_x86_64.whl is not a supported
+          #          wheel on this platform
+          #
+          # check.yml installs the identical wheel fine because it runs no
+          # apt-get at all. So: install the Python tooling first, while the
+          # runner's own pip is still in charge, then add the system packages.
+          python -m pip install --upgrade pip
+          python -m pip install "maturin>=1.8,<2.0"
+
           # eframe builds with the `glow` backend and needs a real OpenGL
           # context. A bare Xvfb opens a window and renders nothing, so Mesa's
           # software rasteriser is what actually draws.
           sudo apt-get update -qq
-
-          # imagemagick pulls in python3 as a dependency, which on Ubuntu
-          # 22.04 installs a second, older interpreter than the runner's.
-          # `pip` then belongs to one interpreter and `python` to the other,
-          # so a wheel installed by pip is invisible to python:
-          #
-          #   ERROR: pyegui-....whl is not a supported wheel on this platform
-          #
-          # which is a confusing way to say "pip and python disagree". Use the
-          # interpreter's own -m pip so both are always the same one.
           sudo apt-get install -y --no-install-recommends \
             xvfb x11-utils libgl1-mesa-dri mesa-utils \
             libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1 \
@@ -75,23 +79,17 @@ jobs:
 
           # CI has no virtualenv, so build a wheel and install it into the
           # runner's Python -- the same way check.yml does.
-          python -m pip install "maturin>=1.8,<2.0"
           maturin build --release --locked --out dist --find-interpreter
 
-          # Install by path rather than by name. The wheel is named
-          # pyegui-<version>-cp311-abi3-manylinux...whl, and
-          # `pip install --find-links dist pyegui` depends on the directory
-          # being on pip's search path, which it is not once an apt install
-          # has moved Python into a user site dir. Naming the file cannot go
-          # wrong, and if the glob matches nothing the install fails loudly
-          # instead of silently leaving the stale wheel in place.
+          # Install by path, not by name: `--find-links` depends on pip's
+          # search path, and an unmatched glob would otherwise leave a stale
+          # wheel in place and pass against the wrong build.
           wheel=$(ls -1 dist/pyegui-*.whl)
           echo "installing ${wheel}"
           python -m pip install --force-reinstall "${wheel}"
 
-          # Prove pip and python are the same interpreter before anything
-          # depends on it, so a mismatch fails here with a clear message
-          # rather than 14 confusing per-example errors later.
+          # Fail here, loudly, if what got installed is not what `python` will
+          # import -- rather than as 14 unrelated per-example failures later.
           python -c "import pyegui; print('pyegui', len(dir(pyegui)), 'names from', pyegui.__file__)"
 
       - name: Run every example
