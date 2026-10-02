@@ -49,9 +49,11 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is intentionally small: **90 functions** and **13 classes**
-are exported today. See `Roadmap`_ for what egui can do that pyegui cannot
-do (yet).
+The API surface is **121 names** today: 17 classes, 63 functions and 41
+``*_response`` variants. See `Roadmap`_ for what egui can do that pyegui
+cannot do (yet). The authoritative list is `tests/expected_exports.py
+<https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py>`__,
+which CI asserts against the built module.
 
 Full list of implemented features is available
 `here <https://github.com/GachiLord/pyegui/blob/main/TODO.md>`__
@@ -84,19 +86,24 @@ the egui release it is pinned to.
 pyegui is five egui minor releases behind. egui 0.36 requires Rust 1.95
 (0.31 required 1.81), so the upgrade also means a newer toolchain.
 
-Available now (implemented in 0.5.0)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Available now
+~~~~~~~~~~~~~
 
 - Text: ``heading``, ``label``, ``monospace``, ``small``, ``strong``,
   ``weak``, ``code``, ``code_editor``
 - Input: ``text_edit_singleline``, ``text_edit_multiline``
 - Buttons and links: ``button_clicked``, ``small_button_clicked``,
-  ``link_clicked``, ``hyperlink``, ``hyperlink_to``, ``image_and_text_clicked``
-- Selection: ``checkbox``, ``toggle_value``, ``radio_value``,
-  ``selectable_value``, ``combo_box``
+  ``link_clicked``, ``hyperlink``, ``hyperlink_to``,
+  ``image_and_text_clicked``
+- Selection: ``checkbox``, ``toggle_value``, ``radio_value``, ``radio``,
+  ``selectable_value``, ``selectable_label``, ``combo_box``
 - Numbers: ``slider_float``, ``slider_int``, ``drag_float``, ``drag_int``,
-  ``progress``
-- Colour and dates: ``color_edit_button_rgb``, ``date_picker_button``
+  ``drag_angle``, ``drag_angle_tau``, ``progress``
+- Colour: ``color_edit_button_rgb``, ``_srgb``, ``_srgba``, ``_hsva``,
+  ``_rgba_unmultiplied``, ``_rgba_premultiplied``,
+  ``_srgba_unmultiplied``, ``_srgba_premultiplied`` — every colour space
+  egui 0.31.1 offers
+- Dates: ``date_picker_button``
 - Images: ``image`` (``max_width`` / ``max_height``)
 - Layout: ``horizontal``, ``horizontal_centered``, ``horizontal_top``,
   ``horizontal_wrapped``, ``vertical``, ``vertical_centered``,
@@ -104,11 +111,44 @@ Available now (implemented in 0.5.0)
 - Scopes: ``collapsing``, ``group``, ``scope``, ``scroll_area_vertical``,
   ``scroll_area_horizontal``, ``Layout`` / ``LayoutType``, ``Group``
 - Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
-  ``set_opacity``, ``add_space``, ``separator``
+  ``set_opacity``, ``add_space``, ``separator``, ``close_menu``
 - App: ``run_native`` with viewport kwargs, ``Context`` (theme, fonts,
   ``open_url``, ``copy_text``)
-- Reference helpers: ``Str``, ``Bool``, ``Int``, ``Float``, ``RGB``,
-  ``Date``
+- State holders: ``Str``, ``Bool``, ``Int``, ``Float``, ``Date``
+- Colours: ``RGB``, ``RGBA``, ``HSVA``, ``Color32``, ``SRGB``
+
+Interaction state
+~~~~~~~~~~~~~~~~~
+
+egui returns a ``Response`` from every widget, carrying hover, click, drag,
+focus and rect information. pyegui reaches it through the ``*_response``
+variants:
+
+.. code-block:: python
+
+   from pyegui import *
+
+   name = Str("")
+   enabled = Bool(True)
+
+   def update_func(ctx):
+       response = button_response("save")
+       if response.clicked:
+           print("saved")
+       if response.hovered:
+           response.on_hover_text("ctrl+s saves the file")
+
+       if text_edit_singleline_response(name, hint_text="name").changed:
+           print("name is now", name.value)
+
+       if checkbox_response(enabled, "enabled").changed:
+           print("toggled to", enabled.value)
+
+The existing boolean helpers (``button_clicked`` and friends) are unchanged,
+so existing code keeps working. ``Response`` also carries ``clicked_by``,
+``drag_delta``, ``has_focus``, ``request_focus``, ``context_menu``,
+``on_hover_ui`` and the rest of the 0.31.1 surface. A ``Response`` describes
+one frame — read it in the same frame the widget was shown.
 
 Not available yet — planned
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -116,101 +156,92 @@ Not available yet — planned
 Ordered roughly by value per unit of work. "egui" names the upstream
 API this would wrap.
 
-**Missing widget families**
+**Missing containers — the largest remaining gap**
 
-- ``Grid``, ``columns`` / ``columns_const``, ``end_row``, ``set_row_height``
-  — no multi-column or table-style layouts at all today
-- ``ComboBox`` as a widget (only pyegui's hand-rolled ``combo_box``
-  exists), including ``width``, ``wrap``, ``icon``, ``popup_style``
-- ``ColorEditButton`` in every colour space except RGB:
-  ``color_edit_button_srgb``, ``_srgba``, ``_hsva``, ``_rgba_unmultiplied``,
-  and the premultiplied variants
-- ``selectable_label``, ``radio``, ``drag_angle`` / ``drag_angle_tau``,
-  ``colored_label``
-- ``MenuBar`` / ``menu_button`` / ``sub_menu`` — no menus
-- ``Table`` / ``TableBuilder`` from ``egui_extras`` — no data grids
-- ``StripBuilder`` and ``Sizing`` from ``egui_extras``
-- Syntax-highlighted code view (``egui_extras`` ``syntect`` feature is
-  not even enabled)
-- ``Frame`` with custom fill/stroke/corner radius (only
-  ``Frame::group`` is reachable today)
-- ``CollapsingHeader`` builder options: ``default_open``, ``show_arrow``
-
-**Missing containers**
-
-- ``Window`` — no secondary windows
+- ``Window`` — no secondary windows (39 builder options upstream)
 - ``SidePanel`` / ``TopBottomPanel`` — only ``CentralPanel`` is ever used
-- ``Area``, ``Popup``, ``Tooltip``, ``Modal``, ``Resize``, ``Scene``,
-  ``ClosableTag``
-- ``MenuBar`` and its config
+- ``Area``, ``Popup``, ``Modal``, ``Resize``, ``Scene``
+- ``MenuBar`` / ``menu_button`` / submenus — no menus at all
+- ``Frame`` with custom fill / stroke / corner radius, and the presets
+  (``popup``, ``menu``, ``window``, ``canvas``, ``central_panel``,
+  ``side_top_panel``) — only ``Frame::group`` is reachable
+- ``CollapsingHeader`` builder options: ``default_open``,
+  ``show_background``, ``icon``, open-state toggling
+- ``ScrollArea``: ``both``, ``max_width`` / ``max_height``,
+  ``min_scrolled_width`` / ``min_scrolled_height``,
+  ``scroll_bar_visibility``, ``id_source``
 
-**Missing interaction feedback**
+**Missing layout and sizing**
 
-egui returns a ``Response`` from every widget, and pyegui collapses it to
-a bool (``button_clicked``) or nothing at all. Until that is fixed none
-of the following is expressible:
-
-- hover and focus state, ``on_hover_text`` (tooltips), ``on_hover_ui``
-- double / triple / secondary / middle clicks
-- ``changed``, ``lost_focus``, ``request_focus``, ``surrender_focus``
-- drag state and drag payloads (``dnd_drag_source``, ``dnd_drop_zone``)
-- ``context_menu`` on any widget
-- ``Response::show_tooltip_text``
+- ``Grid``, ``columns`` / ``columns_const``, ``end_row``,
+  ``set_row_height`` — no multi-column layout at all today
+- Sizing: ``set_width``, ``set_height``, ``set_min_size``, ``set_max_size``,
+  ``set_width_range``, ``shrink_width_to_current`` …
+- Measurement: ``available_size``, ``available_width``, ``cursor``,
+  ``min_rect``, ``max_rect``, ``pixels_per_point``,
+  ``next_widget_position``
+- ``with_layout``, ``wrap_mode``, ``push_id``, ``unique_id``
+- ``UiBuilder`` / ``scope_builder`` / ``new_child``
+- ``Painter`` access — no custom painting, shapes or text layout
 
 **Missing Context API**
 
-pyegui's ``Context`` exposes 8 methods; egui 0.36 ``Context`` has ~160.
-Notable gaps:
+egui's ``Context`` exposes 151 methods; pyegui reaches 8.
 
-- input state: ``input``, ``is_pointer_over_egui``,
-  ``egui_wants_keyboard_input``, pointer positions, modifiers — you
-  cannot read the keyboard or mouse today
-- ``request_repaint`` (and the ``_after`` variants)
-- ``memory`` / ``memory_mut`` (sizing, order, focus state)
-- ``style``, ``visuals``, ``spacing``, ``set_style``, ``set_visuals``
-  — no way to customise widget appearance
-- animations: ``animate_bool_with_time``, ``animate_value_with_time``
+- Input state: ``input``, ``is_pointer_over_area``,
+  ``wants_keyboard_input``, ``wants_pointer_input``,
+  ``pointer_hover_pos``, modifiers — you cannot read the keyboard or mouse
+  directly today
+- ``request_repaint`` (and the ``_after`` / ``_of`` variants)
+- ``memory`` / ``memory_mut``
+- ``style``, ``visuals``, ``spacing``, ``set_style``, ``set_visuals`` —
+  no way to customise widget appearance
+- Animations: ``animate_bool_with_time``, ``animate_value_with_time``
 - ``viewport`` commands, ``set_zoom_factor``, ``set_pixels_per_point``
 - ``load_texture`` / ``try_load_bytes`` / custom image loaders
-- ``egui::Plugin`` (0.33+) and the inspection protocol (0.35+)
+- ``set_cursor_icon``, debug hooks
+
+**Missing widgets**
+
+- ``colored_label`` — needs ``Color32`` and ``RichText`` wrappers
+- ``ComboBox`` as a widget (only pyegui's hand-rolled ``combo_box``
+  exists), including ``width``, ``wrap``, ``icon``, ``popup_style``,
+  ``from_id_salt``
+- ``Table`` / ``TableBuilder`` from ``egui_extras`` — no data grids
+- ``StripBuilder`` and ``Sizing`` from ``egui_extras``
+- Syntax-highlighted code view (the ``egui_extras`` ``syntect`` feature
+  is not enabled)
+- ``svg_text`` (selectable SVG source), ``RetainedImage``
+- Drag and drop: ``dnd_drag_source`` / ``dnd_drop_zone``. The payload
+  methods on ``Response`` are also deferred: ``dnd_set_drag_payload``
+  takes ``Arc<dyn Any + Send + Sync>``, which has no clean Python
+  mapping.
 
 **Missing builder options on existing widgets**
 
 - ``Slider``: ``logarithmic``, ``step_by``, ``binary`` / ``hexadecimal`` /
   ``octal``, ``prefix`` / ``suffix``, ``custom_formatter`` /
   ``custom_parser``, ``vertical``, ``clamping``, ``text_color``,
-  ``handle_shape``
-- ``DragValue``: ``prefix`` / ``suffix``, formatters, ``binary`` etc.
+  ``handle_shape``, ``fixed_decimals``, ``show_value``, ``trailing_fill``
+- ``DragValue``: ``prefix`` / ``suffix``, formatters, ``binary``,
+  ``fixed_decimals``, ``clamp_existing_to_range``
 - ``TextEdit``: ``password``, ``desired_width`` / ``desired_rows``,
   ``char_limit``, ``lock_focus``, ``font``, ``interactive``,
-  ``cursor_at_end``, ``background_color``, ``margin``, ``horizontal_align``
-  / ``vertical_align``
+  ``cursor_at_end``, ``background_color``, ``margin``,
+  ``horizontal_align`` / ``vertical_align``, ``frame``, ``return_key``
 - ``Button``: ``selected``, ``min_size``, ``atoms``, ``shortcut_text``,
   ``wrap``
 - ``Image``: ``tint``, ``size``, ``fit_to_exact_size``, ``rotate``, ``uv``,
   ``corner_radius``, ``sense``, ``alt_text``
 - ``ProgressBar``: text, ``animate``
 - ``DatePickerButton``: ``format``, ``start_end_years``, ``show_icon``,
-  ``combo_boxes``, ``calendar_week``
+  ``combo_boxes``, ``calendar_week``, ``highlight_weekends``
 - ``run_native`` viewport kwargs: only size, fullscreen, maximized,
   resizable, transparent and ``icon_path`` are forwarded; position,
   decorations, window level, app id, monitor and always-on-top are not
 - ``eframe`` ``NativeOptions``: renderer choice, ``multisampling``,
   ``depth_buffer``, ``persistence_path``, ``dithering``, ``centered``,
   and ``App::save`` (state persistence) are all unreachable
-
-**Missing low-level building blocks**
-
-- ``Painter`` access — no custom painting, shapes or text layout
-- ``style_mut``, ``visuals_mut``, ``spacing_mut``
-- ``available_size`` / ``available_width`` / ``available_height``,
-  ``cursor``, ``min_rect``, ``max_rect``, ``pixels_per_point``
-- Sizing: ``set_width``, ``set_height``, ``set_min_size``,
-  ``set_max_size``, ``take_available_width`` …
-- ``UiBuilder`` / ``scope_builder`` / ``new_child``, ``push_id``,
-  ``with_layout``, ``wrap_mode``
-- Non-``Ui`` containers are unreachable: ``Widget``, ``Atom``
-  (0.32+), ``BoxedWidget`` (0.36)
 
 Upgrade path to egui 0.36
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

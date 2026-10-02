@@ -68,33 +68,47 @@ Steps, in order:
    ``Swatinem/rust-cache@v2`` caching the registry and ``target/``.
 3. ``cargo check --locked --all-targets`` -- **the real gate.** If the Rust
    side does not compile, nothing else matters.
-4. ``cargo clippy --locked --all-targets`` -- currently **advisory**. The
-   pre-existing ``lib.rs`` carries roughly 19 clippy lints, so this runs
-   without ``-D warnings`` and posts a summary instead of failing the job.
-   That keeps it a "no new lints" regression gate while the backlog is
-   worked down; promote it to ``-- -D warnings`` once the baseline is clean.
-5. ``Verify pinned egui version`` -- runs ``cargo tree -p egui`` and fails
-   if the resolution is not exactly ``0.31.1``. This is what makes the
-   ``=0.31.1`` pins in ``Cargo.toml`` enforceable rather than aspirational.
-6. ``Build extension module and verify exports`` -- installs
-   ``maturin``, runs ``maturin develop --release --locked``, then imports
-   the module in Python and asserts that a required set of names is
-   present. This catches missing ``#[pymodule]`` registrations that
-   ``cargo check`` alone will not: adding a ``#[pyfunction]`` without
-   registering it compiles cleanly and fails only at import time.
+4. ``cargo clippy --locked --all-targets`` -- currently **advisory**. It runs
+   without ``-D warnings`` and posts a summary instead of failing the job,
+   making it a "no new lints" regression gate. The baseline is now 0
+   diagnostics (it used to be roughly 19), so promoting it to
+   ``-- -D warnings`` is the obvious next step.
+5. ``Verify pinned egui version`` -- runs ``cargo tree -p <crate>`` for
+   ``egui``, ``eframe`` **and** ``egui_extras``, and fails if any does not
+   resolve to exactly ``0.31.1``. This is what makes the ``=0.31.1`` pins
+   in ``Cargo.toml`` enforceable rather than aspirational.
+6. ``Build wheel and verify exports`` -- installs ``maturin``, runs
+   ``maturin build --release --locked``, pip-installs the wheel, then runs
+   ``tests/expected_exports.py`` against the imported module. This catches
+   missing ``#[pymodule]`` registrations that ``cargo check`` alone will
+   not: adding a ``#[pyfunction]`` without registering it compiles cleanly
+   and fails only at import time. It builds a wheel rather than using
+   ``maturin develop`` because CI has no activated virtualenv.
 
-The export assertion is deliberately a hand-maintained list. Every new
-public function or class must be added to it in the same change, which
-keeps the Python-visible API and the Rust-side API from drifting.
+The export gate lives in ``tests/expected_exports.py``, not inline in the
+workflow. It asserts in **both** directions:
+
+- ``check()`` -- every declared name is exported by the module.
+- ``check_no_unexpected()`` -- every name the module exports is declared.
+  Without this, a widget could be deleted from the module and the list
+  together and CI would stay green while the API quietly shrank.
+
+Every new public function or class must be added to that file in the same
+change. It is a real Python file rather than a literal embedded in the YAML
+so that it can be linted, diffed and executed directly.
 
 Concurrency is set per-ref with ``cancel-in-progress``, so rapid pushes to
 a feature branch do not queue up redundant builds.
 
 .. code:: bash
 
-   gh run list --repo ChetanKnowIt/pyegui --branch feature/<name>
-   gh run watch <run-id> --repo ChetanKnowIt/pyegui --exit-status
-   gh run view <run-id> --repo ChetanKnowIt/pyegui --log-failed
+   # Filter on name == "check": regen-lockfile fires on the same push and
+   # its run id sorts adjacent, so "take the latest run" watches the
+   # wrong job.
+   gh run list --repo ChetanKnowIT/pyegui --branch feature/<name> \
+     --json databaseId,name,headSha -q '.[] | select(.name=="check")'
+   gh run watch <run-id> --repo ChetanKnowIT/pyegui --exit-status
+   gh run view <run-id> --repo ChetanKnowIT/pyegui --log-failed
 
 regen-lockfile.yml -- lockfile updates without a local cargo
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -152,7 +166,7 @@ Adding a feature
    ``#[pyfunction] unsafe fn ...`` taking the current ``Ui`` from the UI
    stack, plus a matching ``m.add_function(wrap_pyfunction!(...))`` in the
    ``#[pymodule]`` block.
-3. Add the new name to the export assertion in ``check.yml``.
+3. Add the new name to ``tests/expected_exports.py``.
 4. Push to ``fork`` and read the actual ``check`` run result.
 5. Update ``TODO.md`` and the README roadmap.
 6. Commit only once ``check`` is green.

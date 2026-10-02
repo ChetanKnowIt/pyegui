@@ -12,10 +12,13 @@ not reachable) · `[ ]` not implemented
 
 ## Current state
 
-90 functions and 13 classes exported (`src/lib.rs`), 103 names in total. The
-34 `*_response` variants are the ones that return a `Response`; they exist
+121 names exported (`src/lib.rs`): 17 classes, 63 functions and 41
+`*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 45 on `Response`.
+
+`tests/expected_exports.py` is the authoritative list and the CI export gate;
+it is generated from, and asserted against, the `#[pymodule]` block.
 
 Validation is CI-only — see `docs/development.rst`. Nothing is compiled
 locally, so each batch is pushed to `fork` and the `check` run is the verdict.
@@ -67,9 +70,10 @@ were dropped rather than shipped as stubs:
 - [x] `radio` (selectable without a companion value)
 - [x] `drag_angle`, `drag_angle_tau`
 - [ ] `colored_label`
-- [~] `color_edit_button_rgb` — only RGB. Missing `hsva`, `srgb`, `srgba`,
-      `rgba_premultiplied`, `rgba_unmultiplied`, `srgba_premultiplied`,
-      `srgba_unmultiplied`
+- [x] `color_edit_button_rgb` — and now every other colour space: `hsva`,
+      `srgb`, `srgba`, `rgba_premultiplied`, `rgba_unmultiplied`,
+      `srgba_premultiplied`, `srgba_unmultiplied`. Backed by the `RGBA`,
+      `HSVA`, `Color32` and `SRGB` classes
 - [~] `combo_box` — hand-rolled, not egui's `ComboBox`. Missing `width`,
       `wrap`, `icon`, `popup_style`, `from_id_salt`
 - [~] `image` — missing `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
@@ -123,7 +127,8 @@ egui 0.31.1 ships all of these; pyegui reaches only `CentralPanel` and
 
 ## 5. Context API
 
-`Context` exposes 8 methods; egui 0.31.1 has 151.
+`Context` exposes 8 methods; egui 0.31.1 has 151. Unchanged by the coverage
+work so far — this is the next large gap after containers.
 
 - [ ] Input state: `input`, `is_pointer_over_area`, `wants_keyboard_input`,
       `wants_pointer_input`, `is_using_pointer`, `pointer_hover_pos`,
@@ -192,6 +197,22 @@ a positional label reach the builders.
 ---
 
 ## Appendices
+
+### Shipped on the 0.31.1 coverage branch
+
+Everything in the 0.5.0 appendix below, plus:
+
+Interaction state: the `Response` class (28 getters and methods) and 41
+`*_response` variants covering every widget that has a binding. The boolean
+helpers are unchanged and now delegate to them.
+
+Widgets added: `selectable_label`, `radio`, `drag_angle`, `drag_angle_tau`,
+`close_menu`.
+
+Colours: all seven non-RGB pickers — `color_edit_button_hsva`, `_srgb`,
+`_srgba`, `_rgba_unmultiplied`, `_rgba_premultiplied`,
+`_srgba_unmultiplied`, `_srgba_premultiplied` — plus the `RGBA`, `HSVA`,
+`Color32` and `SRGB` classes.
 
 ### Shipped in 0.5.0
 
