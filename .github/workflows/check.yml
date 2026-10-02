@@ -110,35 +110,36 @@ jobs:
           required = {
               # entrypoint
               "run_native",
-              # state holders
-              "Str", "Bool", "Int", "Float", "RGB", "Date",
-              # containers
-              "Layout", "LayoutType", "Scope", "Group",
-              # app context
-              "Context",
-              # widgets
-              "heading", "monospace", "small", "strong", "weak", "label",
-              "code", "code_editor", "text_edit_singleline",
-              "text_edit_multiline", "button_clicked", "small_button_clicked",
-              "link_clicked", "hyperlink", "hyperlink_to",
-              "image_and_text_clicked", "checkbox", "toggle_value",
-              "radio_value", "selectable_value", "combo_box", "progress",
-              "spinner", "color_edit_button_rgb", "date_picker_button",
-              # widgets added on the egui 0.31.1 coverage branch
-              "selectable_label", "radio", "drag_angle", "drag_angle_tau",
-              "close_menu",
-              # layout / scopes
-              "horizontal", "horizontal_centered", "horizontal_top",
-              "horizontal_wrapped", "vertical", "vertical_centered",
-              "vertical_centered_justified", "centered_and_justified",
-              "indent", "collapsing", "group", "scope",
-              "scroll_area_vertical", "scroll_area_horizontal",
-              # ui state
-              "disable", "add_enabled", "set_invisible", "set_opacity",
-              "add_space", "separator",
-              # numbers and images
-              "slider_float", "slider_int", "drag_float", "drag_int",
-              "image",
+              # every exported class
+              "Bool", "Context", "Date", "Float", "Group", "Int", "Layout", "LayoutType",
+              "PointerButton", "RGB", "Response", "Scope", "Str",
+              # every exported plain widget / helper function
+              "add_enabled", "add_space", "button_clicked", "centered_and_justified",
+              "checkbox", "close_menu", "code", "code_editor", "collapsing",
+              "color_edit_button_rgb", "combo_box", "date_picker_button", "disable",
+              "drag_angle", "drag_angle_tau", "drag_float", "drag_int", "group",
+              "heading", "horizontal", "horizontal_centered", "horizontal_top",
+              "horizontal_wrapped", "hyperlink", "hyperlink_to", "image",
+              "image_and_text_clicked", "indent", "label", "link_clicked", "monospace",
+              "progress", "radio", "radio_value", "run_native", "scope",
+              "scroll_area_horizontal", "scroll_area_vertical", "selectable_label",
+              "selectable_value", "separator", "set_invisible", "set_opacity",
+              "slider_float", "slider_int", "small", "small_button_clicked", "spinner",
+              "strong", "text_edit_multiline", "text_edit_singleline", "toggle_value",
+              "vertical", "vertical_centered", "vertical_centered_justified", "weak",
+              # *_response variants wrapping egui::Response
+              "button_response", "checkbox_response", "code_editor_response",
+              "code_response", "color_edit_button_rgb_response",
+              "date_picker_button_response", "drag_angle_response",
+              "drag_angle_tau_response", "drag_float_response", "drag_int_response",
+              "heading_response", "hyperlink_response", "hyperlink_to_response",
+              "image_and_text_response", "image_response", "label_response",
+              "link_response", "monospace_response", "progress_response",
+              "radio_response", "radio_value_response", "selectable_label_response",
+              "selectable_value_response", "separator_response", "slider_float_response",
+              "slider_int_response", "small_button_response", "small_response",
+              "spinner_response", "strong_response", "text_edit_multiline_response",
+              "text_edit_singleline_response", "toggle_value_response", "weak_response"
           }
           missing = sorted(n for n in required if not hasattr(pyegui, n))
           assert not missing, f"missing exports: {missing}"

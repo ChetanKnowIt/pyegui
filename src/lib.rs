@@ -546,6 +546,329 @@ impl Group {
     }
 }
 
+/// Mouse button that triggered an interaction.
+///
+/// Passed to Response.clicked_by and friends. Values are Primary (usually the
+/// left button), Secondary (usually the right button), Middle (the scroll
+/// wheel), Extra1 and Extra2 (the side buttons on some mice).
+#[pyclass]
+#[derive(Clone, Copy)]
+enum PointerButton {
+    Primary,
+    Secondary,
+    Middle,
+    Extra1,
+    Extra2,
+}
+
+impl From<PointerButton> for egui::PointerButton {
+    fn from(button: PointerButton) -> Self {
+        match button {
+            PointerButton::Primary => egui::PointerButton::Primary,
+            PointerButton::Secondary => egui::PointerButton::Secondary,
+            PointerButton::Middle => egui::PointerButton::Middle,
+            PointerButton::Extra1 => egui::PointerButton::Extra1,
+            PointerButton::Extra2 => egui::PointerButton::Extra2,
+        }
+    }
+}
+
+/// The result of showing a widget.
+///
+/// Every widget in egui returns one of these; pyegui returns it from the
+/// `*_response` functions so the full interaction state is reachable. The
+/// existing boolean helpers (button_clicked and friends) are unchanged.
+///
+/// A Response describes one frame. Read it inside the update function, in the
+/// same frame the widget was shown.
+///
+/// Usage::
+///
+///     def update_func(ctx):
+///         response = button_response("click me")
+///         if response.clicked:
+///             print("clicked")
+///         if response.hovered:
+///             response.on_hover_text("i am a tooltip")
+#[pyclass]
+struct Response {
+    inner: egui::Response,
+}
+
+#[pymethods]
+impl Response {
+    /// True if the widget was clicked this frame.
+    #[getter]
+    fn clicked(&self) -> bool {
+        self.inner.clicked()
+    }
+
+    /// True if the widget was clicked with the given mouse button.
+    fn clicked_by(&self, button: PointerButton) -> bool {
+        self.inner.clicked_by(button.into())
+    }
+
+    /// True if the right mouse button was used.
+    #[getter]
+    fn secondary_clicked(&self) -> bool {
+        self.inner.secondary_clicked()
+    }
+
+    /// True if the middle (scroll wheel) button was used.
+    #[getter]
+    fn middle_clicked(&self) -> bool {
+        self.inner.middle_clicked()
+    }
+
+    /// True if the widget was double clicked.
+    #[getter]
+    fn double_clicked(&self) -> bool {
+        self.inner.double_clicked()
+    }
+
+    /// True if the widget was double clicked with the given mouse button.
+    fn double_clicked_by(&self, button: PointerButton) -> bool {
+        self.inner.double_clicked_by(button.into())
+    }
+
+    /// True if the widget was triple clicked.
+    #[getter]
+    fn triple_clicked(&self) -> bool {
+        self.inner.triple_clicked()
+    }
+
+    /// True if the widget was triple clicked with the given mouse button.
+    fn triple_clicked_by(&self, button: PointerButton) -> bool {
+        self.inner.triple_clicked_by(button.into())
+    }
+
+    /// True if a click happened elsewhere, i.e. this widget lost the click.
+    #[getter]
+    fn clicked_elsewhere(&self) -> bool {
+        self.inner.clicked_elsewhere()
+    }
+
+    /// True if the widget was touched for longer than a click.
+    #[getter]
+    fn long_touched(&self) -> bool {
+        self.inner.long_touched()
+    }
+
+    /// False if the widget is disabled, in which case it senses nothing.
+    #[getter]
+    fn enabled(&self) -> bool {
+        self.inner.enabled()
+    }
+
+    /// True if the pointer is over the widget.
+    #[getter]
+    fn hovered(&self) -> bool {
+        self.inner.hovered()
+    }
+
+    /// True if the widget rect contains the pointer, even where clipped.
+    #[getter]
+    fn contains_pointer(&self) -> bool {
+        self.inner.contains_pointer()
+    }
+
+    /// True if the widget is highlighted, e.g. by being hovered.
+    #[getter]
+    fn highlighted(&self) -> bool {
+        self.inner.highlighted()
+    }
+
+    /// True if the widget or its label has keyboard focus.
+    #[getter]
+    fn has_focus(&self) -> bool {
+        self.inner.has_focus()
+    }
+
+    /// True if the widget gained focus this frame.
+    #[getter]
+    fn gained_focus(&self) -> bool {
+        self.inner.gained_focus()
+    }
+
+    /// True if the widget lost focus this frame.
+    #[getter]
+    fn lost_focus(&self) -> bool {
+        self.inner.lost_focus()
+    }
+
+    /// Give the widget keyboard focus.
+    fn request_focus(&self) {
+        self.inner.request_focus();
+    }
+
+    /// Remove keyboard focus from the widget.
+    fn surrender_focus(&self) {
+        self.inner.surrender_focus();
+    }
+
+    /// True if a drag gesture started on the widget this frame.
+    #[getter]
+    fn drag_started(&self) -> bool {
+        self.inner.drag_started()
+    }
+
+    /// True if a drag started with the given mouse button.
+    fn drag_started_by(&self, button: PointerButton) -> bool {
+        self.inner.drag_started_by(button.into())
+    }
+
+    /// True if the widget is being dragged.
+    #[getter]
+    fn dragged(&self) -> bool {
+        self.inner.dragged()
+    }
+
+    /// True if the widget is being dragged by the given mouse button.
+    fn dragged_by(&self, button: PointerButton) -> bool {
+        self.inner.dragged_by(button.into())
+    }
+
+    /// True if the drag ended on the widget this frame.
+    #[getter]
+    fn drag_stopped(&self) -> bool {
+        self.inner.drag_stopped()
+    }
+
+    /// True if a drag with the given mouse button stopped on the widget.
+    fn drag_stopped_by(&self, button: PointerButton) -> bool {
+        self.inner.drag_stopped_by(button.into())
+    }
+
+    /// True if the widget was dragged and released this frame.
+    #[getter]
+    fn drag_released(&self) -> bool {
+        self.inner.drag_released()
+    }
+
+    /// True if a drag with the given mouse button was released on the widget.
+    fn drag_released_by(&self, button: PointerButton) -> bool {
+        self.inner.drag_released_by(button.into())
+    }
+
+    /// How far the widget was dragged this frame, as (dx, dy).
+    #[getter]
+    fn drag_delta(&self) -> (f32, f32) {
+        let delta = self.inner.drag_delta();
+        (delta.x, delta.y)
+    }
+
+    /// How much the pointer moved this frame, as (dx, dy).
+    #[getter]
+    fn drag_motion(&self) -> (f32, f32) {
+        let motion = self.inner.drag_motion();
+        (motion.x, motion.y)
+    }
+
+    /// Where the pointer was when the widget was clicked or dragged, as
+    /// (x, y), or None if there was no interaction.
+    #[getter]
+    fn interact_pointer_pos(&self) -> Option<(f32, f32)> {
+        self.inner.interact_pointer_pos().map(|p| (p.x, p.y))
+    }
+
+    /// Where the pointer is, as (x, y), or None if not over the widget.
+    #[getter]
+    fn hover_pos(&self) -> Option<(f32, f32)> {
+        self.inner.hover_pos().map(|p| (p.x, p.y))
+    }
+
+    /// True if the mouse button is held down over the widget.
+    #[getter]
+    fn is_pointer_button_down_on(&self) -> bool {
+        self.inner.is_pointer_button_down_on()
+    }
+
+    /// True if the widget's value changed this frame. For text fields and
+    /// sliders, this is how you know the user edited something.
+    #[getter]
+    fn changed(&self) -> bool {
+        self.inner.changed()
+    }
+
+    /// Force changed() to be true next frame. Use when you modify the value
+    /// yourself and want dependent widgets to react.
+    fn mark_changed(&mut self) {
+        self.inner.mark_changed();
+    }
+
+    /// True if a tooltip is currently open for this widget.
+    #[getter]
+    fn is_tooltip_open(&self) -> bool {
+        self.inner.is_tooltip_open()
+    }
+
+    /// True if a context menu was opened on the widget this frame.
+    #[getter]
+    fn context_menu_opened(&self) -> bool {
+        self.inner.context_menu_opened()
+    }
+
+    /// Show a tooltip while the pointer is over the widget. Use text that
+    /// explains the widget, not its current value.
+    fn on_hover_text(&mut self, text: &str) {
+        self.inner = self.inner.clone().on_hover_text(text);
+    }
+
+    /// Show a tooltip while the pointer is over a disabled widget.
+    fn on_disabled_hover_text(&mut self, text: &str) {
+        self.inner = self.inner.clone().on_disabled_hover_text(text);
+    }
+
+    /// Show a tooltip, but only if one is already open for this widget.
+    /// Cheaper than on_hover_text when the tooltip content is expensive to
+    /// build.
+    fn show_tooltip_text(&self, text: &str) {
+        self.inner.show_tooltip_text(text);
+    }
+
+    /// Show a tooltip whose contents are built by a function, called only
+    /// while the pointer is over the widget.
+    ///
+    /// Usage::
+    ///
+    ///     def build_tooltip():
+    ///         heading("details")
+    ///         label("built only while hovered")
+    ///
+    ///     button_response("hover me").on_hover_ui(build_tooltip)
+    fn on_hover_ui(&mut self, update_func: Bound<'_, PyAny>) {
+        self.inner = self
+            .inner
+            .clone()
+            .on_hover_ui(|ui| run_nested_update_func_lossy(ui, update_func.clone()));
+    }
+
+    /// Show a tooltip with pre-built contents, like on_hover_ui but without
+    /// the lazy building.
+    fn show_tooltip_ui(&self, update_func: Bound<'_, PyAny>) {
+        self.inner
+            .show_tooltip_ui(|ui| run_nested_update_func_lossy(ui, update_func));
+    }
+
+    /// Open a context menu when the widget is right clicked. The function is
+    /// called with the menu contents, and only when the menu opens.
+    ///
+    /// Returns True if the menu is open after the call.
+    ///
+    /// Usage::
+    ///
+    ///     def menu_contents():
+    ///         if button_clicked("cut"):
+    ///             print("cut")
+    ///
+    ///     button_response("right click me").context_menu(menu_contents)
+    fn context_menu(&self, update_func: Bound<'_, PyAny>) -> bool {
+        self.inner
+            .context_menu(|ui| run_nested_update_func_lossy(ui, update_func))
+            .is_some()
+    }
+}
+
 // Start function
 
 struct PyeguiApp<'py> {
@@ -750,6 +1073,17 @@ unsafe fn current_ui(ui: &*mut Vec<*mut egui::Ui>) -> PyResult<&mut egui::Ui> {
     last_ui(ui_stack(ui)?)
 }
 
+/// Like `run_nested_update_func`, but for the callbacks egui types as
+/// `impl FnOnce(&mut Ui)` rather than `impl FnOnce(&mut Ui) -> R`. Those
+/// closures must return `()`, so the error is dropped here instead of being
+/// propagated. The Python-side exception has already been displayed by
+/// `run_nested_update_func` at that point.
+fn run_nested_update_func_lossy(ui: &mut egui::Ui, update_fun: Bound<'_, PyAny>) {
+    unsafe {
+        let _ = run_nested_update_func(ui, update_fun);
+    }
+}
+
 unsafe fn run_nested_update_func(ui: &mut egui::Ui, update_fun: Bound<'_, PyAny>) -> PyResult<()> {
     let ui_stack = ui_stack(&UI).unwrap_unchecked();
 
@@ -776,10 +1110,26 @@ unsafe fn run_nested_update_func(ui: &mut egui::Ui, update_fun: Bound<'_, PyAny>
 ///     heading("hello")
 #[pyfunction]
 unsafe fn heading(text: &str) -> PyResult<()> {
+    heading_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     heading("hello")
+///
+///     # with a tooltip:
+///     heading_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn heading_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.heading(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.heading(text),
+    })
 }
 
 /// Show monospace (fixed width) text.
@@ -789,10 +1139,26 @@ unsafe fn heading(text: &str) -> PyResult<()> {
 ///     monospace("hello")
 #[pyfunction]
 unsafe fn monospace(text: &str) -> PyResult<()> {
+    monospace_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     monospace("codeish")
+///
+///     # with a tooltip:
+///     monospace_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn monospace_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.monospace(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.monospace(text),
+    })
 }
 
 /// Show small text.
@@ -802,10 +1168,26 @@ unsafe fn monospace(text: &str) -> PyResult<()> {
 ///     small("hello")
 #[pyfunction]
 unsafe fn small(text: &str) -> PyResult<()> {
+    small_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     small("tiny")
+///
+///     # with a tooltip:
+///     small_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn small_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.small(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.small(text),
+    })
 }
 
 /// Show text that stand out a bit (e.g. slightly brighter).
@@ -815,10 +1197,26 @@ unsafe fn small(text: &str) -> PyResult<()> {
 ///     strong("hello")
 #[pyfunction]
 unsafe fn strong(text: &str) -> PyResult<()> {
+    strong_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     strong("important")
+///
+///     # with a tooltip:
+///     strong_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn strong_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.strong(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.strong(text),
+    })
 }
 
 /// Show text that is weaker (fainter color).
@@ -828,10 +1226,26 @@ unsafe fn strong(text: &str) -> PyResult<()> {
 ///     weak("hello")
 #[pyfunction]
 unsafe fn weak(text: &str) -> PyResult<()> {
+    weak_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     weak("unimportant")
+///
+///     # with a tooltip:
+///     weak_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn weak_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.weak(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.weak(text),
+    })
 }
 
 /// Show some text.
@@ -841,10 +1255,26 @@ unsafe fn weak(text: &str) -> PyResult<()> {
 ///     label("some text")
 #[pyfunction]
 unsafe fn label(text: &str) -> PyResult<()> {
+    label_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     label("some text")
+///
+///     # with a tooltip:
+///     label_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn label_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.label(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.label(text),
+    })
 }
 
 /// Show text as monospace with a gray background.
@@ -854,10 +1284,26 @@ unsafe fn label(text: &str) -> PyResult<()> {
 ///     code("print(42 + 27)")
 #[pyfunction]
 unsafe fn code(text: &str) -> PyResult<()> {
+    code_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the text. A text widget does not react to clicks,
+/// but its Response carries the rect and can carry a tooltip.
+///
+/// Example::
+///
+///     code("code")
+///
+///     # with a tooltip:
+///     code_response("hover me").on_hover_text("an explanation")
+#[pyfunction]
+unsafe fn code_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.code(text);
-    Ok(())
+    Ok(Response {
+        inner: ui.code(text),
+    })
 }
 
 /// Show singleline text field and update the text
@@ -869,10 +1315,25 @@ unsafe fn code(text: &str) -> PyResult<()> {
 ///     code_editor(text)
 #[pyfunction]
 unsafe fn code_editor(text: &mut Str) -> PyResult<()> {
+    code_editor_response(text)?;
+    Ok(())
+}
+
+/// Returns the Response of the code editor. Use changed to know the text was
+/// edited.
+///
+/// Example::
+///
+///     text = Str("print(42)")
+///     if code_editor_response(text).changed:
+///       print("now", text.value)
+#[pyfunction]
+unsafe fn code_editor_response(text: &mut Str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.code_editor(&mut text.value);
-    Ok(())
+    Ok(Response {
+        inner: ui.code_editor(&mut text.value),
+    })
 }
 
 /// Show singleline text field and update the text
@@ -885,6 +1346,25 @@ unsafe fn code_editor(text: &mut Str) -> PyResult<()> {
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_singleline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+    text_edit_singleline_response(text, kwargs)?;
+    Ok(())
+}
+
+/// Returns the Response of the single line text field. Use changed to know
+/// the text was edited.
+///
+/// Example::
+///
+///     text = Str("editable")
+///     response = text_edit_singleline_response(text, hint_text="type here")
+///     if response.changed:
+///       print("now", text.value)
+#[pyfunction]
+#[pyo3(signature = (text, **kwargs))]
+unsafe fn text_edit_singleline_response(
+    text: &mut Str,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
     let mut w = egui::TextEdit::singleline(&mut text.value);
@@ -895,8 +1375,9 @@ unsafe fn text_edit_singleline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>
         }
     }
 
-    ui.add(w);
-    Ok(())
+    Ok(Response {
+        inner: ui.add(w).inner,
+    })
 }
 
 /// Show multiline text field and update the text
@@ -909,6 +1390,24 @@ unsafe fn text_edit_singleline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_multiline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+    text_edit_multiline_response(text, kwargs)?;
+    Ok(())
+}
+
+/// Returns the Response of the multiline text field. Use changed to know the
+/// text was edited.
+///
+/// Example::
+///
+///     text = Str("editable")
+///     if text_edit_multiline_response(text).changed:
+///       print("now", text.value)
+#[pyfunction]
+#[pyo3(signature = (text, **kwargs))]
+unsafe fn text_edit_multiline_response(
+    text: &mut Str,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
     let mut w = egui::TextEdit::multiline(&mut text.value);
@@ -919,8 +1418,9 @@ unsafe fn text_edit_multiline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>
         }
     }
 
-    ui.add(w);
-    Ok(())
+    Ok(Response {
+        inner: ui.add(w).inner,
+    })
 }
 
 /// Returns true if the button was clicked this frame
@@ -931,9 +1431,26 @@ unsafe fn text_edit_multiline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>
 ///       print("click me, my friend")
 #[pyfunction]
 unsafe fn button_clicked(text: &str) -> PyResult<bool> {
+    Ok(button_response(text)?.clicked())
+}
+
+/// Returns the Response of the button, which carries the full interaction
+/// state: hovered, clicked, dragged, focus and rect.
+///
+/// Example::
+///
+///     response = button_response("click me")
+///     if response.clicked:
+///       print("clicked")
+///     if response.hovered:
+///       response.on_hover_text("press it")
+#[pyfunction]
+unsafe fn button_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    Ok(ui.button(text).clicked())
+    Ok(Response {
+        inner: ui.button(text),
+    })
 }
 
 /// Returns true if the small button was clicked this frame
@@ -944,9 +1461,22 @@ unsafe fn button_clicked(text: &str) -> PyResult<bool> {
 ///       print("click me, my friend")
 #[pyfunction]
 unsafe fn small_button_clicked(text: &str) -> PyResult<bool> {
+    Ok(small_button_response(text)?.clicked())
+}
+
+/// Returns the Response of the small button. See button_response.
+///
+/// Example::
+///
+///     if small_button_response("x").clicked:
+///       pass
+#[pyfunction]
+unsafe fn small_button_response(text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    Ok(ui.small_button(text).clicked())
+    Ok(Response {
+        inner: ui.small_button(text),
+    })
 }
 
 /// Start a ui with horizontal layout. After you have called this, the function registers the contents as any other widget.
@@ -1128,10 +1658,32 @@ unsafe fn scope(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
 ///     slider_float(data, 0, 50, "slide me")
 #[pyfunction]
 unsafe fn slider_float(value: &mut Float, min: f32, max: f32, text: &str) -> PyResult<()> {
+    slider_float_response(value, min, max, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the slider. See button_response. Use changed to
+/// know the value was edited.
+///
+/// Example::
+///
+///     data = Float(5)
+///     if slider_float_response(data, 0, 50, "slide me").changed:
+///       print("now", data.value)
+#[pyfunction]
+unsafe fn slider_float_response(
+    value: &mut Float,
+    min: f32,
+    max: f32,
+    text: &str,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(egui::Slider::new(&mut value.value, min..=max).text(text));
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(egui::Slider::new(&mut value.value, min..=max).text(text))
+            .inner,
+    })
 }
 
 /// Control int with a slider.
@@ -1143,14 +1695,35 @@ unsafe fn slider_float(value: &mut Float, min: f32, max: f32, text: &str) -> PyR
 ///     slider_int(data, 0, 50, "slide me")
 #[pyfunction]
 unsafe fn slider_int(value: &mut Int, min: i32, max: i32, text: &str) -> PyResult<()> {
+    slider_int_response(value, min, max, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the int slider. See slider_float_response.
+///
+/// Example::
+///
+///     data = Int(5)
+///     if slider_int_response(data, 0, 50, "slide me").changed:
+///       print("now", data.value)
+#[pyfunction]
+unsafe fn slider_int_response(
+    value: &mut Int,
+    min: i32,
+    max: i32,
+    text: &str,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(
-        egui::Slider::new(&mut value.value, min..=max)
-            .text(text)
-            .integer(),
-    );
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(
+                egui::Slider::new(&mut value.value, min..=max)
+                    .text(text)
+                    .integer(),
+            )
+            .inner,
+    })
 }
 
 /// Control float by dragging the number.
@@ -1162,14 +1735,35 @@ unsafe fn slider_int(value: &mut Int, min: i32, max: i32, text: &str) -> PyResul
 ///     drag_float(data, 0, 50, 1.5)
 #[pyfunction]
 unsafe fn drag_float(value: &mut Float, min: f32, max: f32, speed: f32) -> PyResult<()> {
+    drag_float_response(value, min, max, speed)?;
+    Ok(())
+}
+
+/// Returns the Response of the drag value. See slider_float_response.
+///
+/// Example::
+///
+///     data = Float(5)
+///     if drag_float_response(data, 0, 50, 1.5).changed:
+///       print("now", data.value)
+#[pyfunction]
+unsafe fn drag_float_response(
+    value: &mut Float,
+    min: f32,
+    max: f32,
+    speed: f32,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(
-        egui::DragValue::new(&mut value.value)
-            .speed(speed)
-            .range(min..=max),
-    );
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(
+                egui::DragValue::new(&mut value.value)
+                    .speed(speed)
+                    .range(min..=max),
+            )
+            .inner,
+    })
 }
 
 /// Control int by dragging the number.
@@ -1181,14 +1775,35 @@ unsafe fn drag_float(value: &mut Float, min: f32, max: f32, speed: f32) -> PyRes
 ///     drag_int(data, 0, 50, 1)
 #[pyfunction]
 unsafe fn drag_int(value: &mut Int, min: i32, max: i32, speed: i32) -> PyResult<()> {
+    drag_int_response(value, min, max, speed)?;
+    Ok(())
+}
+
+/// Returns the Response of the int drag value. See slider_float_response.
+///
+/// Example::
+///
+///     data = Int(5)
+///     if drag_int_response(data, 0, 50, 1).changed:
+///       print("now", data.value)
+#[pyfunction]
+unsafe fn drag_int_response(
+    value: &mut Int,
+    min: i32,
+    max: i32,
+    speed: i32,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(
-        egui::DragValue::new(&mut value.value)
-            .speed(speed)
-            .range(min..=max),
-    );
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(
+                egui::DragValue::new(&mut value.value)
+                    .speed(speed)
+                    .range(min..=max),
+            )
+            .inner,
+    })
 }
 
 /// Control an angle in radians (0 to 2*pi) by dragging around a dial.
@@ -1202,10 +1817,24 @@ unsafe fn drag_int(value: &mut Int, min: i32, max: i32, speed: i32) -> PyResult<
 ///     heading(f"{data.value} rad")
 #[pyfunction]
 unsafe fn drag_angle(radians: &mut Float) -> PyResult<()> {
+    drag_angle_response(radians)?;
+    Ok(())
+}
+
+/// Returns the Response of the angle dial. See slider_float_response.
+///
+/// Example::
+///
+///     data = Float(0)
+///     if drag_angle_response(data).changed:
+///       print("now", data.value, "rad")
+#[pyfunction]
+unsafe fn drag_angle_response(radians: &mut Float) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.drag_angle(&mut radians.value);
-    Ok(())
+    Ok(Response {
+        inner: ui.drag_angle(&mut radians.value),
+    })
 }
 
 /// Control an angle in radians by dragging around a dial that spans the full
@@ -1219,10 +1848,24 @@ unsafe fn drag_angle(radians: &mut Float) -> PyResult<()> {
 ///     heading(f"{data.value} rad")
 #[pyfunction]
 unsafe fn drag_angle_tau(radians: &mut Float) -> PyResult<()> {
+    drag_angle_tau_response(radians)?;
+    Ok(())
+}
+
+/// Returns the Response of the full-circle angle dial. See drag_angle_response.
+///
+/// Example::
+///
+///     data = Float(0)
+///     if drag_angle_tau_response(data).changed:
+///       print("now", data.value, "rad")
+#[pyfunction]
+unsafe fn drag_angle_tau_response(radians: &mut Float) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.drag_angle_tau(&mut radians.value);
-    Ok(())
+    Ok(Response {
+        inner: ui.drag_angle_tau(&mut radians.value),
+    })
 }
 
 /// A clickable hyperlink
@@ -1232,10 +1875,22 @@ unsafe fn drag_angle_tau(radians: &mut Float) -> PyResult<()> {
 ///     hyperlink("https://github.com/emilk/egui")
 #[pyfunction]
 unsafe fn hyperlink(url: &str) -> PyResult<()> {
+    hyperlink_response(url)?;
+    Ok(())
+}
+
+/// Returns the Response of the hyperlink.
+///
+/// Example::
+///
+///     hyperlink_response("https://github.com/emilk/egui")
+#[pyfunction]
+unsafe fn hyperlink_response(url: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.hyperlink(url);
-    Ok(())
+    Ok(Response {
+        inner: ui.hyperlink(url),
+    })
 }
 
 /// A clickable hyperlink with label
@@ -1245,10 +1900,22 @@ unsafe fn hyperlink(url: &str) -> PyResult<()> {
 ///     hyperlink_to("egui on GitHub", "https://www.github.com/emilk/egui/")
 #[pyfunction]
 unsafe fn hyperlink_to(label: &str, url: &str) -> PyResult<()> {
+    hyperlink_to_response(label, url)?;
+    Ok(())
+}
+
+/// Returns the Response of the labelled hyperlink.
+///
+/// Example::
+///
+///     hyperlink_to_response("egui", "https://github.com/emilk/egui/")
+#[pyfunction]
+unsafe fn hyperlink_to_response(label: &str, url: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.hyperlink_to(label, url);
-    Ok(())
+    Ok(Response {
+        inner: ui.hyperlink_to(label, url),
+    })
 }
 
 /// Clickable text, that looks like a hyperlink.
@@ -1260,9 +1927,21 @@ unsafe fn hyperlink_to(label: &str, url: &str) -> PyResult<()> {
 ///       print("clicked on a fake link")
 #[pyfunction]
 unsafe fn link_clicked(label: &str) -> PyResult<bool> {
+    Ok(link_response(label)?.clicked())
+}
+
+/// Returns the Response of the link. See button_response.
+///
+/// Example::
+///
+///     link_response("egui on GitHub").on_hover_text("opens in a browser")
+#[pyfunction]
+unsafe fn link_response(label: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    Ok(ui.link(label).clicked())
+    Ok(Response {
+        inner: ui.link(label),
+    })
 }
 
 /// Show a checkbox.
@@ -1274,10 +1953,25 @@ unsafe fn link_clicked(label: &str) -> PyResult<bool> {
 ///     checkbox(data, "check me")
 #[pyfunction]
 unsafe fn checkbox(checked: &mut Bool, text: &str) -> PyResult<()> {
+    checkbox_response(checked, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the checkbox. See button_response.
+///
+/// Example::
+///
+///     data = Bool(False)
+///     response = checkbox_response(data, "check me")
+///     if response.changed:
+///       print("toggled to", data.value)
+#[pyfunction]
+unsafe fn checkbox_response(checked: &mut Bool, text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.checkbox(&mut checked.value, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.checkbox(&mut checked.value, text),
+    })
 }
 
 /// Acts like a checkbox, but looks like a selectable label.
@@ -1289,10 +1983,24 @@ unsafe fn checkbox(checked: &mut Bool, text: &str) -> PyResult<()> {
 ///     toggle_value(data, "check me")
 #[pyfunction]
 unsafe fn toggle_value(selected: &mut Bool, text: &str) -> PyResult<()> {
+    toggle_value_response(selected, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the toggle. See button_response.
+///
+/// Example::
+///
+///     data = Bool(False)
+///     if toggle_value_response(data, "check me").clicked:
+///       print("toggled")
+#[pyfunction]
+unsafe fn toggle_value_response(selected: &mut Bool, text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.toggle_value(&mut selected.value, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.toggle_value(&mut selected.value, text),
+    })
 }
 
 /// Show a radio button. It is selected if current_value == selected_value. If clicked, selected_value is assigned to current_value.
@@ -1310,10 +2018,28 @@ unsafe fn toggle_value(selected: &mut Bool, text: &str) -> PyResult<()> {
 ///     radio_value(c, BLUE, "blue")
 #[pyfunction]
 unsafe fn radio_value(current_value: &mut Int, alternative: i32, text: &str) -> PyResult<()> {
+    radio_value_response(current_value, alternative, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the radio button. See button_response.
+///
+/// Example::
+///
+///     c = Int(0)
+///     if radio_value_response(c, 1, "green").clicked:
+///       print("selected green")
+#[pyfunction]
+unsafe fn radio_value_response(
+    current_value: &mut Int,
+    alternative: i32,
+    text: &str,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.radio_value(&mut current_value.value, alternative, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.radio_value(&mut current_value.value, alternative, text),
+    })
 }
 
 /// Show selectable text. It is selected if current_value == selected_value. If clicked, selected_value is assigned to current_value.
@@ -1331,10 +2057,28 @@ unsafe fn radio_value(current_value: &mut Int, alternative: i32, text: &str) -> 
 ///     selectable_value(c, BLUE, "blue")
 #[pyfunction]
 unsafe fn selectable_value(current_value: &mut Int, alternative: i32, text: &str) -> PyResult<()> {
+    selectable_value_response(current_value, alternative, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the selectable label. See button_response.
+///
+/// Example::
+///
+///     c = Int(0)
+///     if selectable_value_response(c, 2, "blue").clicked:
+///       print("selected blue")
+#[pyfunction]
+unsafe fn selectable_value_response(
+    current_value: &mut Int,
+    alternative: i32,
+    text: &str,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.selectable_value(&mut current_value.value, alternative, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.selectable_value(&mut current_value.value, alternative, text),
+    })
 }
 
 /// Show a selectable label. It is highlighted while "selected" is True, and
@@ -1350,10 +2094,24 @@ unsafe fn selectable_value(current_value: &mut Int, alternative: i32, text: &str
 ///     selectable_label(data, "select me")
 #[pyfunction]
 unsafe fn selectable_label(selected: &mut Bool, text: &str) -> PyResult<()> {
+    selectable_label_response(selected, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the selectable label. See button_response.
+///
+/// Example::
+///
+///     data = Bool(False)
+///     if selectable_label_response(data, "select me").clicked:
+///       print("selected")
+#[pyfunction]
+unsafe fn selectable_label_response(selected: &mut Bool, text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.selectable_label(selected.value, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.selectable_label(selected.value, text),
+    })
 }
 
 /// Show a radio button. It is selected while "selected" is True, and toggles to
@@ -1369,10 +2127,24 @@ unsafe fn selectable_label(selected: &mut Bool, text: &str) -> PyResult<()> {
 ///     radio(wifi, "wifi")
 #[pyfunction]
 unsafe fn radio(selected: &mut Bool, text: &str) -> PyResult<()> {
+    radio_response(selected, text)?;
+    Ok(())
+}
+
+/// Returns the Response of the radio button. See button_response.
+///
+/// Example::
+///
+///     wifi = Bool(True)
+///     if radio_response(wifi, "wifi").clicked:
+///       print("clicked the radio")
+#[pyfunction]
+unsafe fn radio_response(selected: &mut Bool, text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.radio(selected.value, text);
-    Ok(())
+    Ok(Response {
+        inner: ui.radio(selected.value, text),
+    })
 }
 
 /// Shows a combo box with values defined in "alternatives" and their corresponding names
@@ -1438,10 +2210,25 @@ unsafe fn close_menu() -> PyResult<()> {
 ///     progress(0.5)
 #[pyfunction]
 unsafe fn progress(value: f32) -> PyResult<()> {
+    progress_response(value)?;
+    Ok(())
+}
+
+/// Returns the Response of the progress bar. A progress bar is not interactive,
+/// so this is only useful for its rect.
+///
+/// Example::
+///
+///     progress_response(0.5)
+#[pyfunction]
+unsafe fn progress_response(value: f32) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(egui::widgets::ProgressBar::new(value).show_percentage());
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(egui::widgets::ProgressBar::new(value).show_percentage())
+            .inner,
+    })
 }
 
 /// A spinner widget used to indicate loading.
@@ -1451,10 +2238,23 @@ unsafe fn progress(value: f32) -> PyResult<()> {
 ///     spinner()
 #[pyfunction]
 unsafe fn spinner() -> PyResult<()> {
+    spinner_response()?;
+    Ok(())
+}
+
+/// Returns the Response of the spinner. A spinner is not interactive, so this
+/// is only useful for its rect.
+///
+/// Example::
+///
+///     spinner_response()
+#[pyfunction]
+unsafe fn spinner_response() -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.spinner();
-    Ok(())
+    Ok(Response {
+        inner: ui.spinner(),
+    })
 }
 
 /// Shows a button with the given color. If the user clicks the button, a full color picker is shown.
@@ -1467,17 +2267,31 @@ unsafe fn spinner() -> PyResult<()> {
 ///     heading(f"r:{color.r} g:{color.g} b:{color.b}")
 #[pyfunction]
 unsafe fn color_edit_button_rgb(rgb: &mut RGB) -> PyResult<()> {
+    color_edit_button_rgb_response(rgb)?;
+    Ok(())
+}
+
+/// Returns the Response of the RGB color picker button. Use changed to know
+/// the color was edited.
+///
+/// Example::
+///
+///     color = RGB(69, 69, 69)
+///     if color_edit_button_rgb_response(color).changed:
+///       print("now", color.r, color.g, color.b)
+#[pyfunction]
+unsafe fn color_edit_button_rgb_response(rgb: &mut RGB) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
     let mut tmp: [f32; 3] = [rgb.r, rgb.g, rgb.b];
 
-    ui.color_edit_button_rgb(&mut tmp);
+    let response = ui.color_edit_button_rgb(&mut tmp);
 
     rgb.r = tmp[0];
     rgb.g = tmp[1];
     rgb.b = tmp[2];
 
-    Ok(())
+    Ok(Response { inner: response })
 }
 
 /// Show an image available at the given uri.
@@ -1489,6 +2303,20 @@ unsafe fn color_edit_button_rgb(rgb: &mut RGB) -> PyResult<()> {
 #[pyfunction]
 #[pyo3(signature = (source, **kwargs))]
 unsafe fn image(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+    image_response(source, kwargs)?;
+    Ok(())
+}
+
+/// Returns the Response of the image. An image is not interactive by default,
+/// so this is mainly useful for its rect and for enabling a sense via
+/// interact.
+///
+/// Example::
+///
+///     image_response("file://assets/ferris.png", max_height = 50)
+#[pyfunction]
+#[pyo3(signature = (source, **kwargs))]
+unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
     let mut img = egui::Image::new(source);
@@ -1501,8 +2329,10 @@ unsafe fn image(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()
             img = img.max_width(width.downcast::<PyInt>()?.extract()?);
         }
     }
-    ui.add(img);
-    Ok(())
+
+    Ok(Response {
+        inner: ui.add(img).inner,
+    })
 }
 
 /// Creates a button with an image to the left of the text
@@ -1513,9 +2343,23 @@ unsafe fn image(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()
 ///       print("clicked")
 #[pyfunction]
 unsafe fn image_and_text_clicked(source: &str, text: &str) -> PyResult<bool> {
+    Ok(image_and_text_response(source, text)?.clicked)
+}
+
+/// Returns the Response of the image-and-text button. See button_response.
+///
+/// Example::
+///
+///     response = image_and_text_response("https://picsum.photos/480", "click me")
+///     if response.clicked:
+///       print("clicked")
+#[pyfunction]
+unsafe fn image_and_text_response(source: &str, text: &str) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    Ok(ui.add(egui::Button::image_and_text(source, text)).clicked())
+    Ok(Response {
+        inner: ui.add(egui::Button::image_and_text(source, text)).inner,
+    })
 }
 
 /// A visual separator. A horizontal or vertical line on layout.
@@ -1525,10 +2369,23 @@ unsafe fn image_and_text_clicked(source: &str, text: &str) -> PyResult<bool> {
 ///     separator()
 #[pyfunction]
 unsafe fn separator() -> PyResult<()> {
+    separator_response()?;
+    Ok(())
+}
+
+/// Returns the Response of the separator. A separator is not interactive, so
+/// this is only useful for its rect.
+///
+/// Example::
+///
+///     separator_response()
+#[pyfunction]
+unsafe fn separator_response() -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.separator();
-    Ok(())
+    Ok(Response {
+        inner: ui.separator(),
+    })
 }
 
 /// Calling set_invisible() will cause all further widgets to be invisible, yet still allocate space.
@@ -1606,10 +2463,27 @@ unsafe fn set_opacity(opacity: f32) -> PyResult<()> {
 ///     date_picker_button(date)
 #[pyfunction]
 unsafe fn date_picker_button(selection: &mut Date) -> PyResult<()> {
+    date_picker_button_response(selection)?;
+    Ok(())
+}
+
+/// Returns the Response of the date picker button. Use changed to know a new
+/// date was picked.
+///
+/// Example::
+///
+///     date = Date(datetime.datetime.now())
+///     if date_picker_button_response(date).changed:
+///       print("picked", date.value)
+#[pyfunction]
+unsafe fn date_picker_button_response(selection: &mut Date) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
-    ui.add(egui_extras::DatePickerButton::new(&mut selection.value));
-    Ok(())
+    Ok(Response {
+        inner: ui
+            .add(egui_extras::DatePickerButton::new(&mut selection.value))
+            .inner,
+    })
 }
 
 /// Add extra space before the next widget.
@@ -1642,6 +2516,8 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LayoutType>()?;
     m.add_class::<Scope>()?;
     m.add_class::<Group>()?;
+    m.add_class::<Response>()?;
+    m.add_class::<PointerButton>()?;
     // functions
     m.add_function(wrap_pyfunction!(run_native, m)?)?;
     m.add_function(wrap_pyfunction!(heading, m)?)?;
@@ -1699,5 +2575,40 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(set_opacity, m)?)?;
     m.add_function(wrap_pyfunction!(date_picker_button, m)?)?;
     m.add_function(wrap_pyfunction!(add_space, m)?)?;
+    // *_response variants (egui Response wrappers)
+    m.add_function(wrap_pyfunction!(button_response, m)?)?;
+    m.add_function(wrap_pyfunction!(small_button_response, m)?)?;
+    m.add_function(wrap_pyfunction!(link_response, m)?)?;
+    m.add_function(wrap_pyfunction!(image_and_text_response, m)?)?;
+    m.add_function(wrap_pyfunction!(heading_response, m)?)?;
+    m.add_function(wrap_pyfunction!(label_response, m)?)?;
+    m.add_function(wrap_pyfunction!(monospace_response, m)?)?;
+    m.add_function(wrap_pyfunction!(small_response, m)?)?;
+    m.add_function(wrap_pyfunction!(strong_response, m)?)?;
+    m.add_function(wrap_pyfunction!(weak_response, m)?)?;
+    m.add_function(wrap_pyfunction!(code_response, m)?)?;
+    m.add_function(wrap_pyfunction!(hyperlink_response, m)?)?;
+    m.add_function(wrap_pyfunction!(hyperlink_to_response, m)?)?;
+    m.add_function(wrap_pyfunction!(checkbox_response, m)?)?;
+    m.add_function(wrap_pyfunction!(toggle_value_response, m)?)?;
+    m.add_function(wrap_pyfunction!(radio_value_response, m)?)?;
+    m.add_function(wrap_pyfunction!(radio_response, m)?)?;
+    m.add_function(wrap_pyfunction!(selectable_value_response, m)?)?;
+    m.add_function(wrap_pyfunction!(selectable_label_response, m)?)?;
+    m.add_function(wrap_pyfunction!(slider_float_response, m)?)?;
+    m.add_function(wrap_pyfunction!(slider_int_response, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_float_response, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_int_response, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_angle_response, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_angle_tau_response, m)?)?;
+    m.add_function(wrap_pyfunction!(text_edit_singleline_response, m)?)?;
+    m.add_function(wrap_pyfunction!(text_edit_multiline_response, m)?)?;
+    m.add_function(wrap_pyfunction!(code_editor_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_rgb_response, m)?)?;
+    m.add_function(wrap_pyfunction!(date_picker_button_response, m)?)?;
+    m.add_function(wrap_pyfunction!(crate::image_response, m)?)?;
+    m.add_function(wrap_pyfunction!(progress_response, m)?)?;
+    m.add_function(wrap_pyfunction!(spinner_response, m)?)?;
+    m.add_function(wrap_pyfunction!(separator_response, m)?)?;
     Ok(())
 }

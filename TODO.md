@@ -12,8 +12,10 @@ not reachable) · `[ ]` not implemented
 
 ## Current state
 
-56 functions and 11 classes exported (`src/lib.rs`). egui 0.31.1 exposes 174
-inherent methods on `Ui`; roughly 44 have a direct pyegui equivalent.
+90 functions and 13 classes exported (`src/lib.rs`), 103 names in total. The
+34 `*_response` variants are the ones that return a `Response`; they exist
+alongside the original boolean helpers, which are unchanged. egui 0.31.1
+exposes 174 inherent methods on `Ui` and 45 on `Response`.
 
 Validation is CI-only — see `docs/development.rst`. Nothing is compiled
 locally, so each batch is pushed to `fork` and the `check` run is the verdict.
@@ -22,26 +24,38 @@ locally, so each batch is pushed to `fork` and the `check` run is the verdict.
 
 ## 1. Response: interaction state — **highest value, do first**
 
-egui returns a `Response` from every widget. pyegui collapses it to a bool
-(`button_clicked`) or discards it (`heading`), so interaction state is
-unreachable. 61 `Response` methods in 0.31.1, none exposed.
+egui returns a `Response` from every widget. pyegui used to collapse it to a
+bool (`button_clicked`) or discard it (`heading`), so interaction state was
+unreachable.
 
-Design: return a `Response` wrapper object from new `*_response` functions,
-keeping the existing `*_clicked` helpers as thin wrappers so nothing breaks.
+Shipped: a `Response` pyclass wrapping `egui::Response`, and a `*_response`
+variant for every widget that already had a binding. The original functions
+are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
 
-- [ ] `Response` pyclass wrapping `egui::Response`
-- [ ] `hovered`, `changed`, `clicked`, `clicked_by`, `double_clicked`,
-      `triple_clicked`, `secondary_clicked`, `middle_clicked`
-- [ ] `drag_started`, `dragged`, `drag_stopped`, `drag_delta`,
-      `drag_released`, `total_drag_delta`
-- [ ] `has_focus`, `gained_focus`, `lost_focus`, `request_focus`,
+- [x] `Response` pyclass wrapping `egui::Response`
+- [x] `hovered`, `changed`, `clicked`, `clicked_by`, `double_clicked`,
+      `triple_clicked`, `secondary_clicked`, `middle_clicked`, `long_touched`
+- [x] `drag_started`, `dragged`, `drag_stopped`, `drag_delta`,
+      `drag_released`, `drag_motion`, and the `_by(PointerButton)` variants
+- [x] `has_focus`, `gained_focus`, `lost_focus`, `request_focus`,
       `surrender_focus`
-- [ ] `on_hover_text`, `on_hover_ui`, `show_tooltip_text`, `show_tooltip_ui`,
+- [x] `on_hover_text`, `on_hover_ui`, `show_tooltip_text`, `show_tooltip_ui`,
       `on_disabled_hover_text`
-- [ ] `context_menu`, `clicked_elsewhere`, `enabled`
-- [ ] `dnd_set_drag_payload`, `dnd_hover_payload`, `dnd_release_payload`
-- [ ] `*_response` variants for existing widgets
+- [x] `context_menu`, `clicked_elsewhere`, `enabled`, `highlighted`,
+      `contains_pointer`, `interact_pointer_pos`, `hover_pos`,
+      `is_pointer_button_down_on`, `mark_changed`, `is_tooltip_open`,
+      `context_menu_opened`
+- [x] `*_response` variants for existing widgets (34 of them)
+- [ ] `interact`, `interact_opt`, `highlight`, `widget_info`, `union`,
+      `scroll_to_me`, `output_event`, `labelled_by` — builder-style methods
+      that consume or replace the `Response`
+- [ ] `dnd_set_drag_payload`, `dnd_hover_payload`, `dnd_release_payload` —
+      deferred: `Arc<dyn Any + Send + Sync>` has no clean Python mapping
 - [ ] Drag-and-drop containers: `dnd_drag_source`, `dnd_drop_zone`
+
+Note: `total_drag_delta` is listed in earlier revisions of this file but does
+not exist in egui 0.31.1 — `Response` has `drag_delta` and `drag_motion`, and
+egui asserts `Send + Sync` on `Context` rather than exposing a total.
 
 ## 2. Missing widgets
 

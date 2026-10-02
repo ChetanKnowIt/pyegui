@@ -49,7 +49,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is intentionally small: **56 functions** and **11 classes**
+The API surface is intentionally small: **90 functions** and **13 classes**
 are exported today. See `Roadmap`_ for what egui can do that pyegui cannot
 do (yet).
 

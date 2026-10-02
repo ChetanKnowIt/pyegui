@@ -137,6 +137,30 @@ re-open them without new information.
    change — A alone verifies little. C (non-RGB color pickers) and
    `colored_label` are independent and can follow.
 
+## Progress after a4522f5
+
+| Commit | What |
+| --- | --- |
+| `0c6407e` | Batch D minus colored_label: `selectable_label`, `radio`, `drag_angle`, `drag_angle_tau`, `close_menu`. Also widened the check.yml export assertion from 11 of 56 functions to all exported names. |
+| (this one) | Batch A+B: `Response` pyclass + 34 `*_response` variants, existing helpers rewritten as wrappers. |
+
+`Response` exposes 30 getters/methods. The ones deliberately left out are the
+builder-style methods that consume or replace the `Response` (`highlight`,
+`interact`, `widget_info`, `union`, `labelled_by`, `scroll_to_me`) and the DnD
+payload methods. `total_drag_delta` does not exist in 0.31.1 and was removed
+from the roadmap.
+
+One non-obvious implementation detail: egui types the tooltip and context-menu
+callbacks as `impl FnOnce(&mut Ui)` — returning `()`, not a `Result`. The
+existing `run_nested_update_func` returns `PyResult<()>`, so those call sites
+go through `run_nested_update_func_lossy`, which drops the error. A Python
+exception inside the callback has already been displayed by
+`run_nested_update_func` before the error is dropped.
+
+`on_hover_text` and `on_hover_ui` consume the `Response` in egui. They take
+`&mut self` here and reassign from `self.inner.clone()...`, because
+`egui::Response` has no `Default` and cannot be moved out of a `&mut`.
+
 ## House rules for this repo
 
 - Do not add local build steps. If it cannot run in CI, it does not run.
