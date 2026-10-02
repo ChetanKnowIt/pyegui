@@ -67,7 +67,17 @@ jobs:
           # runner's Python -- the same way check.yml does.
           pip install "maturin>=1.8,<2.0"
           maturin build --release --locked --out dist --find-interpreter
-          pip install --find-links dist --force-reinstall pyegui
+
+          # Install by path rather than by name. The wheel is named
+          # pyegui-<version>-cp311-abi3-manylinux...whl, and
+          # `pip install --find-links dist pyegui` depends on the directory
+          # being on pip's search path, which it is not once an apt install
+          # has moved Python into a user site dir. Naming the file cannot go
+          # wrong, and if the glob matches nothing the install fails loudly
+          # instead of silently leaving the stale wheel in place.
+          wheel=$(ls -1 dist/pyegui-*.whl)
+          echo "installing ${wheel}"
+          pip install --force-reinstall "${wheel}"
 
       - name: Run every example
         env:
