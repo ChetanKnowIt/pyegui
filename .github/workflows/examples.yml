@@ -25,6 +25,11 @@ on:
       - 'debug.py'
       - 'tests/**'
       - 'README.rst'
+      # The docs state a name count and a shipped-function list, and
+      # tests/doc_claims.py compares both against expected_exports.py. Editing
+      # them without re-running that check is how the changelog came to
+      # advertise functions that do not exist.
+      - 'CHANGELOG.md'
       - 'docs/**'
       - 'src/lib.rs'
       # The examples run against a wheel built from this lockfile, so a
@@ -38,6 +43,11 @@ on:
       - 'debug.py'
       - 'tests/**'
       - 'README.rst'
+      # The docs state a name count and a shipped-function list, and
+      # tests/doc_claims.py compares both against expected_exports.py. Editing
+      # them without re-running that check is how the changelog came to
+      # advertise functions that do not exist.
+      - 'CHANGELOG.md'
       - 'docs/**'
       - 'src/lib.rs'
       # The examples run against a wheel built from this lockfile, so a
@@ -164,6 +174,14 @@ jobs:
           echo "::group::documentation snippets"
           doc_status=0
           python tests/doc_snippets.py || doc_status=$?
+
+          # The docs also make claims about the module itself -- a name count,
+          # a list of shipped functions -- and nothing checked those. The
+          # changelog advertised Hsva, Hsl, Oklch and color_edit_oklch, none of
+          # which have ever existed, and both files claimed 121 names while the
+          # module exported 123. This derives the numbers from
+          # tests/expected_exports.py instead of trusting the prose.
+          python tests/doc_claims.py || doc_status=$?
           echo "::endgroup::"
 
           # Discover the apps rather than listing them: a new example that is

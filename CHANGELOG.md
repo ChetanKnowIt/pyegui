@@ -61,16 +61,18 @@ release. See `TODO.md` for the remaining API surface.
 
 **Response**
 
-- `Response` class with its 28 accessors, and 34 `*_response` variants of
-  existing widgets for callers who need interaction state.
+- `Response` class, and `*_response` variants for 41 widgets for callers who
+  need interaction state. The existing boolean helpers are unchanged, so
+  existing code keeps working.
 
 **Colour**
 
-- `RGBA`, `Hsva`, `Hsl`, `Oklch` classes.
-- Seven non-RGB colour pickers with response forms: `color_edit_hsva`,
-  `color_edit_hsva_response`, `color_edit_hsl`, `color_edit_hsl_response`,
-  `color_edit_oklch`, `color_edit_oklch_response`, `color_edit_srgba`,
-  `color_edit_srgba_response`.
+- `RGBA`, `SRGB` and `HSVA` classes, alongside the existing `RGB`.
+- Colour pickers in the spaces egui 0.31.1 offers, each with a `_response`
+  variant: `color_edit_button_rgb`, `color_edit_button_rgba_premultiplied`,
+  `color_edit_button_rgba_unmultiplied`, `color_edit_button_srgb`,
+  `color_edit_button_hsva`, `color_edit_button_srgba_premultiplied`,
+  `color_edit_button_srgba_unmultiplied`.
 
 **Context**
 

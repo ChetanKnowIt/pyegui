@@ -50,20 +50,27 @@ where possible to accomplish more smooth experience in Python.
 - Images(png, jpeg, svg, gif, webp, and anything the ``image`` crate
   decodes)
 - Date picker
-- RGB color picker
+- Colour pickers in every egui space: RGB, RGBA (premultiplied and
+  unmultiplied), SRGB, HSVA, and the alpha variants
+- ``Response`` for every widget that has one, so hover, focus and drag state
+  are reachable -- as ``*_response`` variants, or ``ctx.hovered()`` and friends
+- Containers: ``central_panel`` and ``window``. egui draws nothing until the
+  frame asks for one, so an app composes its own
 - Text fields, radio buttons, buttons, code, progress bar etc.
 - Scroll areas, collapsing sections, groups and scopes
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **121 names** today: 17 classes, 63 functions and 41
-``*_response`` variants. See `Roadmap`_ for what egui can do that pyegui
-cannot do (yet). The authoritative list is `tests/expected_exports.py
-<https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py>`__,
-which CI asserts against the built module.
+The API surface is **123 names** today: 17 classes, 65 functions and 41
+``*_response`` variants. This number comes from the ``check`` job, which builds
+the wheel and asserts the module's exports against
+`tests/expected_exports.py
+<https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py>`__
+in both directions, so it cannot drift from the code silently.
 
-Full list of implemented features is available
-`here <https://github.com/GachiLord/pyegui/blob/main/TODO.md>`__
+Full list of implemented features, and what egui can still do that pyegui
+cannot, is in `TODO.md
+<https://github.com/ChetanKnowIT/pyegui/blob/main/TODO.md>`__.
 
 Roadmap
 -------
@@ -77,7 +84,7 @@ the egui release it is pinned to.
 +--------------+------------+--------------+-----------------------+
 | pyegui       | egui       | eframe       | Notes                 |
 +==============+============+==============+=======================+
-| 0.5.0        | 0.31.1     | 0.31.1       | current release       |
+| 0.5.1        | 0.31.1     | 0.31.1       | current release       |
 +--------------+------------+--------------+-----------------------+
 | —            | 0.32.x     | 0.32.x       | not adopted yet       |
 +--------------+------------+--------------+-----------------------+
