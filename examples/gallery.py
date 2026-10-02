@@ -42,8 +42,14 @@ _REQUIRED = {
     "drag_angle": "the angle dials",
 }
 
+# Snapshot the names once. Do not call bare `dir()` inside the comprehension:
+# on Python 3.11 (which CI runs) `dir()` there sees only the comprehension's
+# own locals, so every name looks missing and this reports a false positive.
+# PEP 709 changed that in 3.12, which is why it passes locally and fails in CI.
+_have = set(dir())
+
 try:
-    _missing = {n: why for n, why in _REQUIRED.items() if n not in dir()}
+    _missing = {n: why for n, why in _REQUIRED.items() if n not in _have}
 except NameError:  # from pyegui import * found no pyegui at all
     _missing = {"pyegui": "the module did not import"}
 
