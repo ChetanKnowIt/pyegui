@@ -15,7 +15,7 @@ Example
    name = Str("Van")
    age = Int(24)
 
-   def update_func(ctx):
+   def main_contents():
      heading("My egui Application")
      text_edit_singleline(name, hint_text="Your name")
      slider_int(age, 0, 150, "age")
@@ -26,7 +26,14 @@ Example
      heading(f"Hello '{name.value}', age {age.value}")
      image("file://image.png", max_width=350, max_height=250)
 
-   run_native("My pyegui Application", update_func)
+   def update_func(ctx):
+     # egui draws nothing until a container is asked for. Panels are
+     # independent, so you choose which ones exist and in what order --
+     # CentralPanel takes the space that is left over.
+     central_panel(ctx, main_contents)
+
+   if __name__ == "__main__":
+     run_native("My pyegui Application", update_func)
 
 |example 1| |example 2|
 
@@ -401,9 +408,12 @@ This is how you write a "hello world" app.
 
    from pyegui import *
 
-   def update_func(ctx):
+   def main_contents():
      # draw UI here
      heading("Hello, World!")
+
+   def update_func(ctx):
+     central_panel(ctx, main_contents)
 
    if __name__ == "__main__":
      run_native("Example app", update_func)

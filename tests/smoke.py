@@ -21,6 +21,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -210,6 +211,27 @@ def main():
         for path in find_apps():
             print(path.relative_to(REPO_ROOT))
         return 0
+
+    if target == "--run-source":
+        # Source on stdin, run it as __main__, and apply the same bound and
+        # capture check. Used by tests/doc_snippets.py to prove a snippet from
+        # the documentation really runs, not merely that it parses.
+        source = sys.stdin.read()
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".py", delete=False, dir=REPO_ROOT
+        ) as handle:
+            handle.write(source)
+            temp = Path(handle.name)
+        try:
+            ok, reason = run_example(temp)
+        finally:
+            temp.unlink(missing_ok=True)
+
+        if ok:
+            print(f"ok snippet: {reason}")
+            return 0
+        print(f"FAIL snippet: {reason}", file=sys.stderr)
+        return 1
 
     # run_example replaces sys.argv so the example under test sees its own
     # name, exactly as `python examples/foo.py` would. Hold the path here

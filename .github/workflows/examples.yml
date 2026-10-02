@@ -111,6 +111,24 @@ jobs:
           # import -- rather than as 14 unrelated per-example failures later.
           python -c "import pyegui; print('pyegui', len(dir(pyegui)), 'names from', pyegui.__file__)"
 
+      # The apps above cannot catch a wrong API in the docs, because no doc
+      # snippet is one of the apps. This runs the complete snippets from
+      # README.rst for real, so a renamed or removed binding fails here instead
+      # of misleading the next person who reads the README.
+      #
+      # Same job on purpose: the wheel is already built and Xvfb already
+      # running, so this costs seconds rather than another 3-minute build.
+      - name: Check documentation snippets
+        env:
+          DISPLAY: ':99'
+        run: |
+          set -uo pipefail
+
+          # shellcheck disable=SC1091
+          source .venv-ci/bin/activate
+
+          python tests/doc_snippets.py
+
       - name: Run every example
         env:
           DISPLAY: ':99'
