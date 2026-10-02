@@ -417,7 +417,7 @@ listed above; persistence.
 
 ## Success criteria
 
-- The eight functions are exported and covered by the export gate
+- The nine functions are exported and covered by the export gate
 - A container drawn inside `collapsing`, and `collapsing` inside a
   container, both render — and land in the right place, not merely
   non-blank, since a wrong `Ui` still draws something
