@@ -1,0 +1,175 @@
+# Measure pyegui against plain egui, and write bench/results.json.
+#
+# The README quotes a comparison, so something has to produce it. This builds the
+# Rust baseline and runs the Python benchmark against the same wheel CI already
+# builds, then writes both numbers to a single file with the ratio computed, so
+# the README's table is a transcription of a run rather than an assertion.
+#
+# Manual only. A benchmark is slower than a test and its result is not
+# pass/fail -- a noisy runner would make this a source of random red. It runs on
+# demand and publishes an artifact.
+#
+# Both sides do identical work: 500 labels per frame, 60 frames, timed around
+# building the frame's widgets rather than around the whole frame. The
+# difference between them is what the binding costs.
+
+name: benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      widgets:
+        description: 'Widgets per frame'
+        required: false
+        default: '500'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: benchmark-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: pyegui vs egui
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # eframe builds with the `glow` backend and needs a real GL context; Mesa's
+      # software rasteriser is what actually draws on a runner.
+      - name: Install Xvfb and the software OpenGL stack
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            xvfb x11-utils libgl1-mesa-dri mesa-utils \
+            libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1
+
+      - name: Install the wheel under test
+        run: |
+          set -euo pipefail
+          python -m venv .venv-bench
+          # shellcheck disable=SC1091
+          source .venv-bench/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install "maturin>=1.8,<2.0"
+          maturin build --release --locked --out dist --find-interpreter
+          wheel=$(ls -1 dist/pyegui-*.whl)
+          echo "installing ${wheel}"
+          python -m pip install --force-reinstall "${wheel}"
+
+      - name: Run both benchmarks
+        env:
+          DISPLAY: ':99'
+          WIDGETS: ${{ inputs.widgets }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck disable=SC1091
+          source .venv-bench/bin/activate
+
+          Xvfb :99 -screen 0 1280x1024x24 >/tmp/xvfb.log 2>&1 &
+          xvfb_pid=$!
+          trap 'kill $xvfb_pid 2>/dev/null || true' EXIT
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+            sleep 0.2
+          done
+          xdpyinfo -display :99 >/dev/null
+
+          mkdir -p bench/results
+
+          # import cost, in a fresh interpreter so the module is not already up
+          python -c "
+          import json, subprocess, sys, time
+          # Run in a child so the measurement is a cold import.
+          code = 'import time; t=time.perf_counter(); import pyegui; print((time.perf_counter()-t)*1000)'
+          best = None
+          for _ in range(7):
+              out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+              v = float(out.stdout.strip())
+              best = v if best is None else min(best, v)
+          json.dump({'import_pyegui_ms': round(best, 3)}, open('bench/results/import.json', 'w'))
+          print('import pyegui:', round(best, 3), 'ms')
+          "
+
+          python bench/bench.py | tee bench/results/pyegui.json
+
+          cargo run --release --quiet --manifest-path bench/Cargo.toml \
+            | tee bench/results/egui.json
+
+      - name: Combine and compare
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pathlib
+
+          results = pathlib.Path("bench/results")
+          pyegui = json.loads((results / "pyegui.json").read_text())
+          egui = json.loads((results / "egui.json").read_text())
+          imp = json.loads((results / "import.json").read_text())
+
+          py_per = pyegui["per_widget_us"]["min"]
+          rs_per = egui["per_widget_us"]["min"]
+          py_first = pyegui["first_frame_ms"]
+          rs_first = egui["first_frame_ms"]
+
+          combined = {
+              "python": pyegui,
+              "rust": egui,
+              "import": imp,
+              "comparison": {
+                  "per_widget_ratio": round(py_per / rs_per, 2),
+                  "first_frame_ratio": round(py_first / rs_first, 2),
+                  "steady_frame_ratio": round(
+                      pyegui["steady_frame_ms"]["min"] / egui["steady_frame_ms"]["min"], 2
+                  ),
+              },
+          }
+
+          (results / "combined.json").write_text(json.dumps(combined, indent=2))
+          print(json.dumps(combined["comparison"], indent=2))
+          PY
+
+      - name: Summarise
+        run: |
+          set -euo pipefail
+          {
+            echo "### pyegui vs egui"
+            echo
+            echo '| metric | pyegui | egui (Rust) | ratio |'
+            echo '| --- | ---: | ---: | ---: |'
+            python - <<'PY'
+          import json, pathlib
+          c = json.loads((pathlib.Path("bench/results") / "combined.json").read_text())
+          py, rs, cmp_ = c["python"], c["rust"], c["comparison"]
+          rows = [
+              ("per widget (us, min)",
+               py["per_widget_us"]["min"], rs["per_widget_us"]["min"],
+               cmp_["per_widget_ratio"]),
+              ("first frame (ms)",
+               py["first_frame_ms"], rs["first_frame_ms"],
+               cmp_["first_frame_ratio"]),
+              ("steady frame (ms, min)",
+               py["steady_frame_ms"]["min"], rs["steady_frame_ms"]["min"],
+               cmp_["steady_frame_ratio"]),
+          ]
+          for name, a, b, r in rows:
+              print(f"| {name} | {a} | {b} | {r}x |")
+          print(f"| `import pyegui` (ms) | {c['import']['import_pyegui_ms']} | n/a (statically linked) | - |")
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: bench/results

@@ -1,0 +1,21 @@
+[package]
+name = "pyegui-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# A separate workspace so `cargo check --locked --all-targets` in check.yml
+# does not try to build the benchmark as part of the extension module. The
+# benchmark needs eframe directly; the extension already depends on it, but
+# building it as a workspace member would put a second binary in the release
+# path for no reason.
+[workspace]
+
+[dependencies]
+eframe = "=0.31.1"
+egui = "=0.31.1"
+
+[profile.release]
+# Match how the extension is built, so the two numbers are comparable. A debug
+# build would measure Rust's absence of optimisation, not the binding.
+opt-level = 3
