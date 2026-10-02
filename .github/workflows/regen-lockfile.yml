@@ -11,6 +11,10 @@
 #
 # To use it: run it from the Actions tab, then download the `lockfile`
 # artifact and commit the Cargo.lock from it.
+#
+# Needed whenever Cargo.toml changes in a way the lockfile records -- a
+# version bump, or a dependency change. `cargo check --locked` fails otherwise,
+# so this is not optional housekeeping.
 name: regen-lockfile
 
 on:
@@ -32,10 +36,25 @@ jobs:
       - name: Regenerate lockfile
         run: |
           set -euo pipefail
-          # Drop the old resolution so the new exact pins are honoured rather
-          # than merged with stale caret-resolved entries.
-          cargo update --workspace
-          echo "--- egui resolution:"
+
+          # `cargo update -p pyegui` refreshes only this package's own entry in
+          # the lockfile.
+          #
+          # It is deliberately NOT `cargo update --workspace`, which re-resolves
+          # every dependency and produces a large unrelated diff. That was right
+          # when the egui pins were being introduced, but it is wrong for the
+          # common case now: bumping the version in Cargo.toml changes exactly
+          # one line of the lockfile, and this is the change that matches.
+          #
+          # Run 37041017323 failed `cargo check --locked` with "cannot update the
+          # lock file ... because --locked was passed" after the 0.5.1 version
+          # bump, which is this step's whole reason to exist.
+          cargo update -p pyegui
+
+          echo "--- pyegui entry:"
+          grep -A1 '^name = "pyegui"$' Cargo.lock | head -2
+
+          echo "--- egui resolution (must still be exactly 0.31.1):"
           cargo tree -p egui --depth 0 --prefix none | head -1
           cargo tree -p eframe --depth 0 --prefix none | head -1
           cargo tree -p egui_extras --depth 0 --prefix none | head -1
