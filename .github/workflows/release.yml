@@ -123,7 +123,12 @@ jobs:
 
           # sdist so `pip install pyegui` can build from source, and one Linux
           # wheel so installing does not require a Rust toolchain.
-          maturin sdist --locked --out dist
+          #
+          # No `--locked` on the sdist: maturin 1.15's sdist subcommand takes
+          # only --manifest-path and --out (see Command::SDist in its main.rs),
+          # and run 37049173944 failed on exactly that. `build` does accept it,
+          # so the wheel is still built against a locked lockfile.
+          maturin sdist --out dist
           maturin build --release --locked --out dist --find-interpreter
 
       - uses: actions/upload-artifact@v4
