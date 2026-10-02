@@ -414,11 +414,21 @@ def sized_window_contents():
 
 
 def nested_window_contents():
+    # The central panel sits behind the floating windows, so text there is
+    # clipped in the render and cannot be read back. Report the state from
+    # here instead, where the capture shows it in full.
+    heading("Nested containers")
+    separator()
+    label(f"win_open.value     = {win_open.value}")
+    label(f"window() returned  = {win_visible.value}")
+    label(f"sized_open.value   = {sized_open.value}")
+    label(f"window() returned  = {sized_visible.value}")
+    separator()
+
     def inner():
         label("collapsing() inside a window")
         strong("still inside the window")
 
-    heading("Nested containers")
     collapsing("open me", inner)
 
 
@@ -441,11 +451,6 @@ def page_containers(ctx):
     # egui asks for.
     def main_contents():
         outer_collapsing_contents()
-        separator()
-        label(f"win_open.value    = {win_open.value}")
-        label(f"window() returned = {win_visible.value}")
-        label(f"sized_open.value  = {sized_open.value}")
-        label(f"window() returned = {sized_visible.value}")
 
     central_panel(ctx, main_contents)
 
@@ -476,8 +481,8 @@ def page_containers(ctx):
         "Nested",
         "w3",
         nested_window_contents,
-        default_pos=(520.0, 60.0),
-        default_size=(320.0, 200.0),
+        default_pos=(470.0, 40.0),
+        default_size=(400.0, 320.0),
         collapsible=True,
     )
 
