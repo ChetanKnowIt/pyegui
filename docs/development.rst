@@ -209,3 +209,41 @@ Adding a feature
 If the change adds or alters a widget, add it to
 ``examples/gallery.py`` so ``screenshot.yml`` renders it, download the
 artifact, and commit the refreshed PNGs under ``docs/_static/``.
+
+The examples job
+----------------
+
+``check.yml`` proves the Rust side compiles and that the module exposes the
+right names. It never looks at Python syntax, and it never runs an app, so
+an example can be broken while every check is green.
+
+``.github/workflows/examples.yml`` closes that gap. It builds the wheel,
+installs it, and runs every app under Xvfb/Mesa:
+
+- every app in ``examples/`` and ``guides/`` that calls ``run_native``, plus
+  ``debug.py``, discovered by ``tests/smoke.py --list`` rather than listed by
+  hand, so a new example is covered without editing the job
+- each one under a wall-clock bound, with ``ctx.request_repaint()`` and a
+  capture before ``ctx.close()``, so a run cannot hang
+- each capture checked for drawn pixels, by counting distinct colours
+
+Apps run to completion individually, and every failure is reported before the
+step fails. One broken example does not hide the state of the others.
+
+``gallery.py`` is excluded: it takes arguments and closes its own windows, so
+the screenshot job drives it instead.
+
+A capture that cannot be read fails the run rather than passing quietly. If
+ImageMagick is ever dropped from the job, the job says so.
+
+What this job caught
+~~~~~~~~~~~~~~~~~~~~~
+
+It exists because an example rotted unnoticed. When it first ran, it found:
+
+- ``examples/pages.py`` did not parse -- damage from a bulk migration of mine
+  that two green ``check`` runs had passed straight over
+- ``guides/fonts.py`` had never been runnable from a fresh clone; it read a
+  ``.ttf`` that was never tracked in the repository
+
+Neither was visible to ``check.yml``.
