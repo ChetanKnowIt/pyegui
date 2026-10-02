@@ -1925,24 +1925,9 @@ unsafe fn apply_window_options(
     // egui's `order` takes an `egui::Order`, not a number. Map the three
     // words rather than taking an f32 and discarding it -- silently ignoring
     // the value is the failure this whole option parser exists to prevent.
-    if let Some(value) = opts.get_item("order")? {
-        let name: String = value.extract().map_err(|_| {
-            PyValueError::new_err("order must be one of 'background', 'middle', 'foreground', 'tooltip', 'debug'")
-        })?;
-        let order = match name.as_str() {
-            "background" => egui::Order::Background,
-            "middle" => egui::Order::Middle,
-            "foreground" => egui::Order::Foreground,
-            "tooltip" => egui::Order::Tooltip,
-            "debug" => egui::Order::Debug,
-            _ => {
-                return Err(PyValueError::new_err(format!(
-                    "unknown order {name:?}; expected one of 'background', \
-                     'middle', 'foreground', 'tooltip', 'debug'"
-                )))
-            }
-        };
-        builder = builder.order(order);
+    if let Some(v) = opt_order(opts)? {
+        builder = builder.order(v);
+    }
     }
 
     Ok(builder)
@@ -1968,6 +1953,33 @@ unsafe fn apply_window_options(
 /// Widgets resolve their `Ui` from an internal stack, so they must be drawn
 /// inside a callback such as this one, never directly in `update_func`.
 /// Read an optional `(min, max)` float range from `opts`, egui's `Rangef`.
+/// Read an optional `egui::Order` from `opts`, under the key "order".
+///
+/// egui 0.31.1 has five variants. Shared by `window` and `area` so the accepted
+/// words are defined once.
+unsafe fn opt_order(opts: &Bound<'_, PyDict>) -> PyResult<Option<egui::Order>> {
+    match opts.get_item("order")? {
+        Some(value) => {
+            let name: String = value.extract()?;
+            let order = match name.as_str() {
+                "background" => egui::Order::Background,
+                "middle" => egui::Order::Middle,
+                "foreground" => egui::Order::Foreground,
+                "tooltip" => egui::Order::Tooltip,
+                "debug" => egui::Order::Debug,
+                _ => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown order {name:?}; expected one of 'background', \
+                         'middle', 'foreground', 'tooltip', 'debug'"
+                    )))
+                }
+            };
+            Ok(Some(order))
+        }
+        None => Ok(None),
+    }
+}
+
 unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Rangef>> {
     match opts.get_item(name)? {
         Some(value) => {
@@ -2173,6 +2185,224 @@ unsafe fn bottom_panel(
     };
 
     builder.show(&ctx.0, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// Builder options for `egui::Modal`, matching its setters exactly.
+const MODAL_OPTIONS: &[&str] = &["default_width", "default_height"];
+
+/// Show a modal dialog, mirroring `egui::Modal`.
+///
+/// Returns whether the modal is still open, so a click on the backdrop (or the
+/// close button) closes it. egui keeps only one modal open at a time, and this
+/// one floats above every other container.
+///
+/// ```python
+/// def update_func(ctx):
+///     if button_clicked("Open"):
+///         show_modal.value = True
+///     if show_modal.value:
+///         if modal(ctx, "confirm", modal_contents, default_width=320.0):
+///             show_modal.value = False
+///     central_panel(ctx, main_contents)
+/// ```
+///
+/// Note that egui wants modals drawn before the central panel, so that the
+/// central panel does not cover the backdrop.
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn modal(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<bool> {
+    let ctx = &ctx.0;
+
+    // `Modal::new` takes an `Id`, and egui's `From<String> for Id` is what lets
+    // an owned String be used here without needing a 'static str.
+    let id = id.to_owned();
+
+    let mut builder = egui::Modal::new(id);
+
+    if let Some(opts) = options {
+        validate_options(opts, MODAL_OPTIONS)?;
+        // egui exposes the modal's size through its Area.
+        let mut area = std::mem::replace(&mut builder, egui::Modal::new("")).area;
+        if let Some(v) = opt_f32(opts, "default_width")? {
+            area = area.default_width(v);
+        }
+        if let Some(v) = opt_f32(opts, "default_height")? {
+            area = area.default_height(v);
+        }
+        builder = egui::Modal::new("").area(area);
+    }
+
+    let response = builder.show(ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(response.is_top_modal)
+}
+
+/// Builder options for `egui::Resize`, matching its setters exactly.
+const RESIZE_OPTIONS: &[&str] = &[
+    "default_width",
+    "default_height",
+    "default_size",
+    "min_size",
+    "min_width",
+    "min_height",
+    "max_size",
+    "max_width",
+    "max_height",
+    "resizable",
+    "auto_sized",
+    "fixed_size",
+];
+
+/// Show a resizable area, mirroring `egui::Resize`.
+///
+/// Unlike `central_panel` and `modal`, this is not a top-level container: egui's
+/// `Resize::show` takes a `&mut Ui`, so it must be called from inside something
+/// else -- a central panel, a window, or a nested update function.
+///
+/// ```python
+/// def contents():
+///     resize(lambda: heading("Drag my corner"), default_width=240.0)
+/// ```
+#[pyfunction]
+#[pyo3(signature = (contents, **options))]
+unsafe fn resize(
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    // Resize needs an existing Ui; there is no Context path in egui for it.
+    let ui = current_ui(&UI)?;
+
+    let mut builder = egui::Resize::default();
+
+    if let Some(opts) = options {
+        validate_options(opts, RESIZE_OPTIONS)?;
+        if let Some(v) = opt_f32(opts, "default_width")? {
+            builder = builder.default_width(v);
+        }
+        if let Some(v) = opt_f32(opts, "default_height")? {
+            builder = builder.default_height(v);
+        }
+        if let Some(v) = opt_vec2(opts, "default_size")? {
+            builder = builder.default_size(v);
+        }
+        if let Some(v) = opt_vec2(opts, "min_size")? {
+            builder = builder.min_size(v);
+        }
+        if let Some(v) = opt_f32(opts, "min_width")? {
+            builder = builder.min_width(v);
+        }
+        if let Some(v) = opt_f32(opts, "min_height")? {
+            builder = builder.min_height(v);
+        }
+        if let Some(v) = opt_vec2(opts, "max_size")? {
+            builder = builder.max_size(v);
+        }
+        if let Some(v) = opt_f32(opts, "max_width")? {
+            builder = builder.max_width(v);
+        }
+        if let Some(v) = opt_f32(opts, "max_height")? {
+            builder = builder.max_height(v);
+        }
+        if let Some(v) = opt_bool(opts, "resizable")? {
+            builder = builder.resizable(egui::Vec2b::splat(v));
+        }
+        if let Some(v) = opt_bool(opts, "auto_sized")? {
+            if v {
+                builder = builder.auto_sized();
+            }
+        }
+        if let Some(v) = opt_vec2(opts, "fixed_size")? {
+            builder = builder.fixed_size(v);
+        }
+    }
+
+    builder.show(ui, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// Builder options for `egui::Area`, matching its setters exactly.
+const AREA_OPTIONS: &[&str] = &[
+    "enabled",
+    "movable",
+    "interactable",
+    "order",
+    "default_pos",
+    "default_size",
+    "default_width",
+    "default_height",
+    "fixed_pos",
+    "constrain",
+    "fade_in",
+];
+
+/// Show a free-floating area, mirroring `egui::Area`.
+///
+/// An area is not tied to a panel and has no frame of its own by default, so it
+/// is usually combined with a `Frame`. egui stores an area's position between
+/// frames, so `movable=True` lets the user drag it.
+///
+/// ```python
+/// def update_func(ctx):
+///     area(ctx, lambda: label("Drag me"), default_pos=(40.0, 40.0), movable=True)
+///     central_panel(ctx, main_contents)
+/// ```
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn area(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let ctx = &ctx.0;
+    let mut builder = egui::Area::new(id.to_owned());
+
+    if let Some(opts) = options {
+        validate_options(opts, AREA_OPTIONS)?;
+        if let Some(v) = opt_bool(opts, "enabled")? {
+            builder = builder.enabled(v);
+        }
+        if let Some(v) = opt_bool(opts, "movable")? {
+            builder = builder.movable(v);
+        }
+        if let Some(v) = opt_bool(opts, "interactable")? {
+            builder = builder.interactable(v);
+        }
+        if let Some(v) = opt_order(opts)? {
+            builder = builder.order(v);
+        }
+        if let Some(v) = opt_vec2(opts, "default_pos")? {
+            builder = builder.default_pos(v);
+        }
+        if let Some(v) = opt_vec2(opts, "default_size")? {
+            builder = builder.default_size(v);
+        }
+        if let Some(v) = opt_f32(opts, "default_width")? {
+            builder = builder.default_width(v);
+        }
+        if let Some(v) = opt_f32(opts, "default_height")? {
+            builder = builder.default_height(v);
+        }
+        if let Some(v) = opt_vec2(opts, "fixed_pos")? {
+            builder = builder.fixed_pos(v);
+        }
+        if let Some(v) = opt_bool(opts, "constrain")? {
+            builder = builder.constrain(v);
+        }
+        if let Some(v) = opt_bool(opts, "fade_in")? {
+            builder = builder.fade_in(v);
+        }
+    }
+
+    builder.show(&ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()));
 
     Ok(())
 }
@@ -3534,6 +3764,9 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(side_panel_right, m)?)?;
     m.add_function(wrap_pyfunction!(top_panel, m)?)?;
     m.add_function(wrap_pyfunction!(bottom_panel, m)?)?;
+    m.add_function(wrap_pyfunction!(modal, m)?)?;
+    m.add_function(wrap_pyfunction!(resize, m)?)?;
+    m.add_function(wrap_pyfunction!(area, m)?)?;
     m.add_function(wrap_pyfunction!(central_panel, m)?)?;
     m.add_function(wrap_pyfunction!(window, m)?)?;
     m.add_function(wrap_pyfunction!(checkbox, m)?)?;

@@ -388,6 +388,9 @@ def page_state(ctx):
 win_open = Bool(True)
 sized_open = Bool(True)
 
+# The modal is open by default so the screenshot shows it.
+show_modal = Bool(True)
+
 # What window() returned last frame: True when visible. Recorded so the page
 # can prove egui honoured the `open` Bool, not merely that pixels appeared.
 win_visible = Bool(True)
@@ -523,6 +526,45 @@ def page_panels(ctx):
     side_panel_left(ctx, "side", side_contents, default_width=200.0)
     top_panel(ctx, "top", top_contents, default_height=44.0)
     bottom_panel(ctx, "bottom", bottom_contents, default_height=44.0)
+    central_panel(ctx, main_contents)
+
+
+@page("overlays", raw_frame=True)
+def page_overlays(ctx):
+    """A modal and a resizable area.
+
+    The modal is drawn before the central panel, because egui wants every
+    other top-level container first and the central panel last -- otherwise the
+    central panel covers the modal's backdrop and the modal cannot be dismissed
+    by clicking outside it.
+    """
+
+    def modal_contents():
+        heading("Modal")
+        label("Click outside this, or use Close, to dismiss.")
+        separator()
+        if button_clicked("Close"):
+            ctx.close()
+
+    if show_modal.value:
+        if modal(ctx, "demo_modal", modal_contents, default_width=300.0):
+            show_modal.value = False
+    elif button_clicked("Open modal"):
+        show_modal.value = True
+
+    def main_contents():
+        label("The central panel is drawn last.")
+        separator()
+        heading("A resizable area")
+        # resize() needs an existing Ui, so it can only be called from inside
+        # another container -- not directly from update_func.
+        resize(
+            lambda: label("Drag my bottom-right corner."),
+            default_width=260.0,
+            default_height=70.0,
+            resizable=True,
+        )
+
     central_panel(ctx, main_contents)
 
 
