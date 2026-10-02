@@ -69,8 +69,13 @@ then takes the space that is left over.
 - Unknown container options raise `ValueError` naming every valid option,
   rather than being ignored.
 
-`modal`, `popup`, `popup_menu`, `area`, `resize` and `scene` are not in this
-release. See `TODO.md` for the remaining API surface.
+`modal` returns `True` when the backdrop is clicked, which is the signal to
+dismiss it -- egui's `ModalResponse` has no `should_close`, and its
+`is_top_modal` field answers "am I the topmost modal", which a lone modal
+satisfies every frame. `resize` is not a top-level container: egui's
+`Resize::show` takes a `&mut Ui`, so it must be called from inside another one.
+
+`popup`, `popup_menu` and `scene` are not in this release. See `TODO.md`.
 
 **egui 0.31.1 widget coverage**
 

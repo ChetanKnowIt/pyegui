@@ -173,6 +173,13 @@ software renderer, and captures each page. The same job doubles as a render
 smoke test: a widget that compiles and imports but draws nothing fails it,
 which the export gate cannot catch.
 
+.. figure:: docs/_static/overlays.png
+   :alt: The overlays page: a modal dialog over a resizable area
+
+   ``modal`` returns ``True`` when the backdrop is clicked, and ``resize``
+   draws a box with a real resize grip. Both need an existing container:
+   ``modal`` before the central panel, ``resize`` inside it.
+
 .. figure:: docs/_static/panels.png
    :alt: The panels page: a left side panel, a top panel, a bottom panel and a central panel
 

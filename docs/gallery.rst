@@ -10,6 +10,13 @@ which the export gate cannot catch.
 The images live in ``docs/_static/``. To refresh them, push a change to the
 gallery, download the ``gallery-screenshots`` artifact, and replace the files.
 
+.. figure:: _static/overlays.png
+   :alt: The overlays page: a modal dialog over a resizable area
+
+   ``modal`` returns ``True`` when the backdrop is clicked, and ``resize``
+   draws a box with a real resize grip. Both need an existing container:
+   ``modal`` before the central panel, ``resize`` inside it.
+
 .. figure:: _static/panels.png
    :alt: The panels page: a left side panel, a top panel, a bottom panel and a central panel
 
