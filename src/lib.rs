@@ -2076,6 +2076,13 @@ unsafe fn side_panel_left(
     contents: Bound<'_, PyAny>,
     options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
+    // These take `impl Into<Id>`, and egui has `From<String> for Id` as well
+    // as `From<&'static str>`. Passing the owned String selects the former:
+    // a borrowed `&str` would resolve to the 'static impl and fail to compile,
+    // and leaking the String to get a 'static str would grow the heap on every
+    // frame.
+    let id = id.to_owned();
+
     let builder = match options {
         Some(opts) => {
             validate_options(opts, SIDE_PANEL_OPTIONS)?;
@@ -2098,6 +2105,13 @@ unsafe fn side_panel_right(
     contents: Bound<'_, PyAny>,
     options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
+    // These take `impl Into<Id>`, and egui has `From<String> for Id` as well
+    // as `From<&'static str>`. Passing the owned String selects the former:
+    // a borrowed `&str` would resolve to the 'static impl and fail to compile,
+    // and leaking the String to get a 'static str would grow the heap on every
+    // frame.
+    let id = id.to_owned();
+
     let builder = match options {
         Some(opts) => {
             validate_options(opts, SIDE_PANEL_OPTIONS)?;
@@ -2120,6 +2134,10 @@ unsafe fn top_panel(
     contents: Bound<'_, PyAny>,
     options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
+    // See side_panel_left: pass an owned String so `impl Into<Id>` resolves to
+    // egui's `From<String>` rather than the `&'static str` impl.
+    let id = id.to_owned();
+
     let builder = match options {
         Some(opts) => {
             validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
@@ -2142,6 +2160,10 @@ unsafe fn bottom_panel(
     contents: Bound<'_, PyAny>,
     options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
+    // See side_panel_left: pass an owned String so `impl Into<Id>` resolves to
+    // egui's `From<String>` rather than the `&'static str` impl.
+    let id = id.to_owned();
+
     let builder = match options {
         Some(opts) => {
             validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
