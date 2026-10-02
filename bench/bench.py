@@ -51,9 +51,10 @@ STEADY_FRAMES = 60
 
 
 def make_update(first_frame):
-    def update(ctx):
-        # Resolve the Ui stack exactly once; the widgets below are the thing
-        # being measured.
+    def contents():
+        # The widgets are the thing being measured. They need a Ui, and this
+        # function composes its own frame, so the labels go inside a panel
+        # rather than at the top level.
         t0 = time.perf_counter()
 
         for i in range(WIDGETS_PER_FRAME):
@@ -66,6 +67,8 @@ def make_update(first_frame):
         steady.append(elapsed)
         first_frame["n"] += 1
 
+    def update(ctx):
+        first_frame["n"] += 1
         if first_frame["n"] >= STEADY_FRAMES:
             ctx.close()
         else:
@@ -75,6 +78,10 @@ def make_update(first_frame):
             # after one frame. The Rust baseline does the same for the same
             # reason.
             ctx.request_repaint()
+
+        # Drawn last, matching CentralPanel::default().show(...) on the Rust
+        # side, so both measurements cover the same work.
+        pyegui.central_panel(ctx, contents)
 
     return update
 
