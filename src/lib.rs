@@ -1661,6 +1661,36 @@ unsafe fn small_button_response(text: &str) -> PyResult<Response> {
     })
 }
 
+/// Draws the central panel. Must be called last in update_func, after any
+/// side panels, top/bottom panels or modals.
+///
+/// egui requires `CentralPanel` to be added after every other top-level
+/// panel (see the panel docs in egui 0.31.1), so Python composes the frame
+/// itself rather than having `run_native` do it. This is what an egui app
+/// does in Rust.
+///
+/// Example::
+///
+///     def main_contents():
+///       heading("in the central panel")
+///
+///     def update_func(ctx):
+///       side_panel_left(ctx, "nav", nav_contents)
+///       central_panel(ctx, main_contents)
+///
+/// Widgets resolve their `Ui` from an internal stack, so they must be drawn
+/// inside a callback such as this one, never directly in `update_func`.
+#[pyfunction]
+unsafe fn central_panel(ctx: &Context, contents: Bound<'_, PyAny>) -> PyResult<()> {
+    let ctx = &ctx.0;
+
+    egui::CentralPanel::default().show(ctx, |ui| {
+        run_nested_update_func_lossy(ui, contents.clone())
+    });
+
+    Ok(())
+}
+
 /// Start a ui with horizontal layout. After you have called this, the function registers the contents as any other widget.
 ///
 /// Elements will be centered on the Y axis, i.e. adjusted up and down to lie in the center of the horizontal layout. The initial height is style.spacing.interact_size.y. Centering is almost always what you want if you are planning to mix widgets or use different types of text.
@@ -3003,6 +3033,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hyperlink, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink_to, m)?)?;
     m.add_function(wrap_pyfunction!(link_clicked, m)?)?;
+    m.add_function(wrap_pyfunction!(central_panel, m)?)?;
     m.add_function(wrap_pyfunction!(checkbox, m)?)?;
     m.add_function(wrap_pyfunction!(radio_value, m)?)?;
     m.add_function(wrap_pyfunction!(toggle_value, m)?)?;
