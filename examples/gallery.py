@@ -388,6 +388,11 @@ def page_state(ctx):
 win_open = Bool(True)
 sized_open = Bool(True)
 
+# What window() returned last frame: True when visible. Recorded so the page
+# can prove egui honoured the `open` Bool, not merely that pixels appeared.
+win_visible = Bool(True)
+sized_visible = Bool(True)
+
 
 def window_contents():
     heading("A window")
@@ -437,12 +442,14 @@ def page_containers(ctx):
     def main_contents():
         outer_collapsing_contents()
         separator()
-        label(f"win_open.value   = {win_open.value}")
-        label(f"sized_open.value = {sized_open.value}")
+        label(f"win_open.value    = {win_open.value}")
+        label(f"window() returned = {win_visible.value}")
+        label(f"sized_open.value  = {sized_open.value}")
+        label(f"window() returned = {sized_visible.value}")
 
     central_panel(ctx, main_contents)
 
-    window(
+    win_visible.value = window(
         ctx,
         "A window",
         "w1",
@@ -453,7 +460,7 @@ def page_containers(ctx):
         resizable=True,
     )
 
-    window(
+    sized_visible.value = window(
         ctx,
         "Sized window",
         "w2",
