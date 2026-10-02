@@ -173,6 +173,13 @@ software renderer, and captures each page. The same job doubles as a render
 smoke test: a widget that compiles and imports but draws nothing fails it,
 which the export gate cannot catch.
 
+.. figure:: docs/_static/panels.png
+   :alt: The panels page: a left side panel, a top panel, a bottom panel and a central panel
+
+   Independent containers composed explicitly. egui asks for the side, top and
+   bottom panels first, and ``central_panel`` last, which then takes whatever
+   space is left over.
+
 .. figure:: docs/_static/response.png
    :alt: The Response page: a tooltip button, a checkbox and two sliders
 

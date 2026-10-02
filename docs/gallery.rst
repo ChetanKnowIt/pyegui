@@ -10,6 +10,13 @@ which the export gate cannot catch.
 The images live in ``docs/_static/``. To refresh them, push a change to the
 gallery, download the ``gallery-screenshots`` artifact, and replace the files.
 
+.. figure:: _static/panels.png
+   :alt: The panels page: a left side panel, a top panel, a bottom panel and a central panel
+
+   Independent containers composed explicitly. egui asks for the side, top and
+   bottom panels first, and ``central_panel`` last, which then takes whatever
+   space is left over.
+
 .. figure:: _static/response.png
    :alt: The Response page: a tooltip button, a checkbox and two sliders
 
