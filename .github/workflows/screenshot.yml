@@ -51,7 +51,11 @@ jobs:
       # context. A bare Xvfb has no GL at all, so Mesa's software rasteriser
       # (llvmpipe via libgl1-mesa-dri) is what actually draws the pixels.
       # Without this the app opens a window and renders nothing.
-      - name: Install Xvfb and software OpenGL
+      #
+      # The X client libraries are not optional either. winit dlopen()s
+      # libxkbcommon-x11.so and panics if it is missing, so an incomplete
+      # runner image fails at window creation rather than at import.
+      - name: Install Xvfb, software OpenGL and the X client libraries
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -60,6 +64,14 @@ jobs:
             libglx-mesa0 \
             mesa-utils \
             x11-utils \
+            x11-xkb-utils \
+            libxkbcommon-x11-0 \
+            libxkbcommon0 \
+            libx11-6 \
+            libxcursor1 \
+            libxrandr2 \
+            libxi6 \
+            libxinerama1 \
             imagemagick
 
       - name: Build and install the wheel
