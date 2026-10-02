@@ -7,7 +7,7 @@ use egui_extras;
 use log::debug;
 use pyo3::prelude::*;
 use pyo3::{
-    exceptions::{PyOSError, PyRuntimeError},
+    exceptions::{PyOSError, PyRuntimeError, PyValueError},
     types::{PyAny, PyBool, PyDict, PyInt, PyString},
 };
 use std::sync::{Arc, Mutex};
@@ -1073,17 +1073,15 @@ impl eframe::App for PyeguiApp<'_> {
         // through. Do not wrap this in `egui::Context::run`: that is the
         // frame driver eframe itself calls to reach this method, not a
         // wrapper for use inside it.
-        unsafe {
-            debug!("Execute update_func");
+        debug!("Execute update_func");
 
-            Python::with_gil(|py| {
-                if let Err(err) = self.update_func.call1((ctx_r,)) {
-                    err.display(py);
-                }
-            });
+        Python::with_gil(|py| {
+            if let Err(err) = self.update_func.call1((ctx_r,)) {
+                err.display(py);
+            }
+        });
 
-            debug!("Executed update_func");
-        }
+        debug!("Executed update_func");
     }
 }
 
@@ -1777,7 +1775,7 @@ unsafe fn window(
 
     if let Some(opts) = options {
         validate_options(opts, WINDOW_OPTIONS)?;
-        apply_window_options(&mut builder, opts)?;
+        builder = apply_window_options(builder, opts)?;
     }
 
     // egui's `open` takes `&'open mut bool`. `Bool.value` is an owned field,
@@ -1829,9 +1827,9 @@ const WINDOW_OPTIONS: &[&str] = &[
 ];
 
 unsafe fn apply_window_options(
-    builder: &mut egui::Window,
+    mut builder: egui::Window,
     opts: &Bound<'_, PyDict>,
-) -> PyResult<()> {
+) -> PyResult<egui::Window> {
     if let Some(v) = opt_vec2(opts, "default_size")? {
         builder = builder.default_size(v);
     }
@@ -1924,11 +1922,10 @@ unsafe fn apply_window_options(
     // the value is the failure this whole option parser exists to prevent.
     if let Some(value) = opts.get_item("order")? {
         let name: String = value.extract().map_err(|_| {
-            PyValueError::new_err("order must be one of 'background', 'panelresize', 'middle', 'foreground', 'tooltip', 'debug'")
+            PyValueError::new_err("order must be one of 'background', 'middle', 'foreground', 'tooltip', 'debug'")
         })?;
         let order = match name.as_str() {
             "background" => egui::Order::Background,
-            "panelresize" => egui::Order::PanelResize,
             "middle" => egui::Order::Middle,
             "foreground" => egui::Order::Foreground,
             "tooltip" => egui::Order::Tooltip,
@@ -1936,14 +1933,14 @@ unsafe fn apply_window_options(
             _ => {
                 return Err(PyValueError::new_err(format!(
                     "unknown order {name:?}; expected one of 'background', \
-                     'panelresize', 'middle', 'foreground', 'tooltip', 'debug'"
+                     'middle', 'foreground', 'tooltip', 'debug'"
                 )))
             }
         };
         builder = builder.order(order);
     }
 
-    Ok(())
+    Ok(builder)
 }
 
 /// Draws the central panel. Must be called last in update_func, after any
