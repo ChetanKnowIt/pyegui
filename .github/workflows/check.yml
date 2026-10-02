@@ -116,6 +116,29 @@ jobs:
               "Layout", "LayoutType", "Scope", "Group",
               # app context
               "Context",
+              # widgets
+              "heading", "monospace", "small", "strong", "weak", "label",
+              "code", "code_editor", "text_edit_singleline",
+              "text_edit_multiline", "button_clicked", "small_button_clicked",
+              "link_clicked", "hyperlink", "hyperlink_to",
+              "image_and_text_clicked", "checkbox", "toggle_value",
+              "radio_value", "selectable_value", "combo_box", "progress",
+              "spinner", "color_edit_button_rgb", "date_picker_button",
+              # widgets added on the egui 0.31.1 coverage branch
+              "selectable_label", "radio", "drag_angle", "drag_angle_tau",
+              "close_menu",
+              # layout / scopes
+              "horizontal", "horizontal_centered", "horizontal_top",
+              "horizontal_wrapped", "vertical", "vertical_centered",
+              "vertical_centered_justified", "centered_and_justified",
+              "indent", "collapsing", "group", "scope",
+              "scroll_area_vertical", "scroll_area_horizontal",
+              # ui state
+              "disable", "add_enabled", "set_invisible", "set_opacity",
+              "add_space", "separator",
+              # numbers and images
+              "slider_float", "slider_int", "drag_float", "drag_int",
+              "image",
           }
           missing = sorted(n for n in required if not hasattr(pyegui, n))
           assert not missing, f"missing exports: {missing}"

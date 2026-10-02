@@ -119,6 +119,24 @@ Rust:
 3. **Batch 1 scope.** A+B, or start narrow with D minus `colored_label`
    (five trivial functions, no new classes) to calibrate the loop.
 
+## Settled decisions
+
+These three were open at `e0beb36` and were decided on 2026-10-02. Do not
+re-open them without new information.
+
+1. **Nesting: additive `_response` suffix.** New `button_response()` etc. sit
+   alongside `button_clicked()`; nothing existing changes signature. Chosen
+   over returning a falsy `Response` from the bool helpers, which would break
+   `if button_clicked():` for current users.
+2. **Drag-and-drop payloads are deferred.** Ship the `Response` class and the
+   `_*_response` variants without DnD. `dnd_set_drag_payload` takes
+   `Arc<dyn Any + Send + Sync>`, which does not map onto Python objects; that
+   bridging is its own design problem. TODO §1 keeps the DnD items unchecked.
+3. **Batch order.** Batch D minus `colored_label` shipped first (five trivial
+   functions, no new classes) to calibrate the CI loop. A+B follows as one
+   change — A alone verifies little. C (non-RGB color pickers) and
+   `colored_label` are independent and can follow.
+
 ## House rules for this repo
 
 - Do not add local build steps. If it cannot run in CI, it does not run.

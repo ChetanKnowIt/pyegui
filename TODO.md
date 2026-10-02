@@ -12,8 +12,8 @@ not reachable) · `[ ]` not implemented
 
 ## Current state
 
-51 functions and 10 classes exported (`src/lib.rs`). egui 0.31.1 exposes 174
-inherent methods on `Ui`; roughly 39 have a direct pyegui equivalent.
+56 functions and 11 classes exported (`src/lib.rs`). egui 0.31.1 exposes 174
+inherent methods on `Ui`; roughly 44 have a direct pyegui equivalent.
 
 Validation is CI-only — see `docs/development.rst`. Nothing is compiled
 locally, so each batch is pushed to `fork` and the `check` run is the verdict.
@@ -45,9 +45,9 @@ keeping the existing `*_clicked` helpers as thin wrappers so nothing breaks.
 
 ## 2. Missing widgets
 
-- [ ] `selectable_label` (selection without a companion value)
-- [ ] `radio` (selectable without a companion value)
-- [ ] `drag_angle`, `drag_angle_tau`
+- [x] `selectable_label` (selection without a companion value)
+- [x] `radio` (selectable without a companion value)
+- [x] `drag_angle`, `drag_angle_tau`
 - [ ] `colored_label`
 - [~] `color_edit_button_rgb` — only RGB. Missing `hsva`, `srgb`, `srgba`,
       `rgba_premultiplied`, `rgba_unmultiplied`, `srgba_premultiplied`,
@@ -59,7 +59,7 @@ keeping the existing `*_clicked` helpers as thin wrappers so nothing breaks.
 - [~] `image_and_text_clicked` — missing `Button` options: `selected`,
       `min_size`, `sense`, `corner_radius`, `shortcut_text`
 - [~] `progress` — missing text/format and `animate`
-- [ ] `close_menu`
+- [x] `close_menu`
 
 ## 3. Missing containers
 

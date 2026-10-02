@@ -1191,6 +1191,40 @@ unsafe fn drag_int(value: &mut Int, min: i32, max: i32, speed: i32) -> PyResult<
     Ok(())
 }
 
+/// Control an angle in radians (0 to 2*pi) by dragging around a dial.
+/// The value wraps around, so dragging past 2*pi continues from 0.
+///
+/// Example::
+///
+///     data = Float(0)
+///     # inside update_func
+///     drag_angle(data)
+///     heading(f"{data.value} rad")
+#[pyfunction]
+unsafe fn drag_angle(radians: &mut Float) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.drag_angle(&mut radians.value);
+    Ok(())
+}
+
+/// Control an angle in radians by dragging around a dial that spans the full
+/// circle (0 to 2*pi), instead of the half-circle dial of drag_angle.
+///
+/// Example::
+///
+///     data = Float(0)
+///     # inside update_func
+///     drag_angle_tau(data)
+///     heading(f"{data.value} rad")
+#[pyfunction]
+unsafe fn drag_angle_tau(radians: &mut Float) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.drag_angle_tau(&mut radians.value);
+    Ok(())
+}
+
 /// A clickable hyperlink
 ///
 /// Example::
@@ -1303,6 +1337,44 @@ unsafe fn selectable_value(current_value: &mut Int, alternative: i32, text: &str
     Ok(())
 }
 
+/// Show a selectable label. It is highlighted while "selected" is True, and
+/// toggles to True when clicked.
+///
+/// This is the counterpart of selectable_value: same widget, but the state is
+/// a single bool rather than a value chosen from a set.
+///
+/// Example::
+///
+///     data = Bool(False)
+///     # inside update_func
+///     selectable_label(data, "select me")
+#[pyfunction]
+unsafe fn selectable_label(selected: &mut Bool, text: &str) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.selectable_label(selected.value, text);
+    Ok(())
+}
+
+/// Show a radio button. It is selected while "selected" is True, and toggles to
+/// True when clicked.
+///
+/// This is the counterpart of radio_value: the state is a single bool, so the
+/// caller decides what "selected" means.
+///
+/// Example::
+///
+///     wifi = Bool(True)
+///     # inside update_func
+///     radio(wifi, "wifi")
+#[pyfunction]
+unsafe fn radio(selected: &mut Bool, text: &str) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.radio(selected.value, text);
+    Ok(())
+}
+
 /// Shows a combo box with values defined in "alternatives" and their corresponding names
 /// defined in "names"
 ///
@@ -1340,6 +1412,21 @@ unsafe fn combo_box(
                 );
             }
         });
+    Ok(())
+}
+
+/// Closes the currently open menu. Useful to dismiss a combo box or a context
+/// menu programmatically from within the update function.
+///
+/// Example::
+///
+///     if button_clicked("close"):
+///         close_menu()
+#[pyfunction]
+unsafe fn close_menu() -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.close_menu();
     Ok(())
 }
 
@@ -1587,6 +1674,8 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(slider_int, m)?)?;
     m.add_function(wrap_pyfunction!(drag_int, m)?)?;
     m.add_function(wrap_pyfunction!(drag_float, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_angle, m)?)?;
+    m.add_function(wrap_pyfunction!(drag_angle_tau, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink_to, m)?)?;
     m.add_function(wrap_pyfunction!(link_clicked, m)?)?;
@@ -1594,7 +1683,10 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(radio_value, m)?)?;
     m.add_function(wrap_pyfunction!(toggle_value, m)?)?;
     m.add_function(wrap_pyfunction!(selectable_value, m)?)?;
+    m.add_function(wrap_pyfunction!(selectable_label, m)?)?;
+    m.add_function(wrap_pyfunction!(radio, m)?)?;
     m.add_function(wrap_pyfunction!(combo_box, m)?)?;
+    m.add_function(wrap_pyfunction!(close_menu, m)?)?;
     m.add_function(wrap_pyfunction!(progress, m)?)?;
     m.add_function(wrap_pyfunction!(spinner, m)?)?;
     m.add_function(wrap_pyfunction!(color_edit_button_rgb, m)?)?;
