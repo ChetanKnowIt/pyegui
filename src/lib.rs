@@ -119,6 +119,21 @@ impl Context {
     fn copy_text(&self, text: String) {
         self.0.copy_text(text);
     }
+
+    /// Close the window, which shuts the app down.
+    ///
+    /// Useful for a "quit" button, and for screenshots, where the app has to
+    /// exit on its own once every frame has been captured.
+    ///
+    /// Example::
+    ///
+    ///   def update_func(ctx):
+    ///     if button_clicked("quit"):
+    ///         ctx.close()
+    fn close(&self) {
+        self.0
+            .send_viewport_cmd(egui::viewport::ViewportCommand::Close);
+    }
 }
 
 /// Str stores string value that can be referenced

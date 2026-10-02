@@ -1,0 +1,145 @@
+# Render the widget gallery and upload a PNG per page.
+#
+# Screenshots cannot be taken on a developer machine: pyegui has no local Rust
+# toolchain, so the only build of this crate that exists anywhere is the one CI
+# produces. This workflow is therefore both the build and the screenshot.
+#
+# It also serves as a smoke test. The export gate proves the module imports and
+# exposes the right names; this proves the widgets actually render. A widget
+# that compiles and imports but panics or draws nothing fails here.
+#
+# Not a gate on PRs: it is slow (a release build plus a window per page) and a
+# rendering regression should not block a Rust-only change. To refresh the
+# images in docs/screenshots/, run this on the branch and download the
+# artifact.
+name: screenshot
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: screenshot-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gallery:
+    name: render gallery pages
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ runner.os }}-cargo-screenshot
+
+      # eframe builds with the `glow` backend, which needs a real OpenGL
+      # context. A bare Xvfb has no GL at all, so Mesa's software rasteriser
+      # (llvmpipe via libgl1-mesa-dri) is what actually draws the pixels.
+      # Without this the app opens a window and renders nothing.
+      - name: Install Xvfb and software OpenGL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb \
+            libgl1-mesa-dri \
+            libglx-mesa0 \
+            mesa-utils \
+            x11-utils \
+            imagemagick
+
+      - name: Build and install the wheel
+        run: |
+          set -euo pipefail
+          pip install "maturin>=1.8,<2.0"
+          maturin build --release --locked --out dist --find-interpreter
+          pip install --find-links dist --force-reinstall pyegui
+
+      - name: Verify the gallery imports
+        run: python examples/gallery.py list
+
+      # One window per page. Each run draws its page, sleeps to let the last
+      # frame composite, and closes itself, so this is deterministic rather
+      # than a sleep-and-hope race against the compositor.
+      - name: Render each page and screenshot it
+        env:
+          DISPLAY: ':99'
+        run: |
+          set -euo pipefail
+
+          Xvfb :99 -screen 0 1280x1024x24 >/tmp/xvfb.log 2>&1 &
+          xvfb_pid=$!
+          trap 'kill $xvfb_pid 2>/dev/null || true' EXIT
+
+          # Wait for the server to accept connections rather than sleeping a
+          # fixed amount.
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+            sleep 0.2
+          done
+          xdpyinfo -display :99 >/dev/null
+
+          # Confirm there is a GL implementation before blaming the gallery.
+          glxinfo -B 2>&1 | head -20 || true
+
+          mkdir -p screenshots
+          failed=""
+
+          for page in $(python examples/gallery.py list); do
+            echo "::group::rendering ${page}"
+            if python "examples/gallery.py" "${page}"; then
+              # -crop trims the X root down to the window's actual geometry.
+              # The gallery sets a fixed inner size, so the window is placed
+              # at a known offset and the capture is deterministic.
+              import -display :99 -window root \
+                -crop 560x820+0+0 +repage "screenshots/${page}.png"
+              echo "captured screenshots/${page}.png"
+            else
+              echo "::error::page ${page} exited non-zero"
+              failed="${failed} ${page}"
+            fi
+            echo "::endgroup::"
+          done
+
+          ls -la screenshots/
+
+          if [ -n "${failed}" ]; then
+            echo "::error::these pages failed to render:${failed}"
+            exit 1
+          fi
+
+      - name: Fail if any screenshot is suspiciously small
+        run: |
+          set -euo pipefail
+          # A blank frame still produces a valid PNG, so check the bytes. A
+          # rendered egui window compresses to far more than this.
+          for png in screenshots/*.png; do
+            size=$(stat -c%s "$png")
+            if [ "$size" -lt 3000 ]; then
+              echo "::error::${png} is only ${size} bytes; the frame is probably blank"
+              exit 1
+            fi
+            echo "${png}: ${size} bytes"
+          done
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-screenshots
+          path: screenshots/*.png
+          if-no-files-found: error
+          retention-days: 30

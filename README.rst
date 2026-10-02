@@ -113,7 +113,7 @@ Available now
 - Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
   ``set_opacity``, ``add_space``, ``separator``, ``close_menu``
 - App: ``run_native`` with viewport kwargs, ``Context`` (theme, fonts,
-  ``open_url``, ``copy_text``)
+  ``open_url``, ``copy_text``, ``close``)
 - State holders: ``Str``, ``Bool``, ``Int``, ``Float``, ``Date``
 - Colours: ``RGB``, ``RGBA``, ``HSVA``, ``Color32``, ``SRGB``
 

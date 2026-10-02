@@ -150,6 +150,12 @@ RESPONSE_VARIANTS = [
 # from a missing widget.
 REQUIRED = set(CLASSES) | set(FUNCTIONS) | set(RESPONSE_VARIANTS) | {"run_native"}
 
+# Methods on the exported classes are NOT listed here: only module-level names
+# show up in `dir(pyegui)`. For example `Context.close` exists but is not a
+# module-level export, so it must not be added to the lists above. The class
+# itself is declared; its methods are checked by being called from
+# examples/gallery.py, which the screenshot workflow renders.
+
 # Names that appear on a module object without being declared API. Kept small
 # and explicit rather than pattern-matched, so that adding a real widget never
 # gets silently excused by an over-broad rule.

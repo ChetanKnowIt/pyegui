@@ -139,8 +139,9 @@ work so far — this is the next large gap after containers.
       `spacing`, `spacing_mut`, `set_visuals`
 - [ ] Animations: `animate_bool_with_time`, `animate_value_with_time`,
       `clear_animations`
-- [ ] Viewport: `viewport`, `send_viewport_cmd`, `embed_viewports`,
-      `set_embed_viewports`, `screen_rect`
+- [~] Viewport: `Context.close()` ships (`send_viewport_cmd(Close)`), but
+      `viewport`, the general `send_viewport_cmd`, `embed_viewports`,
+      `set_embed_viewports` and `screen_rect` are unreachable
 - [ ] Zoom and scale: `set_zoom_factor`, `zoom_factor`,
       `set_pixels_per_point`, `pixels_per_point`
 - [ ] Textures and loaders: `load_texture`, `try_load_texture`,
