@@ -35,8 +35,8 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
 - [x] `Response` pyclass wrapping `egui::Response`
 - [x] `hovered`, `changed`, `clicked`, `clicked_by`, `double_clicked`,
       `triple_clicked`, `secondary_clicked`, `middle_clicked`, `long_touched`
-- [x] `drag_started`, `dragged`, `drag_stopped`, `drag_delta`,
-      `drag_released`, `drag_motion`, and the `_by(PointerButton)` variants
+- [x] `drag_started`, `dragged`, `drag_stopped`, `drag_delta`, `drag_motion`,
+      and the `_by(PointerButton)` variants
 - [x] `has_focus`, `gained_focus`, `lost_focus`, `request_focus`,
       `surrender_focus`
 - [x] `on_hover_text`, `on_hover_ui`, `show_tooltip_text`, `show_tooltip_ui`,
@@ -53,9 +53,13 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
       deferred: `Arc<dyn Any + Send + Sync>` has no clean Python mapping
 - [ ] Drag-and-drop containers: `dnd_drag_source`, `dnd_drop_zone`
 
-Note: `total_drag_delta` is listed in earlier revisions of this file but does
-not exist in egui 0.31.1 — `Response` has `drag_delta` and `drag_motion`, and
-egui asserts `Send + Sync` on `Context` rather than exposing a total.
+Two names in earlier revisions of this file do not exist in egui 0.31.1 and
+were dropped rather than shipped as stubs:
+
+  - `total_drag_delta`. `Response` has `drag_delta` (this frame) and
+    `drag_motion`; there is no total.
+  - `drag_released` / `drag_released_by`. Deprecated in 0.31.1 in favour of
+    `drag_stopped` / `drag_stopped_by`, which are the ones exposed.
 
 ## 2. Missing widgets
 

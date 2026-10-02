@@ -739,17 +739,6 @@ impl Response {
         self.inner.drag_stopped_by(button.into())
     }
 
-    /// True if the widget was dragged and released this frame.
-    #[getter]
-    fn drag_released(&self) -> bool {
-        self.inner.drag_released()
-    }
-
-    /// True if a drag with the given mouse button was released on the widget.
-    fn drag_released_by(&self, button: PointerButton) -> bool {
-        self.inner.drag_released_by(button.into())
-    }
-
     /// How far the widget was dragged this frame, as (dx, dy).
     #[getter]
     fn drag_delta(&self) -> (f32, f32) {
@@ -1376,7 +1365,7 @@ unsafe fn text_edit_singleline_response(
     }
 
     Ok(Response {
-        inner: ui.add(w).inner,
+        inner: ui.add(w),
     })
 }
 
@@ -1419,7 +1408,7 @@ unsafe fn text_edit_multiline_response(
     }
 
     Ok(Response {
-        inner: ui.add(w).inner,
+        inner: ui.add(w),
     })
 }
 
@@ -1680,9 +1669,7 @@ unsafe fn slider_float_response(
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(egui::Slider::new(&mut value.value, min..=max).text(text))
-            .inner,
+        inner: ui.add(egui::Slider::new(&mut value.value, min..=max).text(text)),
     })
 }
 
@@ -1716,13 +1703,11 @@ unsafe fn slider_int_response(
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(
-                egui::Slider::new(&mut value.value, min..=max)
-                    .text(text)
-                    .integer(),
-            )
-            .inner,
+        inner: ui.add(
+            egui::Slider::new(&mut value.value, min..=max)
+                .text(text)
+                .integer(),
+        ),
     })
 }
 
@@ -1756,13 +1741,11 @@ unsafe fn drag_float_response(
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(
-                egui::DragValue::new(&mut value.value)
-                    .speed(speed)
-                    .range(min..=max),
-            )
-            .inner,
+        inner: ui.add(
+            egui::DragValue::new(&mut value.value)
+                .speed(speed)
+                .range(min..=max),
+        ),
     })
 }
 
@@ -1796,13 +1779,11 @@ unsafe fn drag_int_response(
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(
-                egui::DragValue::new(&mut value.value)
-                    .speed(speed)
-                    .range(min..=max),
-            )
-            .inner,
+        inner: ui.add(
+            egui::DragValue::new(&mut value.value)
+                .speed(speed)
+                .range(min..=max),
+        ),
     })
 }
 
@@ -2225,9 +2206,7 @@ unsafe fn progress_response(value: f32) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(egui::widgets::ProgressBar::new(value).show_percentage())
-            .inner,
+        inner: ui.add(egui::widgets::ProgressBar::new(value).show_percentage()),
     })
 }
 
@@ -2331,7 +2310,7 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
     }
 
     Ok(Response {
-        inner: ui.add(img).inner,
+        inner: ui.add(img),
     })
 }
 
@@ -2343,7 +2322,7 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
 ///       print("clicked")
 #[pyfunction]
 unsafe fn image_and_text_clicked(source: &str, text: &str) -> PyResult<bool> {
-    Ok(image_and_text_response(source, text)?.clicked)
+    Ok(image_and_text_response(source, text)?.clicked())
 }
 
 /// Returns the Response of the image-and-text button. See button_response.
@@ -2358,7 +2337,7 @@ unsafe fn image_and_text_response(source: &str, text: &str) -> PyResult<Response
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui.add(egui::Button::image_and_text(source, text)).inner,
+        inner: ui.add(egui::Button::image_and_text(source, text)),
     })
 }
 
@@ -2480,9 +2459,7 @@ unsafe fn date_picker_button_response(selection: &mut Date) -> PyResult<Response
     let ui = current_ui(&UI)?;
 
     Ok(Response {
-        inner: ui
-            .add(egui_extras::DatePickerButton::new(&mut selection.value))
-            .inner,
+        inner: ui.add(egui_extras::DatePickerButton::new(&mut selection.value)),
     })
 }
 

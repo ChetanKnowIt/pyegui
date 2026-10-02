@@ -144,7 +144,9 @@ re-open them without new information.
 | `0c6407e` | Batch D minus colored_label: `selectable_label`, `radio`, `drag_angle`, `drag_angle_tau`, `close_menu`. Also widened the check.yml export assertion from 11 of 56 functions to all exported names. |
 | (this one) | Batch A+B: `Response` pyclass + 34 `*_response` variants, existing helpers rewritten as wrappers. |
 
-`Response` exposes 30 getters/methods. The ones deliberately left out are the
+`Response` exposes 28 getters/methods. `drag_released` / `drag_released_by` were
+dropped: 0.31.1 deprecates them in favour of `drag_stopped` /
+`drag_stopped_by`, which are what ship. The ones deliberately left out are the
 builder-style methods that consume or replace the `Response` (`highlight`,
 `interact`, `widget_info`, `union`, `labelled_by`, `scroll_to_me`) and the DnD
 payload methods. `total_drag_delta` does not exist in 0.31.1 and was removed
