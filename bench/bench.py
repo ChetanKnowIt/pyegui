@@ -62,12 +62,23 @@ def make_update(first_frame):
 
         elapsed = (time.perf_counter() - t0) * 1000
 
-        if first_frame["n"] == 0:
+        # Record the first frame by its index in `steady`, not by a separate
+        # counter: the frame number is advanced in update(), which runs before
+        # the panel, so testing `n == 0` inside contents never matched.
+        if not steady:
             first_frame["ms"] = elapsed
         steady.append(elapsed)
-        first_frame["n"] += 1
 
     def update(ctx):
+        # Drawn first, so the closing frame is measured too: closing before the
+        # panel would drop the last frame from `steady` and leave it one short
+        # of STEADY_FRAMES. The Rust baseline measures inside its closure and
+        # closes afterwards, and now both record the same number of frames.
+        pyegui.central_panel(ctx, contents)
+
+        # Count first, then decide -- so exactly STEADY_FRAMES frames are drawn
+        # and measured. The Rust baseline increments before its close check,
+        # which is why these have to match.
         first_frame["n"] += 1
         if first_frame["n"] >= STEADY_FRAMES:
             ctx.close()
@@ -78,10 +89,6 @@ def make_update(first_frame):
             # after one frame. The Rust baseline does the same for the same
             # reason.
             ctx.request_repaint()
-
-        # Drawn last, matching CentralPanel::default().show(...) on the Rust
-        # side, so both measurements cover the same work.
-        pyegui.central_panel(ctx, contents)
 
     return update
 

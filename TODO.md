@@ -227,6 +227,12 @@ worse than measuring nothing, since it puts a figure next to the word
 - [ ] Record results on the runner class used, since a GitHub runner is shared
       and slower than a laptop — the ratios are the portable part, the
       absolutes are not
+- [x] `bench/hello_egui.rs` + `bench/hello_pyegui.py` — the same app in each
+      language, for the ergonomics claim that timings cannot support
+- [x] Both benchmark halves request repaints and draw a panel, so they measure
+      the same work. They had drifted: the Rust side repainted, the Python side
+      did not, and the labels sat outside any panel on the Python side. Both
+      bugs were found by running the benchmark, not by reading it
 
 Deliberately **not** claimed:
 
