@@ -153,18 +153,56 @@ one frame — read it in the same frame the widget was shown.
 Screenshots
 -----------
 
-The gallery in the docs shows every page: the widgets, the interaction
-states, and the layout containers.
+Every image below is rendered by ``.github/workflows/screenshot.yml``, which
+builds the wheel in CI, runs ``examples/gallery.py`` under Xvfb with Mesa's
+software renderer, and captures each page. The same job doubles as a render
+smoke test: a widget that compiles and imports but draws nothing fails it,
+which the export gate cannot catch.
 
-Every image is rendered by ``.github/workflows/screenshot.yml``, which builds
-the wheel in CI, runs ``examples/gallery.py`` under Xvfb with Mesa's software
-renderer, and captures each page. The same job doubles as a render smoke test:
-a widget that compiles and imports but draws nothing fails it, which the
-export gate cannot catch.
+.. figure:: docs/_static/response.png
+   :alt: The Response page: a tooltip button, a checkbox and two sliders
 
-The images are checked into ``docs/_static/`` and rendered in the docs at
-`Gallery <docs/gallery.html>`_. To refresh them, push a change to
-``examples/gallery.py`` and download the ``gallery-screenshots`` artifact.
+   ``Response``: hover tooltips, focus, context menus and change detection.
+
+.. figure:: docs/_static/colours.png
+   :alt: The colour pickers page: five colour swatches and a date picker
+
+   All eight egui 0.31.1 colour spaces, plus the date picker.
+
+.. figure:: docs/_static/text.png
+   :alt: The text page: headings, styled text, text fields and a code editor
+
+   Text widgets, text fields and the code editor.
+
+.. figure:: docs/_static/selection.png
+   :alt: The selection page: checkbox, radio buttons, selectable labels and a combo box
+
+   Selection widgets and the combo box.
+
+.. figure:: docs/_static/numbers.png
+   :alt: The numbers page: sliders, drag values, two angle dials, a progress bar and a spinner
+
+   Sliders, drag values, angle dials, progress and spinner.
+
+.. figure:: docs/_static/buttons.png
+   :alt: The buttons page: a button, a small button, an icon button and a group
+
+   Buttons, links and groups.
+
+.. figure:: docs/_static/layout.png
+   :alt: The layout page: horizontal buttons, a centred button, a collapsed header, a framed group, a scroll area and indented text
+
+   Layout containers: ``Layout``, ``Group``, ``collapsing``, ``scroll_area_vertical``, ``indent``.
+
+.. figure:: docs/_static/state.png
+   :alt: The state page: a normal button, a disabled button and a half-opacity button
+
+   Ui state: ``add_enabled`` and ``set_opacity``.
+
+The images live in ``docs/_static/``. To refresh them, push a change to
+``examples/gallery.py``, download the ``gallery-screenshots`` artifact and
+replace the files. The same gallery, with Sphinx-correct paths, is on the
+`docs gallery page <docs/gallery.html>`_.
 
 Not available yet — planned
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
