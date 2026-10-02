@@ -68,6 +68,13 @@ def make_update(first_frame):
 
         if first_frame["n"] >= STEADY_FRAMES:
             ctx.close()
+        else:
+            # egui idles when it sees no change, and an idle frame never
+            # advances the loop -- so 500 identical labels is not a visible
+            # change after the first frame. Without this the benchmark hangs
+            # after one frame. The Rust baseline does the same for the same
+            # reason.
+            ctx.request_repaint()
 
     return update
 
