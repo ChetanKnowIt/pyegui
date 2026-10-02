@@ -484,7 +484,6 @@ def page_containers(ctx):
         default_pos=(470.0, 40.0),
         default_size=(400.0, 320.0),
         collapsible=True,
-        resizble=True,   # DELIBERATE TYPO -- see commit message
     )
 
 
