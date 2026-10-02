@@ -40,6 +40,7 @@ FUNCTIONS = [
     "add_space",
     "button_clicked",
     "centered_and_justified",
+    "central_panel",
     "checkbox",
     "close_menu",
     "code",
