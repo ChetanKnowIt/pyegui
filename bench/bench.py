@@ -40,6 +40,7 @@ import sys
 import time
 
 import pyegui
+from pyegui import *  # noqa: F401,F403  -- names come from the star import
 
 WIDGETS_PER_FRAME = 500
 STEADY_FRAMES = 60
@@ -77,7 +78,7 @@ first_frame = {"n": 0, "ms": None}
 
 def main():
     t0 = time.perf_counter()
-    run_native("bench", make_update(first_frame))
+    pyegui.run_native("bench", make_update(first_frame))
     total = (time.perf_counter() - t0) * 1000
 
     # Per-widget cost: the frame body is WIDGETS_PER_FRAME label calls, so

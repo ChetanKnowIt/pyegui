@@ -205,6 +205,50 @@ a positional label reach the builders.
 - [~] Image loaders: `all_loaders` is on, so png, jpeg, svg, gif and webp
       all decode. Missing: `svg_text` (selectable SVG text), `RetainedImage`
 
+## 7. Benchmarks: what does the binding actually cost
+
+**Status: harness shipped and measured; the README table is transcribed from a
+real run. The "time to launch" claim is deliberately not made — see below.**
+
+The question worth answering is not "is Python fast" but "what does the binding
+add on top of egui". Rendering speed is egui's and identical either way, so a
+number describing it says nothing about pyegui. Measuring only pyegui would be
+worse than measuring nothing, since it puts a figure next to the word
+"overhead" without saying what it is overhead relative to.
+
+- [x] `bench/src/main.rs` — egui baseline: 500 labels/frame, 60 frames, timed
+      around building the frame
+- [x] `bench/bench.py` — the same work through pyegui
+- [x] `.github/workflows/benchmark.yml` — builds both, writes
+      `bench/results/combined.json`, prints the comparison to the run summary
+- [x] Both exclude eframe's compositing from the measurement
+- [x] `min` reported alongside the mean: `min` is the cost of the call itself,
+      the mean folds in whatever else the runner was doing
+- [ ] Record results on the runner class used, since a GitHub runner is shared
+      and slower than a laptop — the ratios are the portable part, the
+      absolutes are not
+
+Deliberately **not** claimed:
+
+- [ ] **Time to launch.** Launch here is dominated by `dlopen` of an 8MB
+      extension plus eframe's window creation, neither of which the binding
+      meaningfully changes. A "time to launch" figure would mostly measure the
+      window system. `import pyegui` is reported on its own instead, which is
+      the part a binding is actually responsible for.
+- [ ] **First frame folded into the steady-state average.** The first frame
+      includes shader compilation, texture upload and font rasterisation, none
+      of which recur. It is reported as a separate line.
+- [ ] **A single blended "performance" score.** Overhead varies with widget
+      count; a ratio measured at 500 labels/frame does not transfer to 50 or
+      5,000.
+
+**Ergonomics is the stronger claim and is not yet measured.** The API point is
+that a complete egui app is expressible in Python without losing interaction
+state, and that reading `Response` does not mean learning a second framework.
+That is a claim about the examples, not about timing, and it should be
+demonstrated by a side-by-side of one example in each language rather than
+asserted. Same workload, same widgets, same number of lines — count them.
+
 ---
 
 ## Appendices
