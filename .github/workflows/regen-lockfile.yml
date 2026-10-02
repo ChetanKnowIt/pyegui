@@ -1,14 +1,19 @@
-# One-shot: regenerate Cargo.lock after a dependency change and upload it as an
+# Regenerate Cargo.lock after a dependency change and upload it as an
 # artifact, since this repo has no local Rust toolchain and `cargo update` needs
 # network access.
 #
-# This workflow is deleted once the regenerated lockfile is committed.
+# Manual only. This used to fire on every push to feature/**, which spent a
+# runner on every commit to produce a lockfile nobody looked at: the resolution
+# has not changed since the egui =0.31.1 pin, and it only moves when a
+# dependency does. Deleting this is still the eventual goal -- TODO §7 plans to
+# turn on egui_extras' syntect feature, which will need it once -- but until
+# that lands it should cost nothing.
+#
+# To use it: run it from the Actions tab, then download the `lockfile`
+# artifact and commit the Cargo.lock from it.
 name: regen-lockfile
 
 on:
-  push:
-    branches:
-      - 'feature/**'
   workflow_dispatch:
 
 permissions:

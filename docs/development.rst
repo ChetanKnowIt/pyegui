@@ -102,18 +102,17 @@ a feature branch do not queue up redundant builds.
 
 .. code:: bash
 
-   # Filter on name == "check": regen-lockfile fires on the same push and
-   # its run id sorts adjacent, so "take the latest run" watches the
-   # wrong job.
+   # Only `check` fires on every push. `screenshot` is path-filtered and
+   # `regen-lockfile` is workflow_dispatch-only, so this lists one run.
    gh run list --repo ChetanKnowIT/pyegui --branch feature/<name> \
-     --json databaseId,name,headSha -q '.[] | select(.name=="check")'
+     --json databaseId,name,conclusion -q '.[] | "\(.databaseId) \(.name) \(.conclusion)"'
    gh run watch <run-id> --repo ChetanKnowIT/pyegui --exit-status
    gh run view <run-id> --repo ChetanKnowIT/pyegui --log-failed
 
 regen-lockfile.yml -- lockfile updates without a local cargo
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Triggered on pushes to ``feature/**`` and via ``workflow_dispatch``.
+Triggered via ``workflow_dispatch`` only.
 
 The lockfile has to change whenever a dependency is added, removed or
 re-pinned, and ``cargo update`` needs network access plus a toolchain.
@@ -126,9 +125,39 @@ This workflow runs it in CI and uploads the result as a
    cp ./lockout/lockfile/Cargo.lock ./Cargo.lock
    git add Cargo.lock && git commit
 
-It is a one-shot tool, not permanent infrastructure. Once the current
-dependency work settles it should be deleted; reintroduce it if a future
-re-pin needs it.
+It is manual rather than automatic because it was firing on every push and
+producing an unchanged lockfile each time. It is also not permanent: once the
+current dependency work settles it should be deleted; reintroduce it if a
+future re-pin needs it.
+
+screenshot.yml -- gallery renders and README images
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Renders every page of ``examples/gallery.py`` and uploads one PNG per page.
+The images are checked into ``docs/screenshots/`` and embedded in the README.
+
+This is also a render smoke test. The export gate proves the module imports
+and exposes the right names; this proves the widgets actually draw. A widget
+that compiles, imports, and paints nothing fails here, which the export gate
+cannot catch.
+
+Triggered when ``examples/gallery.py``, ``src/lib.rs`` or this workflow file
+changes, and manually via ``workflow_dispatch``. It is path-filtered because
+the images are checked in: regenerating them for an unrelated docs change is
+five minutes of runner for identical output.
+
+Two things about running a GUI in CI are worth knowing if this ever breaks:
+
+- eframe builds with the ``glow`` backend, which needs a real OpenGL context.
+  A bare Xvfb opens a window and renders nothing, so Mesa's software
+  rasteriser (``libgl1-mesa-dri``) is what actually draws the pixels.
+- winit ``dlopen()``s ``libxkbcommon-x11.so`` and panics if it is absent, so
+  the X client libraries have to be installed explicitly. An incomplete runner
+  image fails at window creation, not at import.
+
+Screenshots are taken from inside the gallery, after the final frame settles
+and immediately before the window closes. Capturing the X root from the
+workflow afterwards photographs an empty desktop instead.
 
 CI.yml -- release pipeline (upstream, untouched)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -170,3 +199,7 @@ Adding a feature
 4. Push to ``fork`` and read the actual ``check`` run result.
 5. Update ``TODO.md`` and the README roadmap.
 6. Commit only once ``check`` is green.
+
+If the change adds or alters a widget, add it to
+``examples/gallery.py`` so ``screenshot.yml`` renders it, download the
+artifact, and commit the refreshed PNGs under ``docs/screenshots/``.

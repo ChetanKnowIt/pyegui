@@ -8,16 +8,20 @@
 # exposes the right names; this proves the widgets actually render. A widget
 # that compiles and imports but panics or draws nothing fails here.
 #
-# Not a gate on PRs: it is slow (a release build plus a window per page) and a
-# rendering regression should not block a Rust-only change. To refresh the
-# images in docs/screenshots/, run this on the branch and download the
-# artifact.
+# Not a gate on PRs or on every push: the images are checked in, so
+# regenerating them for an unrelated Rust change is five minutes of wasted
+# runner. This fires when the gallery or the widgets it draws actually change,
+# and can always be run by hand with workflow_dispatch.
 name: screenshot
 
 on:
   push:
     branches:
       - 'feature/**'
+    paths:
+      - 'examples/gallery.py'
+      - 'src/lib.rs'
+      - '.github/workflows/screenshot.yml'
   workflow_dispatch:
 
 permissions:

@@ -31,10 +31,12 @@ origin  https://github.com/snappercayt/pyegui.git      (read-only)
 fork    https://github.com/ChetanKnowIT/pyegui.git     (push target, runs Actions)
 ```
 
-**`regen-lockfile.yml` fires on every push to `feature/**`.** That is
-deliberate for now: it uploads a `Cargo.lock` artifact after `cargo update`,
-which is how lockfile changes get made without a local cargo. Delete the
-workflow once dependency work settles.
+**`regen-lockfile.yml` is `workflow_dispatch` only.** It uploads a
+`Cargo.lock` artifact after `cargo update`, which is how lockfile changes get
+made without a local cargo. It used to fire on every push, which spent a
+runner per commit to produce a lockfile nobody read: the resolution has not
+moved since the egui `=0.31.1` pin. Delete it once dependency work settles --
+TODO §7 plans to enable `egui_extras`' `syntect` feature, which needs it once.
 
 **Clippy is advisory, not a gate.** `check.yml` runs clippy without
 `-D warnings` and posts the diagnostics to the job summary instead of
@@ -84,12 +86,15 @@ module object, so `dir(pyegui)` contains it.
 ```bash
 git push fork feature/egui-0.31-coverage
 gh run list --repo ChetanKnowIT/pyegui --branch feature/egui-0.31-coverage \
-  --json databaseId,name,headSha -q '.[] | select(.name=="check")'
-gh run watch <run-id> --repo ChetanKnowIT/pyegui --exit-status
+  --json databaseId,name,conclusion,headSha -q '.[] | "\(.databaseId) \(.name) \(.conclusion)"'
+gh run watch <check-run-id> --repo ChetanKnowIT/pyegui --exit-status
 ```
 
-Filter on `name == "check"`: `regen-lockfile` fires on the same push and its
-id sorts adjacent, so grabbing the latest run id watches the wrong job.
+Only `check` fires on every push now, so its run id is the one to watch.
+`screenshot` fires only when `examples/gallery.py`, `src/lib.rs` or its own
+workflow file changes; `regen-lockfile` is `workflow_dispatch` only. Earlier
+both fired on every push, which made "take the latest run id" watch the wrong
+job -- filter on `name == "check"` if that ever changes again.
 
 `check.yml` runs: `cargo check --locked --all-targets` → advisory clippy →
 assert `cargo tree -p {egui,eframe,egui_extras}` all resolve to exactly
