@@ -1,5 +1,6 @@
 from pyegui import *
 
+import os
 import pathlib
 
 # egui's built-in fonts only cover latin and cyrillic, so CJK text needs a font
@@ -12,12 +13,13 @@ import pathlib
 # it in CI, so the failure is visible rather than waiting to be discovered.
 #
 # Point FONT_PATH at a font file on your machine -- a free Japanese font such
-# as Noto Sans JP works well -- to see this render 天気の子.
-#
-# Set FONT_PATH in the environment to override it:
+# as Noto Sans JP works well -- to see this render 天気の子:
 #
 #     FONT_PATH=~/Downloads/NotoSansJP-Regular.ttf python guides/fonts.py
-FONT_PATH = "NotoSansJP-VariableFont_wght.ttf"
+FONT_PATH = os.environ.get(
+    "FONT_PATH",
+    "NotoSansJP-VariableFont_wght.ttf",
+)
 
 font = pathlib.Path(FONT_PATH).expanduser()
 

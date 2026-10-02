@@ -371,6 +371,12 @@ In short:
   check --locked``, advisory ``cargo clippy``, a hard assertion that egui
   resolves to exactly 0.31.1, then ``maturin develop`` plus a Python import
   that asserts every expected export exists.
+- ``examples.yml`` runs every app in ``examples/``, ``guides/`` and
+  ``debug.py`` under Xvfb, requires each to open a window, draw and exit, and
+  runs every runnable README snippet. A capture is checked for drawn pixels
+  rather than file size, so a sparse window is not mistaken for a blank one.
+- ``release.yml`` publishes a GitHub Release only after ``check`` and
+  ``examples`` both pass on the tagged commit.
 - Push work to the ``fork`` remote; ``origin`` is read-only.
 - Commit only once ``check`` is green.
 
@@ -391,6 +397,16 @@ Install from pypi:
 .. code:: bash
 
    pip install pyegui
+
+Releases
+--------
+
+Releases are published on the `releases page
+<https://github.com/ChetanKnowIT/pyegui/releases>`__, with a changelog at
+`CHANGELOG.md <CHANGELOG.md>`__. A release is only cut once ``check`` and the
+``examples`` job both pass on the tagged commit, so a published tag always
+means the code compiled, the exports matched, and every example in the
+repository ran and drew.
 
 Install from source:
 
@@ -420,6 +436,17 @@ This is how you write a "hello world" app.
 
 You can find more examples in the `documentation <https://gachilord.github.io/pyegui>`__.
 
+.. note::
+
+   **Changed in 0.5.1: ``run_native`` no longer opens a ``CentralPanel`` for
+   you.** egui draws nothing until the frame is asked for a container, so
+   ``update_func`` now composes its own frame with
+   ``central_panel(ctx, contents)`` -- see the example above. This matches
+   egui 0.31.1 directly. To update an existing app, wrap the code in your
+   ``update_func`` in ``central_panel(ctx, ...)``; nothing else changes. There
+   is no compatibility shim. The full list is in `CHANGELOG.md
+   <CHANGELOG.md>`__.
+
 Update functions
 ~~~~~~~~~~~~~~~~
 
@@ -428,7 +455,10 @@ draw your UI.
 
 .. code:: python
 
-   def update_func():
+   def update_func(ctx):
+     central_panel(ctx, main_contents)
+
+   def main_contents():
      # you can place here any widget
      heading("I'm a heading")
      # some widgets are interactive
@@ -443,6 +473,9 @@ global aspects of your app(e.g fonts and theme).
 
    def update_func(ctx):
      ctx.set_light_theme()
+     central_panel(ctx, main_contents)
+
+   def main_contents():
      heading("Using light theme even if system's is dark")
 
 Update functions may be nested. Such functions create a new UI scope
@@ -451,7 +484,10 @@ that can have different styles and behaviour.
 .. code:: python
 
    def update_func(ctx):
-     # define update_func
+     central_panel(ctx, main_contents)
+
+   def main_contents():
+     # define a nested function
      def nested():
        label("I'm a label inside nested update function")
        label("New label")
@@ -475,7 +511,9 @@ The code that centers widgets vertically:
 .. code:: python
 
    def update_func(ctx):
+     central_panel(ctx, main_contents)
 
+   def main_contents():
      def nested():
        label("I'm a label inside nested update function")
        label("New label")
@@ -487,7 +525,9 @@ Can be written without callbacks:
 .. code:: python
 
    def update_func(ctx):
+     central_panel(ctx, main_contents)
 
+   def main_contents():
      with Layout(LayoutType.HorizontalCentered):
        label("I'm a label inside nested update function")
        label("New label")
@@ -514,7 +554,10 @@ create them outside of update functions.
 
    data = Bool(False)
 
-   def update_func():
+   def update_func(ctx):
+     central_panel(ctx, main_contents)
+
+   def main_contents():
      heading(f"Value of the data is {data.value}")
      # button will be shown only if the checkbox is checked 
      if data.value and button_clicked("set to False"):

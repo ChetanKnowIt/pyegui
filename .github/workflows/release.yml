@@ -1,0 +1,209 @@
+# Publish a GitHub Release, but only once the code has been proved.
+#
+# A tag on its own is not evidence that anything works. So this workflow does
+# not build anything itself: it re-runs the two jobs that decide whether the
+# code is good, and creates the release only if both pass.
+#
+#   check      -- the Rust compiles, Clippy is clean, egui resolves to the
+#                 pinned version, and the module exports exactly the expected
+#                 names
+#   examples   -- every app in examples/ and guides/ opens a window, draws, and
+#                 exits; every runnable README snippet actually runs
+#
+# Both run against the tagged commit, not against whatever is on the branch
+# now, so a tag cannot claim a verdict that was really about different code.
+#
+# Scope: GitHub Releases only. PyPI publishing stays in CI.yml, which has its
+# own job for it. Deliberately not duplicated here -- one workflow publishing to
+# PyPI is a footgun, two is worse.
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. v0.5.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------
+  # The gate. Both jobs re-run here rather than being trusted from an earlier
+  # push, because a tag can be cut at any time from any commit.
+  # ---------------------------------------------------------------------
+  verify:
+    name: Verify the tagged commit
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      # The wheel this release will contain has to come from this exact commit.
+      - name: Read the version from Cargo.toml
+        id: version
+        run: |
+          set -euo pipefail
+          # Cargo.toml is the single source of truth; pyproject.toml sets
+          # `dynamic = ["version"]`, so these cannot disagree.
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ -z "$version" ]; then
+            echo "::error::could not read a version from Cargo.toml"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "releasing ${version}"
+
+      # The tag has to name the version it contains, or the release page and
+      # the wheel disagree and nobody notices until someone pip installs it.
+      - name: Check the tag matches the version
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          set -euo pipefail
+          expected="v${{ steps.version.outputs.version }}"
+          actual="${GITHUB_REF#refs/tags/}"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::tag ${actual} does not match Cargo.toml version (expected ${expected})"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+
+  check:
+    name: check
+    needs: verify
+    uses: ./.github/workflows/check.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+
+  examples:
+    name: examples
+    needs: verify
+    uses: ./.github/workflows/examples.yml
+    with:
+      ref: ${{ inputs.tag || github.ref }}
+
+  # ---------------------------------------------------------------------
+  # Only reached when both jobs above passed.
+  # ---------------------------------------------------------------------
+  build:
+    name: Build release artifacts
+    needs: [verify, check, examples]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build the source distribution and a Linux wheel
+        run: |
+          set -euo pipefail
+          python -m pip install "maturin>=1.8,<2.0"
+
+          # sdist so `pip install pyegui` can build from source, and one Linux
+          # wheel so installing does not require a Rust toolchain.
+          maturin sdist --locked --out dist
+          maturin build --release --locked --out dist --find-interpreter
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-dist
+          path: dist
+          if-no-files-found: error
+
+  publish:
+    name: Create the GitHub Release
+    needs: [verify, check, examples, build]
+    runs-on: ubuntu-22.04
+    permissions:
+      # Creating a release and uploading assets to it.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-dist
+          path: dist
+
+      - name: List what will be published
+        run: |
+          set -euo pipefail
+          ls -lh dist
+
+      # An existing release for this tag means the tag was pushed twice or a
+      # previous attempt got partway. Stop rather than overwrite: a tag should
+      # identify exactly one set of artifacts.
+      - name: Refuse to overwrite an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ inputs.tag || github.ref_name }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::a release for ${tag} already exists; delete it first if you meant to replace it"
+            exit 1
+          fi
+          echo "no existing release for ${tag}"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          notes=$(mktemp)
+          # Keep the release page honest about what this version is: if
+          # CHANGELOG.md has an entry for it, use that as the body.
+          if [ -f CHANGELOG.md ]; then
+            awk -v want="$VERSION" '
+              /^## / {
+                # Print the section whose heading is this version.
+                if (printing) { exit }
+                printing = (index($0, want) > 0)
+              }
+              printing { print }
+            ' CHANGELOG.md > "$notes"
+          fi
+
+          if [ ! -s "$notes" ]; then
+            echo "No CHANGELOG.md entry for ${VERSION}; releasing with no notes." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            rm -f "$notes"
+            notes=""
+          fi
+
+          args=(--title "$TAG" --notes-file "$notes")
+          if [ -z "$notes" ]; then
+            args=(--title "$TAG" --generate-notes)
+          fi
+
+          gh release create "$TAG" dist/* "${args[@]}" \
+            --verify-tag
+
+          echo "published $TAG from $(git rev-parse HEAD)"

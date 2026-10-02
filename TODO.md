@@ -12,7 +12,9 @@ not reachable) · `[ ]` not implemented
 
 ## Current state
 
-121 names exported (`src/lib.rs`): 17 classes, 63 functions and 41
+Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
+
+123 names exported (`src/lib.rs`): 17 classes, 65 functions and 41
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 45 on `Response`.
@@ -22,6 +24,9 @@ it is generated from, and asserted against, the `#[pymodule]` block.
 
 Validation is CI-only — see `docs/development.rst`. Nothing is compiled
 locally, so each batch is pushed to `fork` and the `check` run is the verdict.
+The `examples` job additionally runs every app in the repository and every
+runnable README snippet, and `release.yml` will only publish a GitHub Release
+once both jobs pass on the tagged commit.
 
 ---
 
@@ -85,10 +90,13 @@ were dropped rather than shipped as stubs:
 
 ## 3. Missing containers
 
-egui 0.31.1 ships all of these; pyegui reaches only `CentralPanel` and
-`Frame::group`.
+egui 0.31.1 ships all of these.
 
-- [ ] `Window` — secondary windows (39 builder options available)
+Shipped: `CentralPanel` (`central_panel`) and `Window` (`window`, with a
+`Bool`-driven `open` and egui's own builder options as keyword arguments).
+
+- [x] `Window` — secondary windows
+- [x] `CentralPanel` — `central_panel(ctx, contents, **options)`
 - [ ] `SidePanel` (`left`/`right`)
 - [ ] `TopBottomPanel` (`top`/`bottom`)
 - [ ] `Area`

@@ -15,6 +15,16 @@ on:
       - main
       - 'feature/**'
   pull_request:
+  # Called by release.yml to re-verify a tagged commit. The ref input exists
+  # because a reusable workflow otherwise checks out the caller's ref, and a
+  # tag must be verified as itself rather than as whatever the branch holds.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit or tag to verify'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
 
 permissions:
@@ -36,6 +46,8 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - uses: actions/setup-python@v5
         with:

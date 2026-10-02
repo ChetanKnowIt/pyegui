@@ -23,7 +23,9 @@ on:
       - 'examples/**'
       - 'guides/**'
       - 'debug.py'
-      - 'tests/smoke.py'
+      - 'tests/**'
+      - 'README.rst'
+      - 'docs/**'
       - 'src/lib.rs'
       - '.github/workflows/examples.yml'
   pull_request:
@@ -31,9 +33,21 @@ on:
       - 'examples/**'
       - 'guides/**'
       - 'debug.py'
-      - 'tests/smoke.py'
+      - 'tests/**'
+      - 'README.rst'
+      - 'docs/**'
       - 'src/lib.rs'
       - '.github/workflows/examples.yml'
+  # Called by release.yml to re-verify a tagged commit. The ref input exists
+  # because a reusable workflow otherwise checks out the caller's ref, and a
+  # tag must be verified as itself rather than as whatever the branch holds.
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit or tag to verify'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
 
 permissions:
@@ -45,6 +59,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       # Pin the interpreter, as check.yml does. Without this the job gets the
       # runner image's default python, and a wheel maturin tags
