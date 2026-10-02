@@ -10,6 +10,7 @@
 
    guides
    examlpes
+   gallery
 
 .. toctree::
    :caption: Contributing:

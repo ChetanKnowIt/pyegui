@@ -134,7 +134,13 @@ screenshot.yml -- gallery renders and README images
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Renders every page of ``examples/gallery.py`` and uploads one PNG per page.
-The images are checked into ``docs/screenshots/`` and embedded in the README.
+The images are checked into ``docs/_static/`` and rendered on the
+``docs/gallery.rst`` page. They deliberately do *not* go in the README: a
+figure directive cannot satisfy both renderers, because GitHub resolves a
+README's relative paths against the repository root while Sphinx resolves
+them relative to ``docs/`` (index.rst does ``include ../README.rst``).
+Referencing them from a page inside ``docs/`` makes the two agree, and keeps
+each image next to the repo's other documentation images.
 
 This is also a render smoke test. The export gate proves the module imports
 and exposes the right names; this proves the widgets actually draw. A widget
@@ -202,4 +208,4 @@ Adding a feature
 
 If the change adds or alters a widget, add it to
 ``examples/gallery.py`` so ``screenshot.yml`` renders it, download the
-artifact, and commit the refreshed PNGs under ``docs/screenshots/``.
+artifact, and commit the refreshed PNGs under ``docs/_static/``.
