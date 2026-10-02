@@ -2219,23 +2219,22 @@ unsafe fn modal(
 ) -> PyResult<bool> {
     let ctx = &ctx.0;
 
-    // `Modal::new` takes an `Id`, and egui's `From<String> for Id` is what lets
-    // an owned String be used here without needing a 'static str.
-    let id = id.to_owned();
-
-    let mut builder = egui::Modal::new(id);
+    // `Modal::new` takes an `Id` concretely rather than `impl Into<Id>`, so
+    // `Id::new` is used instead of the From<String> trick the panels need.
+    let mut builder = egui::Modal::new(egui::Id::new(id));
 
     if let Some(opts) = options {
         validate_options(opts, MODAL_OPTIONS)?;
         // egui exposes the modal's size through its Area.
-        let mut area = std::mem::replace(&mut builder, egui::Modal::new("")).area;
+        let mut area =
+            std::mem::replace(&mut builder, egui::Modal::new(egui::Id::new(""))).area;
         if let Some(v) = opt_f32(opts, "default_width")? {
             area = area.default_width(v);
         }
         if let Some(v) = opt_f32(opts, "default_height")? {
             area = area.default_height(v);
         }
-        builder = egui::Modal::new("").area(area);
+        builder = egui::Modal::new(egui::Id::new("")).area(area);
     }
 
     let response = builder.show(ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()));
@@ -2310,7 +2309,8 @@ unsafe fn resize(
             builder = builder.max_height(v);
         }
         if let Some(v) = opt_bool(opts, "resizable")? {
-            builder = builder.resizable(egui::Vec2b::splat(v));
+            // egui 0.31.1's Vec2b has `new(x, y)` and no `splat`.
+            builder = builder.resizable(egui::Vec2b::new(v, v));
         }
         if let Some(v) = opt_bool(opts, "auto_sized")? {
             if v {
@@ -2362,7 +2362,9 @@ unsafe fn area(
     options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<()> {
     let ctx = &ctx.0;
-    let mut builder = egui::Area::new(id.to_owned());
+    // `Area::new` takes an `Id` concretely, unlike `SidePanel::left`
+    // which takes `impl Into<Id>` -- so From<String> does not apply here.
+    let mut builder = egui::Area::new(egui::Id::new(id));
 
     if let Some(opts) = options {
         validate_options(opts, AREA_OPTIONS)?;
@@ -2379,7 +2381,8 @@ unsafe fn area(
             builder = builder.order(v);
         }
         if let Some(v) = opt_vec2(opts, "default_pos")? {
-            builder = builder.default_pos(v);
+            // `Pos2` is not `From<Vec2>`; window converts the same way.
+            builder = builder.default_pos(egui::Pos2::new(v.x, v.y));
         }
         if let Some(v) = opt_vec2(opts, "default_size")? {
             builder = builder.default_size(v);
@@ -2391,7 +2394,8 @@ unsafe fn area(
             builder = builder.default_height(v);
         }
         if let Some(v) = opt_vec2(opts, "fixed_pos")? {
-            builder = builder.fixed_pos(v);
+            // `Pos2` is not `From<Vec2>`; window converts the same way.
+            builder = builder.fixed_pos(egui::Pos2::new(v.x, v.y));
         }
         if let Some(v) = opt_bool(opts, "constrain")? {
             builder = builder.constrain(v);
