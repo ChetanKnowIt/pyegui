@@ -46,6 +46,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Pin the interpreter, as check.yml does. Without this the job gets the
+      # runner image's default python, and a wheel maturin tags
+      # cp311-abi3-manylinux_2_35 has to satisfy that interpreter's platform
+      # tags. It did not, and the error pip gives for that --
+      #
+      #   ERROR: pyegui-...whl is not a supported wheel on this platform
+      #
+      # -- names neither the interpreter nor the tags, which is what made this
+      # take four runs to find. setup-python is the same fix check.yml relies
+      # on and has been using all along.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
@@ -81,14 +95,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "maturin>=1.8,<2.0"
 
-          # Why is this here: three runs have now failed with "not a supported
-          # wheel on this platform" and two earlier theories were wrong. Print
-          # what pip actually thinks before spending three minutes on a build,
-          # so the next run carries the answer instead of another guess.
-          python -VV
-          python -c "import sys, platform; print('glibc', platform.libc_ver()); print('platform tag', sys.implementation.cache_tag)"
-          python -m pip debug --verbose 2>&1 | grep -E 'manylinux_2_3[0-9]|manylinux_x_y' | head -8
-
+          # Print what got installed, so a wheel that installs but is not the
+          # one this branch would build fails here rather than as fourteen
+          # unexplained per-example errors.
           maturin build --release --locked --out dist --find-interpreter
 
           # Install by path, not by name: `--find-links` depends on pip's
