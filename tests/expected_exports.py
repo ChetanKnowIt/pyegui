@@ -150,6 +150,20 @@ RESPONSE_VARIANTS = [
 # from a missing widget.
 REQUIRED = set(CLASSES) | set(FUNCTIONS) | set(RESPONSE_VARIANTS) | {"run_native"}
 
+# Names that appear on a module object without being declared API. Kept small
+# and explicit rather than pattern-matched, so that adding a real widget never
+# gets silently excused by an over-broad rule.
+_INTERPRETER_NAMES = {
+    # pyo3 names the submodule after the crate and binds it on the module.
+    "pyegui",
+    # CPython module attributes and the usual frozen-importlib helpers.
+    "copyreg",
+    "sys",
+    "TESTING",
+    "ISOLATED",
+    "load",
+}
+
 
 def check(module) -> None:
     """Raise AssertionError listing every name `module` fails to export."""
@@ -165,9 +179,14 @@ def check_no_unexpected(module) -> None:
     the API quietly lost a widget.
     """
     exported = {name for name in dir(module) if not name.startswith("_")}
-    # pyo3 puts a few module-level dunder-adjacent names on the module object
-    # that are not ours to declare.
-    exported -= {"load", "TESTING", "ISOLATED"}
+
+    # A module object also carries names that are not part of the pyegui API:
+    # pyo3 binds the submodule's own name on it, and CPython attaches a few of
+    # its own. Subtract those before comparing. The set is deliberately
+    # explicit rather than pattern-matched, so that adding a real widget can
+    # never be silently excused by an over-broad rule.
+    exported -= _INTERPRETER_NAMES
+
     undeclared = sorted(exported - REQUIRED)
     assert not undeclared, (
         f"exported but not declared in expected_exports.py: {undeclared}"
