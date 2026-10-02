@@ -73,5 +73,9 @@ def main_view(ctx):
     scroll_area_vertical(files_view)
 
 
+def update_func(ctx):
+    central_panel(ctx, lambda: main_view(ctx))
+
+
 if __name__ == "__main__":
-    run_native("fileviwer", main_view)
+    run_native("fileviwer", update_func)

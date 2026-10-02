@@ -15,7 +15,7 @@ is_visible = Bool(True)
 is_interactive = Bool(True)
 opacity_value = Float(1)
 
-def update_func(ctx):
+def main_contents(ctx):
   label("Welcome to the widget gallery!")
 
   hyperlink_to("pyegui on GitHub", "https://github.com/GachiLord/pyegui")
@@ -81,6 +81,9 @@ def update_func(ctx):
     checkbox(is_interactive, "Interactive")
     slider_float(opacity_value, 0.0, 1.0, "Opacity")
 
+
+def update_func(ctx):
+  central_panel(ctx, lambda: main_contents(ctx))
 
 if __name__ == "__main__":
   run_native("Widget Gallery", update_func, inner_height=900, inner_width=500)

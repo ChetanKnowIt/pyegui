@@ -16,13 +16,16 @@ def set_theme(ctx, idx):
   else:
     ctx.set_light_theme()
 
-def update_func(ctx):
+def main_contents(ctx):
   theme.value = get_theme_index(ctx)
   
   radio_value(theme, DARK, "dark")  
   radio_value(theme, LIGHT, "light")
 
   set_theme(ctx, theme.value)
+
+def update_func(ctx):
+  central_panel(ctx, lambda: main_contents(ctx))
 
 if __name__ == "__main__":
   run_native("themes", update_func)

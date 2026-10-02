@@ -1,0 +1,122 @@
+# Run every example and guide in the repo, so none of them rots on a push.
+#
+# The export gate in check.yml proves the module imports and exposes the
+# right names. This proves each shipped app actually runs: it opens a window,
+# draws, and exits cleanly. An example that references a renamed function, or
+# composes the frame the old way, fails here instead of failing for a user.
+#
+# Each app is run with a wall-clock bound and required to close its own window
+# (see run_bounded in the harness below). An app that never closes is a hang,
+# not a pass, so the timeout is part of what is being tested.
+#
+# Deliberately not screenshotting: this checks that examples run, not what they
+# look like. screenshot.yml covers the gallery's appearance.
+
+name: examples
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'feature/**'
+    paths:
+      - 'examples/**'
+      - 'guides/**'
+      - 'debug.py'
+      - 'tests/smoke.py'
+      - 'src/lib.rs'
+      - '.github/workflows/examples.yml'
+  pull_request:
+    paths:
+      - 'examples/**'
+      - 'guides/**'
+      - 'debug.py'
+      - 'tests/smoke.py'
+      - 'src/lib.rs'
+      - '.github/workflows/examples.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-examples:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install Python, Xvfb and the software OpenGL stack
+        run: |
+          set -euo pipefail
+
+          # eframe builds with the `glow` backend and needs a real OpenGL
+          # context. A bare Xvfb opens a window and renders nothing, so Mesa's
+          # software rasteriser is what actually draws.
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            xvfb x11-utils libgl1-mesa-dri mesa-utils \
+            libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1 \
+            imagemagick
+
+          # CI has no virtualenv, so build a wheel and install it into the
+          # runner's Python -- the same way check.yml does.
+          pip install "maturin>=1.8,<2.0"
+          maturin build --release --locked --out dist --find-interpreter
+          pip install --find-links dist --force-reinstall pyegui
+
+      - name: Run every example
+        env:
+          DISPLAY: ':99'
+        run: |
+          set -uo pipefail
+
+          Xvfb :99 -screen 0 1280x1024x24 >/tmp/xvfb.log 2>&1 &
+          xvfb_pid=$!
+          trap 'kill $xvfb_pid 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 50); do
+            if xdpyinfo -display :99 >/dev/null 2>&1; then break; fi
+            sleep 0.2
+          done
+          xdpyinfo -display :99 >/dev/null
+
+          # Discover the apps rather than listing them: a new example that is
+          # not in the list would otherwise never run, which is the failure
+          # this job exists to prevent.
+          mapfile -t apps < <(python tests/smoke.py --list)
+
+          if [ "${#apps[@]}" -eq 0 ]; then
+            echo "::error::no examples found to run"
+            exit 1
+          fi
+
+          echo "running ${#apps[@]} apps"
+
+          failed=""
+          for app in "${apps[@]}"; do
+            echo "::group::${app}"
+            if timeout --kill-after=5s 60s python tests/smoke.py "${app}"; then
+              echo "ok ${app}"
+            else
+              status=$?
+              if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
+                echo "::error::${app} did not exit; it hung until the timeout"
+              else
+                echo "::error::${app} exited ${status}"
+              fi
+              failed="${failed} ${app}"
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ -n "$failed" ]; then
+            echo "::error::these apps failed:${failed}"
+            exit 1
+          fi
+
+          echo "all ${#apps[@]} apps ran"

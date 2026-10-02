@@ -7,7 +7,7 @@ PAGE_3 = 3
 
 page = Int(PAGE_1)
 
-def update_func(ctx):
+def main_contents(ctx):
   label("You can emulate pages in your app by using some variable and a few conditions")
   label(f"For example, this app has 3 pages. Current page is {page.value}")
 
@@ -30,5 +30,12 @@ def update_func(ctx):
     heading("Page 3")
     label("Its purpose is to permit a page layout to be designed, independently of the copy that will subsequently populate it, or to demonstrate various fonts of a typeface without meaningful text that could be distracting. Lorem ipsum is typically a corrupted version of De finibus bonorum et malorum, a 1st-century BC text by the Roman statesman and philosopher Cicero, with words altered, added, and removed to make it nonsensical and improper Latin.")
 
+def update_func(ctx):
+    central_panel(ctx, lambda: main_contents(ctx))
+
 if __name__ == "__main__":
+
+def main_contents(ctx):
+    central_panel(ctx, lambda: main_contents(ctx))
+
   run_native("pages", update_func)

@@ -5,4 +5,10 @@ FORMAT = '%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(messag
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.DEBUG)
 
-run_native("logging", lambda _: heading("logging now"))
+def main_contents():
+    heading("logging now")
+
+def update_func(ctx):
+    central_panel(ctx, main_contents)
+
+run_native("logging", update_func)
