@@ -58,6 +58,16 @@ jobs:
           # context. A bare Xvfb opens a window and renders nothing, so Mesa's
           # software rasteriser is what actually draws.
           sudo apt-get update -qq
+
+          # imagemagick pulls in python3 as a dependency, which on Ubuntu
+          # 22.04 installs a second, older interpreter than the runner's.
+          # `pip` then belongs to one interpreter and `python` to the other,
+          # so a wheel installed by pip is invisible to python:
+          #
+          #   ERROR: pyegui-....whl is not a supported wheel on this platform
+          #
+          # which is a confusing way to say "pip and python disagree". Use the
+          # interpreter's own -m pip so both are always the same one.
           sudo apt-get install -y --no-install-recommends \
             xvfb x11-utils libgl1-mesa-dri mesa-utils \
             libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1 \
@@ -65,7 +75,7 @@ jobs:
 
           # CI has no virtualenv, so build a wheel and install it into the
           # runner's Python -- the same way check.yml does.
-          pip install "maturin>=1.8,<2.0"
+          python -m pip install "maturin>=1.8,<2.0"
           maturin build --release --locked --out dist --find-interpreter
 
           # Install by path rather than by name. The wheel is named
@@ -77,7 +87,12 @@ jobs:
           # instead of silently leaving the stale wheel in place.
           wheel=$(ls -1 dist/pyegui-*.whl)
           echo "installing ${wheel}"
-          pip install --force-reinstall "${wheel}"
+          python -m pip install --force-reinstall "${wheel}"
+
+          # Prove pip and python are the same interpreter before anything
+          # depends on it, so a mismatch fails here with a clear message
+          # rather than 14 confusing per-example errors later.
+          python -c "import pyegui; print('pyegui', len(dir(pyegui)), 'names from', pyegui.__file__)"
 
       - name: Run every example
         env:

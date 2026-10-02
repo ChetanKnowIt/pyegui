@@ -98,9 +98,12 @@ jobs:
       - name: Build wheel and verify exports
         run: |
           set -euo pipefail
-          pip install "maturin>=1.8,<2.0"
+          # python -m pip so pip and python are always the same interpreter,
+          # even if this job later gains an apt package that installs a
+          # second Python.
+          python -m pip install "maturin>=1.8,<2.0"
           maturin build --release --locked --out dist --find-interpreter
-          pip install --find-links dist --force-reinstall pyegui
+          python -m pip install --find-links dist --force-reinstall pyegui
 
           # The export gate lives in tests/expected_exports.py so it can be
           # edited and linted as Python rather than as a YAML block scalar.

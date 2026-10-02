@@ -86,9 +86,12 @@ jobs:
       - name: Build and install the wheel
         run: |
           set -euo pipefail
-          pip install "maturin>=1.8,<2.0"
+          # python -m pip, not bare pip: installing imagemagick above pulls
+          # in a second, older interpreter, and bare pip can then belong
+          # to a different one than `python`.
+          python -m pip install "maturin>=1.8,<2.0"
           maturin build --release --locked --out dist --find-interpreter
-          pip install --find-links dist --force-reinstall pyegui
+          python -m pip install --find-links dist --force-reinstall pyegui
 
       - name: Verify the gallery imports
         run: python examples/gallery.py list
