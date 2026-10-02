@@ -127,11 +127,17 @@ last_action = Str("nothing yet")
 PAGES = []
 
 
-def page(name):
-    """Register a page so `gallery.py all` can find it."""
+def page(name, raw_frame=False):
+    """Register a page so `gallery.py all` can find it.
+
+    `raw_frame=True` means the page composes its own frame: `run_page` will
+    not wrap it in a `central_panel`, so the page can draw its own panels in
+    whatever order egui requires. A page that only draws widgets leaves this
+    False and lets `run_page` supply the central panel.
+    """
 
     def wrap(fn):
-        PAGES.append((name, fn))
+        PAGES.append((name, fn, raw_frame))
         return fn
 
     return wrap
@@ -374,6 +380,101 @@ def page_state(ctx):
     label(f"name={name.value!r} choice={COLOURS[choice.value]}")
 
 
+# ---------------------------------------------------------------- containers
+
+# State for the window page. Module-level so it survives across frames: the
+# window's open state has to persist between them or it would flicker.
+
+win_open = Bool(True)
+sized_open = Bool(True)
+
+
+def window_contents():
+    heading("A window")
+    label("drawn inside window()")
+    if button_clicked("close this window"):
+        win_open.value = False
+    if button_clicked("reopen"):
+        win_open.value = True
+
+
+def sized_window_contents():
+    heading("Sized window")
+    label("default_size=(420.0, 260.0), resizable=True")
+    label(f"win_open.value = {win_open.value}")
+    if button_clicked("close"):
+        sized_open.value = False
+    if button_clicked("reopen"):
+        sized_open.value = True
+
+
+def nested_window_contents():
+    def inner():
+        label("collapsing() inside a window")
+        strong("still inside the window")
+
+    heading("Nested containers")
+    collapsing("open me", inner)
+
+
+def outer_collapsing_contents():
+    heading("Collapsing inside the central panel")
+    label("the window is drawn after the central panel")
+
+
+@page("containers", raw_frame=True)
+def page_containers(ctx):
+    """Windows, and a window that never closes on its own.
+
+    egui requires the central panel to be added after every other top-level
+    panel, so this page draws its own frame rather than taking run_page's
+    default single central panel.
+    """
+
+    # The central panel is added first here because this page has no side or
+    # top/bottom panel to order against it. Windows come after, which is what
+    # egui asks for.
+    def main_contents():
+        outer_collapsing_contents()
+        separator()
+        label(f"win_open.value   = {win_open.value}")
+        label(f"sized_open.value = {sized_open.value}")
+
+    central_panel(ctx, main_contents)
+
+    window(
+        ctx,
+        "A window",
+        "w1",
+        window_contents,
+        open=win_open,
+        default_pos=(60.0, 60.0),
+        default_size=(420.0, 220.0),
+        resizable=True,
+    )
+
+    window(
+        ctx,
+        "Sized window",
+        "w2",
+        sized_window_contents,
+        open=sized_open,
+        default_size=(420.0, 260.0),
+        resizable=True,
+        order="foreground",
+    )
+
+    window(
+        ctx,
+        "Nested",
+        "w3",
+        nested_window_contents,
+        default_pos=(520.0, 60.0),
+        default_size=(320.0, 200.0),
+        collapsible=True,
+    )
+
+
 # ---------------------------------------------------------------- driver
 
 # The screenshot has to be taken while the window still exists, so the gallery
@@ -423,12 +524,15 @@ def capture(path):
     return True
 
 
-def run_page(page_name, page_fn, out_dir=None):
+def run_page(page_name, page_fn, out_dir=None, raw_frame=False):
     """Draw one page, screenshot it, then close the window.
 
     Repaints explicitly each frame. egui only repaints when it detects a
     change, so without the request the page would draw once and then idle,
     leaving the capture racing the compositor.
+
+    `raw_frame=True` hands frame composition to the page, for pages that draw
+    their own panels.
     """
 
     import time
@@ -442,10 +546,17 @@ def run_page(page_name, page_fn, out_dir=None):
         #
         # `ctx` belongs to update's frame, so it cannot be closed over by a
         # sibling function defined here; pass it as an argument instead.
-        def draw_page():
+        #
+        # A raw_frame page draws its own panels instead -- egui requires
+        # CentralPanel last, and a container page needs a side panel before
+        # it, so the single central panel here would be the wrong shape.
+        if raw_frame:
             page_fn(ctx)
+        else:
+            def draw_page():
+                page_fn(ctx)
 
-        central_panel(ctx, draw_page)
+            central_panel(ctx, draw_page)
 
         if time.monotonic() - started >= MAX_SECONDS:
             # Let the final frame composite before grabbing it.
@@ -477,12 +588,12 @@ def main():
         print("       gallery.py list")
         print()
         print("pages:")
-        for page_name, _ in PAGES:
+        for page_name, _, _ in PAGES:
             print(f"  {page_name}")
         return
 
     if args[0] == "list":
-        print("\n".join(name for name, _ in PAGES))
+        print("\n".join(name for name, _, _ in PAGES))
         return
 
     wanted = args[0]
@@ -491,12 +602,12 @@ def main():
         out_dir = args[args.index("--out") + 1]
         os.makedirs(out_dir, exist_ok=True)
 
-    lookup = dict(PAGES)
+    lookup = {name: (fn, raw) for name, fn, raw in PAGES}
     if wanted not in lookup:
         print(f"unknown page {wanted!r}; try 'gallery.py list'")
         sys.exit(1)
 
-    run_page(wanted, lookup[wanted], out_dir)
+    run_page(wanted, lookup[wanted][0], out_dir, lookup[wanted][1])
 
 
 if __name__ == "__main__":

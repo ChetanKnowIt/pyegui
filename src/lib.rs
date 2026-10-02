@@ -1661,6 +1661,291 @@ unsafe fn small_button_response(text: &str) -> PyResult<Response> {
     })
 }
 
+// ------------------------------------------------------- container options
+// Builders in egui take typed setters (.min_size(Vec2), .resizable(bool)).
+// Python passes them as a kwargs dict, so each container must read that dict
+// and apply the ones it recognises.
+//
+// An unrecognised key raises rather than being ignored: `resizble=True`
+// quietly producing a fixed-size window is the kind of mistake that costs an
+// afternoon. Every unknown key is reported at once so one run finds them all.
+
+/// Raise `PyValueError` if `opts` contains a key that is not in `known`.
+unsafe fn validate_options(opts: &Bound<'_, PyDict>, known: &[&str]) -> PyResult<()> {
+    let mut unknown: Vec<String> = Vec::new();
+
+    for key in opts.keys().iter() {
+        let name: String = key.extract()?;
+        if !known.contains(&name.as_str()) {
+            unknown.push(name);
+        }
+    }
+
+    if !unknown.is_empty() {
+        return Err(PyValueError::new_err(format!(
+            "unknown container option(s): {}. Known options: {}",
+            unknown.join(", "),
+            known.join(", ")
+        )));
+    }
+
+    Ok(())
+}
+
+/// Read an optional bool from `opts`.
+unsafe fn opt_bool(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<bool>> {
+    match opts.get_item(name)? {
+        Some(value) => Ok(Some(value.extract()?)),
+        None => Ok(None),
+    }
+}
+
+/// Read an optional f32 from `opts`.
+unsafe fn opt_f32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<f32>> {
+    match opts.get_item(name)? {
+        Some(value) => Ok(Some(value.extract()?)),
+        None => Ok(None),
+    }
+}
+
+/// Read an optional 2D size or position from `opts` as a 2-sequence of
+/// numbers, e.g. `default_size=(400.0, 300.0)`.
+///
+/// egui's geometry types (`Vec2`, `Pos2`) have no Python equivalent yet --
+/// they are TODO §4 -- so tuples are accepted for now and converted here.
+/// When a `Vec2` class lands, these should switch to it.
+unsafe fn opt_vec2(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Vec2>> {
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    let pair: Vec<f32> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a 2-sequence of numbers, e.g. {name}=(400.0, 300.0)"
+        ))
+    })?;
+
+    if pair.len() != 2 {
+        return Err(PyValueError::new_err(format!(
+            "{name} must have exactly 2 components, got {}",
+            pair.len()
+        )));
+    }
+
+    Ok(Some(egui::Vec2::new(pair[0], pair[1])))
+}
+
+/// Draw a secondary window.
+///
+/// egui requires windows to be added after any top-level panels, so call
+/// this after `side_panel_left` and before or after `central_panel` -- a
+/// window floats above the central panel either way.
+///
+/// Returns True when the window was visible this frame, False when it is
+/// collapsed or fully closed.
+///
+/// `open` is an optional `Bool` that egui reads and writes: pass one and the
+/// window's open/close button drives it.
+///
+/// Example::
+///
+///     def win_contents():
+///       heading("a window")
+///       if button_clicked("close"):
+///           pass
+///
+///     def update_func(ctx):
+///       window(ctx, "Settings", "settings", win_contents, open=win_open)
+///       central_panel(ctx, main_contents)
+///
+/// Unknown keyword arguments raise `ValueError` naming them. Sizes and
+/// positions are 2-tuples of numbers, e.g. `default_size=(400.0, 300.0)`.
+#[pyfunction]
+#[pyo3(signature = (ctx, title, id, contents, open=None, **options))]
+unsafe fn window(
+    ctx: &Context,
+    title: &str,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    mut open: Option<&mut Bool>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<bool> {
+    let ctx = &ctx.0;
+
+    let mut builder = egui::Window::new(title).id(egui::Id::new(id));
+
+    if let Some(opts) = options {
+        validate_options(opts, WINDOW_OPTIONS)?;
+        apply_window_options(&mut builder, opts)?;
+    }
+
+    // egui's `open` takes `&'open mut bool`. `Bool.value` is an owned field,
+    // so borrowing it keeps the reference alive for exactly the `.show()`
+    // call, which is all `'open` needs.
+    let shown = match open.as_deref_mut() {
+        Some(open) => builder
+            .open(&mut open.value)
+            .show(ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()))
+            .is_some(),
+        None => builder
+            .show(ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()))
+            .is_some(),
+    };
+
+    Ok(shown)
+}
+
+/// Every keyword `window` accepts. Anything else raises.
+const WINDOW_OPTIONS: &[&str] = &[
+    // geometry
+    "default_size",
+    "default_pos",
+    "fixed_size",
+    "fixed_pos",
+    "min_size",
+    "max_size",
+    "min_width",
+    "max_width",
+    "min_height",
+    "max_height",
+    "default_width",
+    "default_height",
+    // behaviour
+    "resizable",
+    "collapsible",
+    "title_bar",
+    "movable",
+    "scroll",
+    "vscroll",
+    "hscroll",
+    "auto_sized",
+    "enabled",
+    "fade_in",
+    "fade_out",
+    "interactable",
+    "constrain",
+    "order",
+];
+
+unsafe fn apply_window_options(
+    builder: &mut egui::Window,
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<()> {
+    if let Some(v) = opt_vec2(opts, "default_size")? {
+        builder = builder.default_size(v);
+    }
+    if let Some(v) = opt_vec2(opts, "fixed_size")? {
+        builder = builder.fixed_size(v);
+    }
+    if let Some(v) = opt_vec2(opts, "min_size")? {
+        builder = builder.min_size(v);
+    }
+    if let Some(v) = opt_vec2(opts, "max_size")? {
+        builder = builder.max_size(v);
+    }
+    // `default_pos` and `fixed_pos` take a Pos2, which is the same Vec2 with
+    // a different name in egui.
+    if let Some(v) = opt_vec2(opts, "default_pos")? {
+        builder = builder.default_pos(egui::Pos2::new(v.x, v.y));
+    }
+    if let Some(v) = opt_vec2(opts, "fixed_pos")? {
+        builder = builder.fixed_pos(egui::Pos2::new(v.x, v.y));
+    }
+
+    for (name, setter) in [
+        ("default_width", 0usize),
+        ("max_width", 1),
+        ("min_width", 2),
+        ("default_height", 3),
+        ("max_height", 4),
+        ("min_height", 5),
+    ] {
+        if let Some(v) = opt_f32(opts, name)? {
+            builder = match setter {
+                0 => builder.default_width(v),
+                1 => builder.max_width(v),
+                2 => builder.min_width(v),
+                3 => builder.default_height(v),
+                4 => builder.max_height(v),
+                _ => builder.min_height(v),
+            };
+        }
+    }
+
+    // egui takes `impl Into<Vec2b>`; a plain bool converts, and true means
+    // both axes.
+    for name in ["resizable", "scroll"] {
+        if let Some(v) = opt_bool(opts, name)? {
+            builder = if name == "resizable" {
+                builder.resizable(v)
+            } else {
+                builder.scroll(v)
+            };
+        }
+    }
+
+    for name in [
+        "collapsible",
+        "title_bar",
+        "movable",
+        "vscroll",
+        "hscroll",
+        "enabled",
+        "fade_in",
+        "fade_out",
+        "interactable",
+        "constrain",
+    ] {
+        if let Some(v) = opt_bool(opts, name)? {
+            builder = match name {
+                "collapsible" => builder.collapsible(v),
+                "title_bar" => builder.title_bar(v),
+                "movable" => builder.movable(v),
+                "vscroll" => builder.vscroll(v),
+                "hscroll" => builder.hscroll(v),
+                "enabled" => builder.enabled(v),
+                "fade_in" => builder.fade_in(v),
+                "fade_out" => builder.fade_out(v),
+                "interactable" => builder.interactable(v),
+                _ => builder.constrain(v),
+            };
+        }
+    }
+
+    // egui's `auto_sized` takes no argument -- it is a mode, not a toggle --
+    // so passing True enables it and False leaves the window alone.
+    if opt_bool(opts, "auto_sized")?.unwrap_or(false) {
+        builder = builder.auto_sized();
+    }
+
+    // egui's `order` takes an `egui::Order`, not a number. Map the three
+    // words rather than taking an f32 and discarding it -- silently ignoring
+    // the value is the failure this whole option parser exists to prevent.
+    if let Some(value) = opts.get_item("order")? {
+        let name: String = value.extract().map_err(|_| {
+            PyValueError::new_err("order must be one of 'background', 'panelresize', 'middle', 'foreground', 'tooltip', 'debug'")
+        })?;
+        let order = match name.as_str() {
+            "background" => egui::Order::Background,
+            "panelresize" => egui::Order::PanelResize,
+            "middle" => egui::Order::Middle,
+            "foreground" => egui::Order::Foreground,
+            "tooltip" => egui::Order::Tooltip,
+            "debug" => egui::Order::Debug,
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "unknown order {name:?}; expected one of 'background', \
+                     'panelresize', 'middle', 'foreground', 'tooltip', 'debug'"
+                )))
+            }
+        };
+        builder = builder.order(order);
+    }
+
+    Ok(())
+}
+
 /// Draws the central panel. Must be called last in update_func, after any
 /// side panels, top/bottom panels or modals.
 ///
@@ -3034,6 +3319,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hyperlink_to, m)?)?;
     m.add_function(wrap_pyfunction!(link_clicked, m)?)?;
     m.add_function(wrap_pyfunction!(central_panel, m)?)?;
+    m.add_function(wrap_pyfunction!(window, m)?)?;
     m.add_function(wrap_pyfunction!(checkbox, m)?)?;
     m.add_function(wrap_pyfunction!(radio_value, m)?)?;
     m.add_function(wrap_pyfunction!(toggle_value, m)?)?;

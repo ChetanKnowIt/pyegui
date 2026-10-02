@@ -100,6 +100,7 @@ FUNCTIONS = [
     "vertical_centered",
     "vertical_centered_justified",
     "weak",
+    "window",
 ]
 
 RESPONSE_VARIANTS = [
