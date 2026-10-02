@@ -164,6 +164,79 @@ so existing code keeps working. ``Response`` also carries ``clicked_by``,
 ``on_hover_ui`` and the rest of the 0.31.1 surface. A ``Response`` describes
 one frame — read it in the same frame the widget was shown.
 
+Performance
+-----------
+
+pyegui is a binding, not a faster egui. Rendering is egui's work and identical
+either way, so the only honest question is what the binding adds on top. Both
+sides below do the same work -- 500 labels per frame, 61 frames, timed
+around building the frame -- measured by ``bench/bench.py`` and
+``bench/src/main.rs`` and run together by ``.github/workflows/benchmark.yml``.
+
+============================  =========  ==========  ======
+metric                        pyegui     egui (Rust)  ratio
+============================  =========  ==========  ======
+per widget, us (min)          0.903      0.491      1.84x
+500-widget frame, ms (min)    0.4516      0.2456      1.84x
+first frame, ms               1.401      1.5527      0.9x
+============================  =========  ==========  ======
+
+``import pyegui`` is 15.438 ms -- that is ``dlopen`` of an 8 MB extension, and
+it is the only startup cost the binding introduces.
+
+**Read that as roughly 1.8x, not "almost nothing".** It is the real number and it
+is worth being plain about: a widget call through Python costs about 412 ns
+more than calling the same widget from Rust.
+
+What it costs in practice: a 500-widget frame takes 0.4516 ms through pyegui
+against 0.2456 ms in Rust. egui's budget for 60 fps is 16.7 ms, so a frame this
+size uses about 3% of the budget through pyegui and about 1% in
+Rust. Both are dominated by egui's own layout and paint; the binding is not what
+a profiler would point at. The overhead is worth thinking about somewhere in the
+thousands of widgets, which is past what a typical egui app draws per frame.
+
+The comparison is reproducible -- run the ``benchmark`` workflow and read
+``bench/results/combined.json``. It is deliberately not a pass/fail gate, since a
+benchmark that gates a build is a benchmark people learn to ignore.
+
+**What is not claimed.** There is no "time to launch" figure: launch is
+dominated by ``dlopen`` plus eframe's window creation, neither of which the
+binding meaningfully changes, so such a number would mostly measure the window
+system. There is no blended score either, since the overhead scales with widget
+count and one figure would hide that.
+
+.. note::
+
+   Measured on a GitHub-hosted runner, which is slower than a typical
+   development machine. The ratios are the portable part; the absolute
+   microseconds are not.
+
+The ergonomics comparison
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Timing is the weaker half of the argument. The stronger half is that pyegui does
+not ask you to learn a second API -- ``bench/hello_egui.rs`` and
+``bench/hello_pyegui.py`` are the same app, and ``Response`` in the Python
+version is egui's ``Response`` rather than a redefinition of it:
+
+.. code-block:: rust
+
+    let clicked: egui::Response = ui.button("click me");
+    if clicked.clicked() {
+        self.clicks += 1;
+    }
+
+.. code-block:: python
+
+    if button_clicked("click me"):
+        clicks.value += 1
+
+The same widgets, the same interaction state, no translation layer. The Python
+version is shorter mostly because the binding takes a callable where egui takes
+a generic ``impl FnOnce`` -- not because it does less. What it costs is that
+names have to be looked up rather than guessed; ``TODO.md`` records the three
+that got guessed wrong while writing these.
+
 Screenshots
 -----------
 
