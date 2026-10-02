@@ -116,22 +116,26 @@ jobs:
           mkdir -p screenshots
           failed=""
 
-          # Per-page timeout. The gallery bounds itself with a wall-clock
-          # ceiling, but if that path ever breaks -- a window that never maps,
-          # a close that is never acted on -- the job would otherwise sit until
-          # the six-hour GitHub limit. 45s is generous: a page settles for 8s.
+          # Each page screenshots itself before closing its window. Capturing
+          # the X root from here instead would photograph an empty desktop,
+          # because the app has already exited by this point -- which is what
+          # the first version did, and why every PNG came out blank.
+          #
+          # Per-page timeout is the second line of defence: the gallery bounds
+          # itself with a wall-clock ceiling, but if that path ever breaks the
+          # job would otherwise sit until GitHub's six-hour limit. 60s is
+          # generous: a page renders for 6s plus a 1s settle.
           for page in $(python examples/gallery.py list); do
             echo "::group::rendering ${page}"
-            if timeout --kill-after=5s 45s python "examples/gallery.py" "${page}"; then
-              # -crop trims the X root down to the window's actual geometry.
-              # The gallery sets a fixed inner size, so the window is placed
-              # at a known offset and the capture is deterministic.
-              import -display :99 -window root \
-                -crop 560x820+0+0 +repage "screenshots/${page}.png"
-              echo "captured screenshots/${page}.png"
+            if timeout --kill-after=5s 60s \
+                 python "examples/gallery.py" "${page}" --out screenshots; then
+              if [ ! -s "screenshots/${page}.png" ]; then
+                echo "::error::page ${page} produced no screenshot"
+                failed="${failed} ${page}"
+              fi
             else
               status=$?
-              if [ $status -eq 124 ] || [ $status -eq 137 ]; then
+              if [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; then
                 echo "::error::page ${page} timed out and was killed"
               else
                 echo "::error::page ${page} exited ${status}"
@@ -148,19 +152,25 @@ jobs:
             exit 1
           fi
 
-      - name: Fail if any screenshot is suspiciously small
+      - name: Check the screenshots are not blank
         run: |
           set -euo pipefail
-          # A blank frame still produces a valid PNG, so check the bytes. A
-          # rendered egui window compresses to far more than this.
+          # A blank frame is still a valid PNG, so judge by bytes: a rendered
+          # egui window compresses to well over 3KB, a solid-colour capture to
+          # a few hundred. Report every page before failing, so one blank frame
+          # does not hide the state of the rest.
+          blank=""
           for png in screenshots/*.png; do
             size=$(stat -c%s "$png")
-            if [ "$size" -lt 3000 ]; then
-              echo "::error::${png} is only ${size} bytes; the frame is probably blank"
-              exit 1
-            fi
             echo "${png}: ${size} bytes"
+            if [ "$size" -lt 3000 ]; then
+              blank="${blank} ${png}"
+            fi
           done
+          if [ -n "${blank}" ]; then
+            echo "::error::these pages rendered blank:${blank}"
+            exit 1
+          fi
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4

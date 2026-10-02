@@ -18,6 +18,7 @@ The state holders are module-level on purpose. They have to outlive a single
 gallery draws across many frames.
 """
 
+import os
 import sys
 
 from pyegui import *
@@ -305,25 +306,59 @@ def page_state(ctx):
 
 # ---------------------------------------------------------------- driver
 
-# The screenshot has to catch a fully drawn window, so the gallery repaints for
-# a fixed time and then closes itself via ctx.close().
+# The screenshot has to be taken while the window still exists, so the gallery
+# takes it itself rather than letting CI capture the X root afterwards. An
+# earlier version closed the app and then captured the root, which reliably
+# produced a photograph of an empty desktop.
 #
-# MAX_SECONDS is the bound that matters. A frame counter alone can never be
-# reached if the window fails to map, and the app would then hang until the
-# CI job's own timeout -- six hours by default. The CI job wraps each page in
-# `timeout` as a second line of defence, but the app should not depend on
-# being killed.
+# MAX_SECONDS bounds the run. A frame counter cannot: if the window never
+# mapped, the count is never reached and the process hangs. The CI job also
+# wraps each page in `timeout` as a second line of defence.
 MAX_SECONDS = 6.0
 SETTLE_SECONDS = 1.0
 
+GALLERY_WIDTH = 560
+GALLERY_HEIGHT = 820
 
-def run_page(page_name, page_fn):
-    """Draw one page for a fixed time, then close the window.
+
+def capture(path):
+    """Grab the window region of the X display into `path`.
+
+    Uses ImageMagick's `import`, which is what the CI runner has. Failing to
+    capture is not fatal here: the caller reports it and the workflow's
+    blank-frame check is the real gate.
+    """
+    import shutil
+    import subprocess
+
+    if shutil.which("import") is None:
+        print("no 'import' binary; cannot capture")
+        return False
+
+    display = os.environ.get("DISPLAY", ":0")
+    result = subprocess.run(
+        [
+            "import",
+            "-display", display,
+            "-window", "root",
+            "-crop", f"{GALLERY_WIDTH}x{GALLERY_HEIGHT}+0+0",
+            "+repage",
+            path,
+        ],
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        print("capture failed:", result.stderr.decode(errors="replace").strip())
+        return False
+    return True
+
+
+def run_page(page_name, page_fn, out_dir=None):
+    """Draw one page, screenshot it, then close the window.
 
     Repaints explicitly each frame. egui only repaints when it detects a
-    change, so without the explicit request the page would draw once and then
-    idle -- which is fine interactively but leaves the screenshot racing the
-    compositor.
+    change, so without the request the page would draw once and then idle,
+    leaving the capture racing the compositor.
     """
 
     import time
@@ -334,9 +369,14 @@ def run_page(page_name, page_fn):
         page_fn(ctx)
 
         if time.monotonic() - started >= MAX_SECONDS:
-            # Hold briefly so the last frame is composited before closing,
-            # otherwise the capture can catch an undrawn window.
+            # Let the final frame composite before grabbing it.
             time.sleep(SETTLE_SECONDS)
+
+            if out_dir is not None:
+                target = os.path.join(out_dir, f"{page_name}.png")
+                if capture(target):
+                    print(f"captured {target} ({os.path.getsize(target)} bytes)")
+
             ctx.close()
             return
 
@@ -350,33 +390,34 @@ def run_page(page_name, page_fn):
     )
 
 
-GALLERY_WIDTH = 560
-GALLERY_HEIGHT = 820
-
-
 def main():
-    wanted = sys.argv[1] if len(sys.argv) > 1 else "all"
-    lookup = dict(PAGES)
+    args = sys.argv[1:]
 
-    if wanted == "list":
+    if not args or args[0] in ("all", "-h", "--help"):
+        print("usage: gallery.py <page> [--out DIR]")
+        print("       gallery.py list")
+        print()
+        print("pages:")
+        for page_name, _ in PAGES:
+            print(f"  {page_name}")
+        return
+
+    if args[0] == "list":
         print("\n".join(name for name, _ in PAGES))
         return
 
-    if wanted == "all":
-        print("this gallery renders one page per invocation:")
-        print("  python examples/gallery.py list")
-        print("  python examples/gallery.py text")
-        print()
-        print("CI loops over the pages and screenshots each one. See")
-        print(".github/workflows/screenshot.yml.")
-        return
+    wanted = args[0]
+    out_dir = None
+    if "--out" in args:
+        out_dir = args[args.index("--out") + 1]
+        os.makedirs(out_dir, exist_ok=True)
 
+    lookup = dict(PAGES)
     if wanted not in lookup:
-        print(f"unknown page {wanted!r}; try one of:")
-        print("  " + ", ".join(lookup))
+        print(f"unknown page {wanted!r}; try 'gallery.py list'")
         sys.exit(1)
 
-    run_page(wanted, lookup[wanted])
+    run_page(wanted, lookup[wanted], out_dir)
 
 
 if __name__ == "__main__":
