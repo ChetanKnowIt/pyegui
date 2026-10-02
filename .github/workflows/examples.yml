@@ -111,24 +111,6 @@ jobs:
           # import -- rather than as 14 unrelated per-example failures later.
           python -c "import pyegui; print('pyegui', len(dir(pyegui)), 'names from', pyegui.__file__)"
 
-      # The apps above cannot catch a wrong API in the docs, because no doc
-      # snippet is one of the apps. This runs the complete snippets from
-      # README.rst for real, so a renamed or removed binding fails here instead
-      # of misleading the next person who reads the README.
-      #
-      # Same job on purpose: the wheel is already built and Xvfb already
-      # running, so this costs seconds rather than another 3-minute build.
-      - name: Check documentation snippets
-        env:
-          DISPLAY: ':99'
-        run: |
-          set -uo pipefail
-
-          # shellcheck disable=SC1091
-          source .venv-ci/bin/activate
-
-          python tests/doc_snippets.py
-
       - name: Run every example
         env:
           DISPLAY: ':99'
@@ -148,6 +130,19 @@ jobs:
             sleep 0.2
           done
           xdpyinfo -display :99 >/dev/null
+
+          # Documentation snippets, run first and in the same step as Xvfb.
+          # Two of README.rst's snippets used to show the pre-clean-break form
+          # -- run_native drawing widgets with no container -- and no job
+          # noticed, because no doc snippet is one of the apps. This executes
+          # them for real, so a binding that no longer exists fails here on its
+          # own name. It has to live in this step: the X server starts below,
+          # and a separate step earlier in the job has no display to open a
+          # window on.
+          echo "::group::documentation snippets"
+          doc_status=0
+          python tests/doc_snippets.py || doc_status=$?
+          echo "::endgroup::"
 
           # Discover the apps rather than listing them: a new example that is
           # not in the list would otherwise never run, which is the failure
@@ -177,6 +172,10 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
+          if [ "$doc_status" -ne 0 ]; then
+            failed="${failed} documentation-snippets"
+          fi
 
           if [ -n "$failed" ]; then
             echo "::error::these apps failed:${failed}"
