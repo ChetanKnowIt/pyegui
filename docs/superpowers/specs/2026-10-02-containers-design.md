@@ -203,33 +203,54 @@ Three distinct shapes have to keep working:
    pyegui is stale, so it must also work when pyegui is current and
    `central_panel` defaults on.
 
-### Backwards compatibility — the real cost
+### Decision: explicit clean break
 
-This changes behaviour for **every existing pyegui app**. Today Python never
-draws the central panel, so omitting it still worked. After this change an
-app whose `update_func` does not call `central_panel` draws nothing.
+`central_panel` is **not** defaulted on. Python draws every panel,
+`CentralPanel` last, exactly as an egui app does.
 
-Mitigations, in order of preference:
+This is settled by the parent library's own examples, read at 0.31.1.
+`examples/custom_keypad/src/main.rs` draws a `Window` and a sub-widget
+with no `CentralPanel` at all:
 
-1. **`central_panel` defaults on.** If Python called neither
-   `central_panel` nor any panel, pyegui shows an empty `CentralPanel` at
-   the end of the frame, so existing apps keep rendering. Once any
-   container is called, ordering is Python's responsibility. This keeps
-   every current app working unchanged, which matters for a 0.5.0 release
-   with real users.
-2. Break it loudly and require every app to call `central_panel` — a much
-   clearer contract, but a breaking change for all existing code.
-3. Deprecate: auto-close for one minor, then require it.
+```rust
+fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    egui::Window::new("Custom Keypad").show(ctx, |ui| { ... });
+    self.keypad.show(ctx);
+}
+```
 
-**Recommendation: option 1**, because silently rendering nothing is the one
-failure mode that would be genuinely baffling for a user who just upgraded.
-The default-on path is a few lines and removes the upgrade hazard
-entirely. The cost is that the ordering rule is implicit rather than
-enforced, which the spec's testing must cover.
+and `examples/popups/src/main.rs` and `examples/serial_windows/src/main.rs`
+each open `CentralPanel` themselves, first in `update`. In Rust
+`CentralPanel` is an ordinary container the app draws; `update` gets only a
+`&Context`; nothing is implicit.
 
-The implementation records, per frame, whether Python called any container;
-if not, pyegui appends the `CentralPanel` itself after `update_func`
-returns.
+So a default-on `CentralPanel` would preserve a pyegui-specific convenience
+that does not exist in egui, and would be the very thing that makes the
+ordering rule unenforceable — pyegui cannot tell whether Python meant to
+call it last or simply forgot. Being a binding is only worth anything if the
+two APIs teach the same mental model, so explicit wins over convenient.
+
+The cost is real but small and concentrated: 48 PyPI downloads last month,
+11 stars, 4 forks, and 15 tracked `.py` files all owned here. This is a
+breaking change and ships as **0.6.0**, which is what the major bump is
+for.
+
+**No migration shim.** No deprecation period, no auto-close fallback. One
+note in the README, because at this adoption level a shim would cost more
+in complexity and confusion than it saves.
+
+### Failing loudly, never blank
+
+If `update_func` returns having drawn no panel, pyegui raises a `RuntimeError`
+naming the fix, rather than rendering an empty window:
+
+    no top-level panel was drawn this frame -- call
+    central_panel(ctx, contents) last in update_func
+
+A loud error at startup is recoverable; a silently blank window after an
+upgrade is not. This inverts the argument I made earlier for default-on:
+loudness is better served by failing than by silently guessing what the user
+meant.
 
 ## Design
 
@@ -358,9 +379,11 @@ verdict is always a `check` run.
    and its blank-frame check fails if the widgets do not paint. This is the
    only test that would catch a container that builds but never draws — the
    failure mode that matters most here.
-3. **Manual smoke script.** `examples/containers_demo.py` showing open/close
-   via a `Bool`, a modal whose `should_close` returns `True`, and a
-   container nested inside `collapsing`.
+3. **Manual smoke script.** A script showing open/close via a `Bool`, a modal
+   whose `should_close` returns `True`, and a container nested inside
+   `collapsing`. Folded into `examples/gallery.py` as the `containers`
+   page rather than a new file — one gallery, not two, so CI keeps a single
+   thing to render.
 
 Visual inspection of the rendered page before declaring the batch done.
 
@@ -380,10 +403,11 @@ Visual inspection of the rendered page before declaring the batch done.
   `Context::run`) is the single assumption most likely to need correcting
   first. If nesting misbehaves, the fallback is to open a bare parent `Ui`
   via `ctx.run` without a panel, which preserves the same ordering freedom.
-- **Existing `examples/` and `README` code assumes Python never draws the
-  central panel.** Every example, and the README's usage snippets, must be
-  checked against the default-on path. A representative example must be
-  rendered in the screenshot job to prove an old-style app still draws.
+- **15 tracked `.py` apps and 12 README snippets stop working** until
+  migrated to call `central_panel`. This is intended, but it means the
+  branch is not usable until the migration lands. Sequenced deliberately:
+  green `check` first, then migrate, then a final verification run that
+  renders the migrated examples.
 
 ## Explicitly out of scope
 
@@ -393,18 +417,24 @@ listed above; persistence.
 
 ## Success criteria
 
-- **An existing 0.5.0-style app still renders.** An `update_func` that
-  calls no container at all must keep drawing widgets, via the default-on
-  `CentralPanel`. This is verified by rendering a pre-existing example
-  (`examples/hello_world.py`) in the screenshot job and confirming it is
-  not blank — the exact regression the compatibility mitigation exists to
-  prevent.
-
 - The eight functions are exported and covered by the export gate
 - A container drawn inside `collapsing`, and `collapsing` inside a
-  container, both render
+  container, both render — and land in the right place, not merely
+  non-blank, since a wrong `Ui` still draws something
 - `screenshot.yml` renders the new `containers` page and it is visually
-  confirmed to show the containers, not blank frames
+  confirmed to show the containers
 - A `Bool` drives `Window` open/close correctly across frames
-- Existing behaviour is unchanged — the pre-existing export names and the
-  boolean helpers still pass the gate
+- An `update_func` that draws no panel raises the named `RuntimeError`
+  rather than rendering blank
+- **All 15 tracked `.py` apps and 12 README snippets are migrated** to call
+  `central_panel` and are verified to still render. The migration happens
+  after the CI verdict is green, per the agreed sequencing.
+- Existing behaviour is otherwise unchanged — the pre-existing export names
+  and the boolean helpers still pass the gate
+
+## Sequencing
+
+Per the agreed plan: land the code change and get a green `check` verdict
+**first**, then migrate the examples, guides and README. The verdict comes
+from the Rust side, so migrating Python before it is known to compile would
+be fixing code against a guess.
