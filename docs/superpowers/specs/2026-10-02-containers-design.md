@@ -170,6 +170,39 @@ def update_func(ctx):
     central_panel(ctx, main_contents)              # must be last
 ```
 
+### Who this breaks (measured, 2026-10-02)
+
+Every pyegui app in the wild is an `update_func` that calls widgets and
+never draws the central panel, because `run_native` has always done it. So
+this is not a small blast radius:
+
+| Group | Count | Shape |
+|---|---|---|
+| Tracked `.py` apps | 15 | `run_native(...)` + `update_func`, zero container calls |
+| README snippets | 12 | every "Getting started" and usage example |
+| In-repo examples | 6 | `hello_world`, `pages`, `python-ide`, `widget_gallery`, `fileviwer`, `gallery` |
+| In-repo guides | 8 | `guides/*.py`, one per feature |
+| `debug.py` at root | 1 | uses `Group`, so it exercises a container today |
+| Published on PyPI | 0.5.0 | 48 downloads last month, 11 GitHub stars, 4 forks |
+
+I checked every tracked `.py` for container calls and found **none**. So
+every existing app — ours and anyone's — takes the breakage path if
+`central_panel` is not defaulted on.
+
+Three distinct shapes have to keep working:
+
+1. **Plain widget code** — `hello_world.py`, `guides/*.py`. Draws only
+   widgets, never a container.
+2. **Nested Ui containers** — `debug.py` uses `Group()`; `pages.py` uses
+   `Layout(Horizontal)`. These already push onto `UI_STACK`, and they must
+   keep resolving their `Ui` after `CentralPanel` moves out of `run_native`.
+   This is the case most likely to reveal a bug, because it depends on the
+   stack rather than on the frame.
+3. **The gallery** — `examples/gallery.py` drives eight pages through
+   `run_page`, and CI depends on it. Its preflight already exits when
+   pyegui is stale, so it must also work when pyegui is current and
+   `central_panel` defaults on.
+
 ### Backwards compatibility — the real cost
 
 This changes behaviour for **every existing pyegui app**. Today Python never
