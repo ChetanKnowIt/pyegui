@@ -81,6 +81,14 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "maturin>=1.8,<2.0"
 
+          # Why is this here: three runs have now failed with "not a supported
+          # wheel on this platform" and two earlier theories were wrong. Print
+          # what pip actually thinks before spending three minutes on a build,
+          # so the next run carries the answer instead of another guess.
+          python -VV
+          python -c "import sys, platform; print('glibc', platform.libc_ver()); print('platform tag', sys.implementation.cache_tag)"
+          python -m pip debug --verbose 2>&1 | grep -E 'manylinux_2_3[0-9]|manylinux_x_y' | head -8
+
           maturin build --release --locked --out dist --find-interpreter
 
           # Install by path, not by name: `--find-links` depends on pip's
