@@ -11,4 +11,5 @@ def main_contents():
 def update_func(ctx):
     central_panel(ctx, main_contents)
 
-run_native("logging", update_func)
+if __name__ == "__main__":
+    run_native("logging", update_func)

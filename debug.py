@@ -16,5 +16,6 @@ def main_contents(ctx):
 def update_func(ctx):
     central_panel(ctx, lambda: main_contents(ctx))
 
-run_native("Debug", update_func)
+if __name__ == "__main__":
+  run_native("Debug", update_func)
 

@@ -27,6 +27,9 @@ on:
       - 'README.rst'
       - 'docs/**'
       - 'src/lib.rs'
+      # The examples run against a wheel built from this lockfile, so a
+      # dependency change is exactly when their verdict can move.
+      - 'Cargo.lock'
       - '.github/workflows/examples.yml'
   pull_request:
     paths:
@@ -37,6 +40,9 @@ on:
       - 'README.rst'
       - 'docs/**'
       - 'src/lib.rs'
+      # The examples run against a wheel built from this lockfile, so a
+      # dependency change is exactly when their verdict can move.
+      - 'Cargo.lock'
       - '.github/workflows/examples.yml'
   # Called by release.yml to re-verify a tagged commit. The ref input exists
   # because a reusable workflow otherwise checks out the caller's ref, and a
