@@ -1771,6 +1771,11 @@ unsafe fn window(
 ) -> PyResult<bool> {
     let ctx = &ctx.0;
 
+    // `Window<'open>` carries a lifetime tied to the `open` bool, and
+    // `WidgetText` built from `&str` would borrow the Python string too. Own
+    // the title so the builder is `'static` and can be assembled before the
+    // `open` borrow is taken.
+    let title = title.to_owned();
     let mut builder = egui::Window::new(title).id(egui::Id::new(id));
 
     if let Some(opts) = options {
@@ -1827,9 +1832,9 @@ const WINDOW_OPTIONS: &[&str] = &[
 ];
 
 unsafe fn apply_window_options(
-    mut builder: egui::Window,
+    mut builder: egui::Window<'static>,
     opts: &Bound<'_, PyDict>,
-) -> PyResult<egui::Window> {
+) -> PyResult<egui::Window<'static>> {
     if let Some(v) = opt_vec2(opts, "default_size")? {
         builder = builder.default_size(v);
     }
