@@ -44,15 +44,24 @@ Panel ordering follows egui's rule: draw side, top and bottom panels first, and
 
 **Containers**
 
+egui draws nothing until the frame asks for a container, so an app composes
+its own. Draw side, top and bottom panels first and `central_panel` last, which
+then takes the space that is left over.
+
 - `central_panel(ctx, contents, **options)` — the central panel, mirroring
   `egui::CentralPanel`.
-- `window(ctx, title, contents, **options)` — `egui::Window`, returning whether
-  it is open, with a `Bool` for the `open` argument and egui's own builder
-  options mapped to keyword arguments.
+- `window(ctx, title, id, contents, **options)` — `egui::Window`, returning
+  whether it is open, with a `Bool` for the `open` argument and egui's own
+  builder options mapped to keyword arguments.
+- `side_panel_left` / `side_panel_right` — `egui::SidePanel::left` / `::right`,
+  with `resizable`, `show_separator_line`, `default_width`, `min_width`,
+  `max_width` and `width_range`.
+- `top_panel` / `bottom_panel` — `egui::TopBottomPanel::top` / `::bottom`, with
+  the equivalent height options.
 - Unknown container options raise `ValueError` naming every valid option,
   rather than being ignored.
 
-Side, top and bottom panels, `modal`, `popup` and `popup_menu` are not in this
+`modal`, `popup`, `popup_menu`, `area`, `resize` and `scene` are not in this
 release. See `TODO.md` for the remaining API surface.
 
 **egui 0.31.1 widget coverage**

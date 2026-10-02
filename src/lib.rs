@@ -1967,6 +1967,194 @@ unsafe fn apply_window_options(
 ///
 /// Widgets resolve their `Ui` from an internal stack, so they must be drawn
 /// inside a callback such as this one, never directly in `update_func`.
+/// Read an optional `(min, max)` float range from `opts`, egui's `Rangef`.
+unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Rangef>> {
+    match opts.get_item(name)? {
+        Some(value) => {
+            let (min, max): (f32, f32) = value.extract().map_err(|_| {
+                PyValueError::new_err(format!(
+                    "{name} must be a (min, max) tuple of numbers"
+                ))
+            })?;
+            Ok(Some(egui::Rangef::new(min, max)))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Builder options for `egui::SidePanel`, matching its setters exactly.
+const SIDE_PANEL_OPTIONS: &[&str] = &[
+    "resizable",
+    "show_separator_line",
+    "default_width",
+    "min_width",
+    "max_width",
+    "width_range",
+];
+
+/// Builder options for `egui::TopBottomPanel`, matching its setters exactly.
+const TOP_BOTTOM_PANEL_OPTIONS: &[&str] = &[
+    "resizable",
+    "show_separator_line",
+    "default_height",
+    "min_height",
+    "max_height",
+    "height_range",
+];
+
+/// Apply the shared `egui::SidePanel` setters.
+///
+/// egui's panel setters consume `self` and return `Self`, so the builder is
+/// threaded through rather than mutated in place.
+unsafe fn apply_side_panel_options(
+    mut builder: egui::SidePanel,
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<egui::SidePanel> {
+    if let Some(v) = opt_bool(opts, "resizable")? {
+        builder = builder.resizable(v);
+    }
+    if let Some(v) = opt_bool(opts, "show_separator_line")? {
+        builder = builder.show_separator_line(v);
+    }
+    if let Some(v) = opt_f32(opts, "default_width")? {
+        builder = builder.default_width(v);
+    }
+    if let Some(v) = opt_f32(opts, "min_width")? {
+        builder = builder.min_width(v);
+    }
+    if let Some(v) = opt_f32(opts, "max_width")? {
+        builder = builder.max_width(v);
+    }
+    if let Some(v) = opt_range(opts, "width_range")? {
+        builder = builder.width_range(v);
+    }
+    Ok(builder)
+}
+
+/// Apply the shared `egui::TopBottomPanel` setters.
+unsafe fn apply_top_bottom_panel_options(
+    mut builder: egui::TopBottomPanel,
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<egui::TopBottomPanel> {
+    if let Some(v) = opt_bool(opts, "resizable")? {
+        builder = builder.resizable(v);
+    }
+    if let Some(v) = opt_bool(opts, "show_separator_line")? {
+        builder = builder.show_separator_line(v);
+    }
+    if let Some(v) = opt_f32(opts, "default_height")? {
+        builder = builder.default_height(v);
+    }
+    if let Some(v) = opt_f32(opts, "min_height")? {
+        builder = builder.min_height(v);
+    }
+    if let Some(v) = opt_f32(opts, "max_height")? {
+        builder = builder.max_height(v);
+    }
+    if let Some(v) = opt_range(opts, "height_range")? {
+        builder = builder.height_range(v);
+    }
+    Ok(builder)
+}
+
+/// Show a left side panel, mirroring `egui::SidePanel::left`.
+///
+/// Panels are independent containers, so an app composes them explicitly.
+/// Draw the side, top and bottom panels before `central_panel`, which then takes
+/// whatever space is left.
+///
+/// ```python
+/// def update_func(ctx):
+///     side_panel_left(ctx, "nav", nav_contents, default_width=180.0)
+///     central_panel(ctx, main_contents)
+/// ```
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn side_panel_left(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let builder = match options {
+        Some(opts) => {
+            validate_options(opts, SIDE_PANEL_OPTIONS)?;
+            apply_side_panel_options(egui::SidePanel::left(id), opts)?
+        }
+        None => egui::SidePanel::left(id),
+    };
+
+    builder.show(&ctx.0, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// Show a right side panel, mirroring `egui::SidePanel::right`.
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn side_panel_right(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let builder = match options {
+        Some(opts) => {
+            validate_options(opts, SIDE_PANEL_OPTIONS)?;
+            apply_side_panel_options(egui::SidePanel::right(id), opts)?
+        }
+        None => egui::SidePanel::right(id),
+    };
+
+    builder.show(&ctx.0, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// Show a top panel, mirroring `egui::TopBottomPanel::top`.
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn top_panel(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let builder = match options {
+        Some(opts) => {
+            validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
+            apply_top_bottom_panel_options(egui::TopBottomPanel::top(id), opts)?
+        }
+        None => egui::TopBottomPanel::top(id),
+    };
+
+    builder.show(&ctx.0, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// Show a bottom panel, mirroring `egui::TopBottomPanel::bottom`.
+#[pyfunction]
+#[pyo3(signature = (ctx, id, contents, **options))]
+unsafe fn bottom_panel(
+    ctx: &Context,
+    id: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let builder = match options {
+        Some(opts) => {
+            validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
+            apply_top_bottom_panel_options(egui::TopBottomPanel::bottom(id), opts)?
+        }
+        None => egui::TopBottomPanel::bottom(id),
+    };
+
+    builder.show(&ctx.0, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
 #[pyfunction]
 unsafe fn central_panel(ctx: &Context, contents: Bound<'_, PyAny>) -> PyResult<()> {
     let ctx = &ctx.0;
@@ -3320,6 +3508,10 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(hyperlink, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink_to, m)?)?;
     m.add_function(wrap_pyfunction!(link_clicked, m)?)?;
+    m.add_function(wrap_pyfunction!(side_panel_left, m)?)?;
+    m.add_function(wrap_pyfunction!(side_panel_right, m)?)?;
+    m.add_function(wrap_pyfunction!(top_panel, m)?)?;
+    m.add_function(wrap_pyfunction!(bottom_panel, m)?)?;
     m.add_function(wrap_pyfunction!(central_panel, m)?)?;
     m.add_function(wrap_pyfunction!(window, m)?)?;
     m.add_function(wrap_pyfunction!(checkbox, m)?)?;

@@ -487,6 +487,45 @@ def page_containers(ctx):
     )
 
 
+@page("panels", raw_frame=True)
+def page_panels(ctx):
+    """A real multi-panel layout: side, top, bottom, then central last.
+
+    This is the ordering egui requires, and it is the only way to see whether
+    the panels are actually independent. If `central_panel` were still being
+    opened implicitly, this page would either fail to draw the side panel or
+    paint over it.
+    """
+
+    def side_contents():
+        heading("Side")
+        label("Left panel")
+        separator()
+        label("egui wants the central panel")
+        label("drawn last, so it takes")
+        label("what is left over.")
+
+    def top_contents():
+        label("Top panel")
+
+    def bottom_contents():
+        label("Bottom panel")
+
+    def main_contents():
+        heading("Central panel")
+        label("Drawn last, so it fills the middle.")
+        separator()
+        label("If the side panel is visible here, the panels overlap.")
+
+    # Order matters and egui is explicit about it: side, top, bottom, then
+    # central. Reversing central into the middle produces overlapping panels
+    # rather than an error, which is why this page exists.
+    side_panel_left(ctx, "side", side_contents, default_width=200.0)
+    top_panel(ctx, "top", top_contents, default_height=44.0)
+    bottom_panel(ctx, "bottom", bottom_contents, default_height=44.0)
+    central_panel(ctx, main_contents)
+
+
 # ---------------------------------------------------------------- driver
 
 # The screenshot has to be taken while the window still exists, so the gallery
