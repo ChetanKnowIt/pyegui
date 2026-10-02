@@ -435,13 +435,16 @@ def run_page(page_name, page_fn, out_dir=None):
 
     started = time.monotonic()
 
-    def draw_page():
-        page_fn(ctx)
-
     def update(ctx):
         # Python composes the frame now: the central panel is drawn here, by
         # us, rather than implicitly by run_native. It must be the only
         # top-level panel on the page.
+        #
+        # `ctx` belongs to update's frame, so it cannot be closed over by a
+        # sibling function defined here; pass it as an argument instead.
+        def draw_page():
+            page_fn(ctx)
+
         central_panel(ctx, draw_page)
 
         if time.monotonic() - started >= MAX_SECONDS:
