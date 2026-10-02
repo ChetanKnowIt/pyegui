@@ -1928,7 +1928,6 @@ unsafe fn apply_window_options(
     if let Some(v) = opt_order(opts)? {
         builder = builder.order(v);
     }
-    }
 
     Ok(builder)
 }

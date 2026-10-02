@@ -7,7 +7,15 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [0.5.1]
 
-Unreleased. Built on egui 0.31.1.
+Released 2026-10-02. Built on egui 0.31.1.
+
+```python
+def update_func(ctx):
+    central_panel(ctx, main_contents)
+```
+
+That is the whole breaking change: `run_native` used to open a `CentralPanel`
+for you, and now it does not.
 
 ### Breaking
 
