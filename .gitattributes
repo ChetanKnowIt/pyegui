@@ -1,0 +1,8 @@
+# GitHub renders relative image paths in a README against the repository root,
+# but Sphinx resolves them relative to docs/ because index.rst does
+# `include ../README.rst`. The same figure directive cannot satisfy both, so
+# the paths in README.rst are written the way Sphinx needs and the rule below
+# tells GitHub where to actually find those files.
+#
+# Pattern matches the referenced path, value is the prefix to prepend.
+docs/screenshots/*.png  docs/screenshots/
