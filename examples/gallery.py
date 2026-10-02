@@ -23,6 +23,70 @@ import sys
 
 from pyegui import *
 
+# ---------------------------------------------------------------- preflight
+# pyegui is a Rust extension module, so a build of this branch cannot be
+# installed without a Rust toolchain. This repo has none on purpose --
+# GitHub Actions is the only place anything is compiled. The result is that
+# a local `uv run examples/gallery.py` happily imports whatever pyegui
+# happens to be installed, and if that is an older wheel the gallery dies
+# partway through with a bare `NameError: name 'RGBA' is not defined`.
+#
+# Catch that here instead, where the message can say what to do about it.
+
+# Names this gallery needs that 0.5.0 did not have. If any are missing, the
+# installed pyegui predates the 0.31.1 coverage work.
+_REQUIRED = {
+    "Response": "interaction state (button_response and friends)",
+    "RGBA": "the alpha colour pickers",
+    "HSVA": "the non-RGB colour pickers",
+    "drag_angle": "the angle dials",
+}
+
+try:
+    _missing = {n: why for n, why in _REQUIRED.items() if n not in dir()}
+except NameError:  # from pyegui import * found no pyegui at all
+    _missing = {"pyegui": "the module did not import"}
+
+if _missing:
+    import textwrap
+
+    print(
+        textwrap.dedent(
+            """\
+            This gallery needs a pyegui build from the egui-0.31-coverage
+            branch, but the installed one is too old.
+
+            Missing:
+            """
+        )
+        + "\n".join(f"  {n:14} {why}" for n, why in sorted(_missing.items()))
+        + textwrap.dedent(
+            """
+
+            The installed pyegui is a release build, not this branch. Because
+            pyegui is a Rust extension module you cannot build it without a
+            Rust toolchain, and this repo deliberately has none -- CI compiles
+            everything.
+
+            To see the gallery, run it in CI, which builds the current branch
+            and renders every page:
+
+                gh workflow run screenshot.yml --repo ChetanKnowIT/pyegui
+                gh run download --repo ChetanKnowIT/pyegui \\
+                    --name gallery-screenshots --dir .
+
+            To build it locally instead, install Rust first:
+
+                curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+                uv venv && uv pip install "maturin>=1.8,<2.0"
+                uv run maturin develop
+
+            Then re-run this script.
+            """
+        )
+    )
+    sys.exit(1)
+
 # ---------------------------------------------------------------- state
 # Kept at module scope so values persist across frames.
 
