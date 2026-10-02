@@ -75,6 +75,8 @@ dismiss it -- egui's `ModalResponse` has no `should_close`, and its
 satisfies every frame. `resize` is not a top-level container: egui's
 `Resize::show` takes a `&mut Ui`, so it must be called from inside another one.
 
+A benchmark comparing pyegui with plain egui ships in `bench/`, run by the manual `benchmark` workflow. On the reference run pyegui costs 1.84x per widget over calling egui from Rust — about 412 ns more per call — which is 0.45 ms for a 500-widget frame against egui's 16.7 ms budget at 60 fps. `bench/hello_egui.rs` and `bench/hello_pyegui.py` are the same app in each language, for the ergonomics claim that timings cannot support.
+
 `popup`, `popup_menu` and `scene` are not in this release. See `TODO.md`.
 
 **egui 0.31.1 widget coverage**

@@ -207,8 +207,37 @@ a positional label reach the builders.
 
 ## 7. Benchmarks: what does the binding actually cost
 
-**Status: harness shipped and measured; the README table is transcribed from a
-real run. The "time to launch" claim is deliberately not made — see below.**
+**Status: measured (run 37061272948) and in the README. The result is 1.84x per
+widget, not "almost no overhead" — the README says so plainly.**
+
+Measured, 500 labels/frame, 61 frames, both sides, on a GitHub-hosted runner:
+
+| metric | pyegui | egui (Rust) | ratio |
+| --- | ---: | ---: | ---: |
+| per widget, us (min) | 0.903 | 0.491 | 1.84x |
+| 500-widget frame, ms (min) | 0.4516 | 0.2456 | 1.84x |
+| first frame, ms | 1.401 | 1.5527 | 0.90x |
+| `import pyegui` | 15.438 ms | n/a | — |
+
+A widget call through Python costs about 412 ns more than from Rust. A
+500-widget frame is 0.45 ms against egui's 16.7 ms budget for 60 fps, so the
+binding is not what a profiler would point at in a typical app. The overhead
+becomes relevant in the thousands of widgets.
+
+The original ask was to show "almost no time to launch". That is not what the
+numbers say, so it is not what the README says. Reporting 1.84x with the
+methodology is more useful than a slogan, and it is the only version that
+survives someone re-running the workflow.
+
+Remaining, all of them about making the measurement more trustworthy rather than
+about finding a better number:
+
+- [ ] Re-run at a second widget count. Overhead scales with widget count, so a
+      ratio at 500 does not describe 50 or 5,000, and the README says so.
+- [x] Record the runner class, with the note that the ratios are the portable
+      part and the absolute microseconds are not
+- [ ] Measure a heavier widget (image, text edit, drag) — `label` is the
+      cheapest path through the binding and may flatter it
 
 The question worth answering is not "is Python fast" but "what does the binding
 add on top of egui". Rendering speed is egui's and identical either way, so a
