@@ -34,8 +34,4 @@ def update_func(ctx):
     central_panel(ctx, lambda: main_contents(ctx))
 
 if __name__ == "__main__":
-
-def main_contents(ctx):
-    central_panel(ctx, lambda: main_contents(ctx))
-
   run_native("pages", update_func)

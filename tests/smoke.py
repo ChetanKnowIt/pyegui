@@ -162,17 +162,22 @@ def main():
         print(__doc__)
         return 1
 
-    if sys.argv[1] == "--list":
+    target = sys.argv[1]
+    if target == "--list":
         for path in find_apps():
             print(path.relative_to(REPO_ROOT))
         return 0
 
-    ok, reason = run_example(sys.argv[1])
+    # run_example replaces sys.argv so the example under test sees its own
+    # name, exactly as `python examples/foo.py` would. Hold the path here
+    # first -- reading sys.argv[1] after the run is an IndexError, which is
+    # how every app "failed" in run 37034474791.
+    ok, reason = run_example(target)
     if ok:
-        print(f"ok {sys.argv[1]}: {reason}")
+        print(f"ok {target}: {reason}")
         return 0
 
-    print(f"FAIL {sys.argv[1]}: {reason}", file=sys.stderr)
+    print(f"FAIL {target}: {reason}", file=sys.stderr)
     return 1
 
 
