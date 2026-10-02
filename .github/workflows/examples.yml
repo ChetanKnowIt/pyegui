@@ -54,31 +54,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Order matters here, and it cost two runs to find out.
+          # A virtualenv, not the system interpreter.
           #
-          # `apt-get install imagemagick` pulls in the distro's python3 and
-          # its pip. That older pip rejects the wheel maturin builds:
+          # `sudo apt-get install` makes site-packages unwritable, so pip
+          # falls back to a user install and then rejects the wheel maturin
+          # builds:
           #
+          #   Defaulting to user installation because normal site-packages is
+          #   not writeable
           #   ERROR: pyegui-...-manylinux_2_35_x86_64.whl is not a supported
           #          wheel on this platform
           #
-          # check.yml installs the identical wheel fine because it runs no
-          # apt-get at all. So: install the Python tooling first, while the
-          # runner's own pip is still in charge, then add the system packages.
-          python -m pip install --upgrade pip
-          python -m pip install "maturin>=1.8,<2.0"
-
-          # eframe builds with the `glow` backend and needs a real OpenGL
-          # context. A bare Xvfb opens a window and renders nothing, so Mesa's
-          # software rasteriser is what actually draws.
+          # check.yml never sees this because it runs no apt-get at all. In a
+          # venv the apt packages cannot influence where anything lands, which
+          # is also what a local developer has, so the job tests the same layout
+          # a person would.
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             xvfb x11-utils libgl1-mesa-dri mesa-utils \
             libxkbcommon-x11-0 libxcursor1 libxrandr2 libxi6 libxinerama1 \
             imagemagick
 
-          # CI has no virtualenv, so build a wheel and install it into the
-          # runner's Python -- the same way check.yml does.
+          python -m venv .venv-ci
+          # shellcheck disable=SC1091
+          source .venv-ci/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install "maturin>=1.8,<2.0"
+
           maturin build --release --locked --out dist --find-interpreter
 
           # Install by path, not by name: `--find-links` depends on pip's
@@ -97,6 +99,10 @@ jobs:
           DISPLAY: ':99'
         run: |
           set -uo pipefail
+
+          # Same virtualenv the wheel was installed into above.
+          # shellcheck disable=SC1091
+          source .venv-ci/bin/activate
 
           Xvfb :99 -screen 0 1280x1024x24 >/tmp/xvfb.log 2>&1 &
           xvfb_pid=$!
