@@ -2239,7 +2239,14 @@ unsafe fn modal(
 
     let response = builder.show(ctx, |ui| run_nested_update_func_lossy(ui, contents.clone()));
 
-    Ok(response.is_top_modal)
+    // Returns whether the modal asked to be dismissed, i.e. whether the user
+    // clicked the backdrop.
+    //
+    // NOT `is_top_modal`: that is "am I the topmost modal", which a lone modal
+    // answers True on every frame. Returning it made the modal close itself
+    // immediately, so the overlays screenshot showed no modal at all while the
+    // render check still passed, since the rest of the page drew fine.
+    Ok(response.backdrop_response.clicked())
 }
 
 /// Builder options for `egui::Resize`, matching its setters exactly.

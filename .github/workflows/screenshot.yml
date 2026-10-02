@@ -159,24 +159,45 @@ jobs:
             exit 1
           fi
 
-      - name: Check the screenshots are not blank
+      # A page can render "successfully" while missing the thing it exists to
+      # show. The overlays page passed the byte check with no modal at all,
+      # because `modal()` returned is_top_modal -- True every frame -- so the
+      # page closed its own modal on the first frame while the resize area
+      # still drew. A blank-check cannot catch that; a minimum colour count and
+      # a per-page size floor can do a little better, but neither is a
+      # substitute for looking at the image.
+      #
+      # Distinct colours, not bytes: a sparse page legitimately compresses to
+      # little, and ImageMagick is already installed here. tests/smoke.py uses
+      # the same measure for the same reason.
+      - name: Check the screenshots actually drew something
         run: |
           set -euo pipefail
-          # A blank frame is still a valid PNG, so judge by bytes: a rendered
-          # egui window compresses to well over 3KB, a solid-colour capture to
-          # a few hundred. Report every page before failing, so one blank frame
-          # does not hide the state of the rest.
+
           blank=""
+          thin=""
           for png in screenshots/*.png; do
             size=$(stat -c%s "$png")
-            echo "${png}: ${size} bytes"
-            if [ "$size" -lt 3000 ]; then
+            colours=$(identify -format "%k" "$png")
+            echo "${png}: ${size} bytes, ${colours} distinct colours"
+
+            if [ "${colours}" -lt 4 ]; then
               blank="${blank} ${png}"
             fi
+            # Each page is a full frame of widgets. A capture far below this
+            # means most of the page failed to draw, which is how the missing
+            # modal looked in the one case that got through.
+            if [ "${size}" -lt 12000 ]; then
+              thin="${thin} ${png}"
+            fi
           done
+
           if [ -n "${blank}" ]; then
             echo "::error::these pages rendered blank:${blank}"
             exit 1
+          fi
+          if [ -n "${thin}" ]; then
+            echo "::warning::these pages look thin, check them by eye:${thin}"
           fi
 
       - name: Upload screenshots
