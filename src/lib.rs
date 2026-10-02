@@ -546,6 +546,169 @@ impl Group {
     }
 }
 
+/// Linear RGBA color with alpha, each channel in the [0, 1] range.
+///
+/// This is egui's Rgba. It is the color space egui composites in, so it is
+/// the right choice for anything that has to match what is on screen. The
+/// alpha channel is not premultiplied unless the function name says so.
+///
+/// Usage::
+///
+///     color = RGBA(1.0, 0.0, 0.0, 1.0)
+///     color_edit_button_rgba_unmultiplied(color)
+#[pyclass]
+struct RGBA {
+    #[pyo3(get, set)]
+    r: f32,
+    #[pyo3(get, set)]
+    g: f32,
+    #[pyo3(get, set)]
+    b: f32,
+    #[pyo3(get, set)]
+    a: f32,
+}
+
+#[pymethods]
+impl RGBA {
+    #[new]
+    fn new(r: f32, g: f32, b: f32, a: f32) -> Self {
+        RGBA { r, g, b, a }
+    }
+
+    /// The same color with alpha forced to 1.0.
+    fn opaque(&self) -> RGBA {
+        RGBA {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: 1.0,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("RGBA({}, {}, {}, {})", self.r, self.g, self.b, self.a)
+    }
+}
+
+/// Hue, saturation, value and alpha, each in the [0, 1] range.
+///
+/// This is egui's Hsva. HSV is how people describe colors ("a saturated
+/// blue"), so it is the right choice for a color wheel or any UI where the
+/// user picks a color by name rather than by number.
+///
+/// A negative alpha means an additive color, in which case alpha is ignored.
+///
+/// Usage::
+///
+///     color = HSVA(0.0, 1.0, 1.0, 1.0)  # pure red
+///     color_edit_button_hsva(color)
+#[pyclass]
+struct HSVA {
+    #[pyo3(get, set)]
+    h: f32,
+    #[pyo3(get, set)]
+    s: f32,
+    #[pyo3(get, set)]
+    v: f32,
+    #[pyo3(get, set)]
+    a: f32,
+}
+
+#[pymethods]
+impl HSVA {
+    #[new]
+    fn new(h: f32, s: f32, v: f32, a: f32) -> Self {
+        HSVA { h, s, v, a }
+    }
+
+    /// The same color with alpha forced to 1.0.
+    fn opaque(&self) -> HSVA {
+        HSVA {
+            h: self.h,
+            s: self.s,
+            v: self.v,
+            a: 1.0,
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("HSVA({}, {}, {}, {})", self.h, self.s, self.v, self.a)
+    }
+}
+
+/// sRGB color with alpha, each channel in the [0, 255] range.
+///
+/// This is egui's Color32, the format egui stores textures in. Use it when
+/// you need the exact 8-bit value egui will paint, for example when reading
+/// a pixel back out of an image.
+///
+/// Usage::
+///
+///     color = Color32(255, 0, 0, 255)
+///     color_edit_button_srgba(color)
+#[pyclass]
+struct Color32 {
+    #[pyo3(get, set)]
+    r: u8,
+    #[pyo3(get, set)]
+    g: u8,
+    #[pyo3(get, set)]
+    b: u8,
+    #[pyo3(get, set)]
+    a: u8,
+}
+
+#[pymethods]
+impl Color32 {
+    #[new]
+    fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Color32 { r, g, b, a }
+    }
+
+    /// The same color with alpha forced to 255.
+    fn opaque(&self) -> Color32 {
+        Color32 {
+            r: self.r,
+            g: self.g,
+            b: self.b,
+            a: 255,
+        }
+    }
+
+    /// egui's own debug format, e.g. "#FF0000FF".
+    fn __repr__(&self) -> String {
+        format!("#{:02X}{:02X}{:02X}{:02X}", self.r, self.g, self.b, self.a)
+    }
+}
+
+/// sRGB color without alpha, each channel in the [0, 255] range.
+///
+/// Usage::
+///
+///     color = SRGB(255, 128, 0)
+///     color_edit_button_srgb(color)
+#[pyclass]
+struct SRGB {
+    #[pyo3(get, set)]
+    r: u8,
+    #[pyo3(get, set)]
+    g: u8,
+    #[pyo3(get, set)]
+    b: u8,
+}
+
+#[pymethods]
+impl SRGB {
+    #[new]
+    fn new(r: u8, g: u8, b: u8) -> Self {
+        SRGB { r, g, b }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("SRGB({}, {}, {})", self.r, self.g, self.b)
+    }
+}
+
 /// Mouse button that triggered an interaction.
 ///
 /// Passed to Response.clicked_by and friends. Values are Primary (usually the
@@ -2273,6 +2436,280 @@ unsafe fn color_edit_button_rgb_response(rgb: &mut RGB) -> PyResult<Response> {
     Ok(Response { inner: response })
 }
 
+/// Shows a button with the given color in hue/saturation/value space. If the
+/// user clicks the button, a full color picker is shown.
+///
+/// Example::
+///
+///     color = HSVA(0.0, 1.0, 1.0, 1.0)
+///     # inside update_func
+///     color_edit_button_hsva(color)
+///     heading(f"h:{color.h} s:{color.s} v:{color.v}")
+#[pyfunction]
+unsafe fn color_edit_button_hsva(hsva: &mut HSVA) -> PyResult<()> {
+    color_edit_button_hsva_response(hsva)?;
+    Ok(())
+}
+
+/// Returns the Response of the HSVA color picker. See color_edit_button_rgb
+/// for the equivalent of the boolean-returning style.
+///
+/// Example::
+///
+///     color = HSVA(0.0, 1.0, 1.0, 1.0)
+///     if color_edit_button_hsva_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_hsva_response(hsva: &mut HSVA) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    Ok(Response {
+        inner: ui.color_edit_button_hsva(&mut egui::ecolor::Hsva {
+            h: hsva.h,
+            s: hsva.s,
+            v: hsva.v,
+            a: hsva.a,
+        }),
+    })
+}
+
+/// Shows a button with the given 8-bit sRGBA color. If the user clicks the
+/// button, a full color picker is shown.
+///
+/// Example::
+///
+///     color = Color32(255, 0, 0, 255)
+///     # inside update_func
+///     color_edit_button_srgba(color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba(srgba: &mut Color32) -> PyResult<()> {
+    color_edit_button_srgba_response(srgba)?;
+    Ok(())
+}
+
+/// Returns the Response of the sRGBA color picker.
+///
+/// Example::
+///
+///     color = Color32(255, 0, 0, 255)
+///     if color_edit_button_srgba_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba_response(srgba: &mut Color32) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    // egui takes a Color32, which is a newtype over [u8; 4] with a private
+    // field, so it is built and read back through the conversion helpers.
+    let mut color =
+        egui::Color32::from_rgba_unmultiplied(srgba.r, srgba.g, srgba.b, srgba.a);
+
+    let response = ui.color_edit_button_srgba(&mut color);
+
+    let [r, g, b, a] = color.to_srgba_unmultiplied();
+    srgba.r = r;
+    srgba.g = g;
+    srgba.b = b;
+    srgba.a = a;
+
+    Ok(Response { inner: response })
+}
+
+/// Shows a button with the given sRGB color. If the user clicks the button, a
+/// full color picker is shown.
+///
+/// Example::
+///
+///     color = SRGB(255, 128, 0)
+///     # inside update_func
+///     color_edit_button_srgb(color)
+#[pyfunction]
+unsafe fn color_edit_button_srgb(srgb: &mut SRGB) -> PyResult<()> {
+    color_edit_button_srgb_response(srgb)?;
+    Ok(())
+}
+
+/// Returns the Response of the sRGB color picker.
+///
+/// Example::
+///
+///     color = SRGB(255, 128, 0)
+///     if color_edit_button_srgb_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_srgb_response(srgb: &mut SRGB) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut tmp: [u8; 3] = [srgb.r, srgb.g, srgb.b];
+
+    let response = ui.color_edit_button_srgb(&mut tmp);
+
+    srgb.r = tmp[0];
+    srgb.g = tmp[1];
+    srgb.b = tmp[2];
+
+    Ok(Response { inner: response })
+}
+
+/// Shows a button with the given linear RGBA color with premultiplied alpha.
+/// If the user clicks the button, a full color picker is shown.
+///
+/// Premultiplied alpha means the color channels are already scaled by alpha,
+/// so a half-transparent red has r = 0.5 rather than r = 1.0. You rarely want
+/// this; prefer color_edit_button_rgba_unmultiplied.
+///
+/// Example::
+///
+///     color = RGBA(0.5, 0.0, 0.0, 0.5)
+///     # inside update_func
+///     color_edit_button_rgba_premultiplied(color)
+#[pyfunction]
+unsafe fn color_edit_button_rgba_premultiplied(rgba: &mut RGBA) -> PyResult<()> {
+    color_edit_button_rgba_premultiplied_response(rgba)?;
+    Ok(())
+}
+
+/// Returns the Response of the premultiplied linear RGBA color picker.
+///
+/// Example::
+///
+///     color = RGBA(0.5, 0.0, 0.0, 0.5)
+///     if color_edit_button_rgba_premultiplied_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_rgba_premultiplied_response(rgba: &mut RGBA) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut tmp: [f32; 4] = [rgba.r, rgba.g, rgba.b, rgba.a];
+
+    let response = ui.color_edit_button_rgba_premultiplied(&mut tmp);
+
+    rgba.r = tmp[0];
+    rgba.g = tmp[1];
+    rgba.b = tmp[2];
+    rgba.a = tmp[3];
+
+    Ok(Response { inner: response })
+}
+
+/// Shows a button with the given linear RGBA color, alpha not premultiplied.
+/// If the user clicks the button, a full color picker is shown.
+///
+/// This is the linear-space counterpart to color_edit_button_rgba, and the
+/// one to reach for if you need alpha at all. If unsure what "premultiplied
+/// alpha" is, this is the function you want.
+///
+/// Example::
+///
+///     color = RGBA(1.0, 0.0, 0.0, 0.5)
+///     # inside update_func
+///     color_edit_button_rgba_unmultiplied(color)
+#[pyfunction]
+unsafe fn color_edit_button_rgba_unmultiplied(rgba: &mut RGBA) -> PyResult<()> {
+    color_edit_button_rgba_unmultiplied_response(rgba)?;
+    Ok(())
+}
+
+/// Returns the Response of the unmultiplied linear RGBA color picker.
+///
+/// Example::
+///
+///     color = RGBA(1.0, 0.0, 0.0, 0.5)
+///     if color_edit_button_rgba_unmultiplied_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_rgba_unmultiplied_response(rgba: &mut RGBA) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut tmp: [f32; 4] = [rgba.r, rgba.g, rgba.b, rgba.a];
+
+    let response = ui.color_edit_button_rgba_unmultiplied(&mut tmp);
+
+    rgba.r = tmp[0];
+    rgba.g = tmp[1];
+    rgba.b = tmp[2];
+    rgba.a = tmp[3];
+
+    Ok(Response { inner: response })
+}
+
+/// Shows a button with the given 8-bit sRGBA color with premultiplied alpha.
+/// If the user clicks the button, a full color picker is shown.
+///
+/// Example::
+///
+///     color = Color32(128, 0, 0, 128)
+///     # inside update_func
+///     color_edit_button_srgba_premultiplied(color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba_premultiplied(srgba: &mut Color32) -> PyResult<()> {
+    color_edit_button_srgba_premultiplied_response(srgba)?;
+    Ok(())
+}
+
+/// Returns the Response of the premultiplied sRGBA color picker.
+///
+/// Example::
+///
+///     color = Color32(128, 0, 0, 128)
+///     if color_edit_button_srgba_premultiplied_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba_premultiplied_response(srgba: &mut Color32) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut tmp: [u8; 4] = [srgba.r, srgba.g, srgba.b, srgba.a];
+
+    let response = ui.color_edit_button_srgba_premultiplied(&mut tmp);
+
+    srgba.r = tmp[0];
+    srgba.g = tmp[1];
+    srgba.b = tmp[2];
+    srgba.a = tmp[3];
+
+    Ok(Response { inner: response })
+}
+
+/// Shows a button with the given 8-bit sRGBA color, alpha not premultiplied.
+/// If the user clicks the button, a full color picker is shown.
+///
+/// This is the format egui stores textures in, and the right choice when you
+/// need the exact 8-bit value. Prefer this over the premultiplied variant
+/// unless you specifically need premultiplication.
+///
+/// Example::
+///
+///     color = Color32(255, 0, 0, 128)
+///     # inside update_func
+///     color_edit_button_srgba_unmultiplied(color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba_unmultiplied(srgba: &mut Color32) -> PyResult<()> {
+    color_edit_button_srgba_unmultiplied_response(srgba)?;
+    Ok(())
+}
+
+/// Returns the Response of the unmultiplied sRGBA color picker.
+///
+/// Example::
+///
+///     color = Color32(255, 0, 0, 128)
+///     if color_edit_button_srgba_unmultiplied_response(color).changed:
+///       print("now", color)
+#[pyfunction]
+unsafe fn color_edit_button_srgba_unmultiplied_response(srgba: &mut Color32) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut tmp: [u8; 4] = [srgba.r, srgba.g, srgba.b, srgba.a];
+
+    let response = ui.color_edit_button_srgba_unmultiplied(&mut tmp);
+
+    srgba.r = tmp[0];
+    srgba.g = tmp[1];
+    srgba.b = tmp[2];
+    srgba.a = tmp[3];
+
+    Ok(Response { inner: response })
+}
+
 /// Show an image available at the given uri.
 ///
 /// Example::
@@ -2495,6 +2932,10 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Group>()?;
     m.add_class::<Response>()?;
     m.add_class::<PointerButton>()?;
+    m.add_class::<RGBA>()?;
+    m.add_class::<HSVA>()?;
+    m.add_class::<Color32>()?;
+    m.add_class::<SRGB>()?;
     // functions
     m.add_function(wrap_pyfunction!(run_native, m)?)?;
     m.add_function(wrap_pyfunction!(heading, m)?)?;
@@ -2543,6 +2984,13 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(progress, m)?)?;
     m.add_function(wrap_pyfunction!(spinner, m)?)?;
     m.add_function(wrap_pyfunction!(color_edit_button_rgb, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_hsva, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgb, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_rgba_unmultiplied, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_rgba_premultiplied, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba_unmultiplied, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba_premultiplied, m)?)?;
     m.add_function(wrap_pyfunction!(crate::image, m)?)?;
     m.add_function(wrap_pyfunction!(image_and_text_clicked, m)?)?;
     m.add_function(wrap_pyfunction!(separator, m)?)?;
@@ -2582,6 +3030,13 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(text_edit_multiline_response, m)?)?;
     m.add_function(wrap_pyfunction!(code_editor_response, m)?)?;
     m.add_function(wrap_pyfunction!(color_edit_button_rgb_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_hsva_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgb_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_rgba_unmultiplied_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_rgba_premultiplied_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba_unmultiplied_response, m)?)?;
+    m.add_function(wrap_pyfunction!(color_edit_button_srgba_premultiplied_response, m)?)?;
     m.add_function(wrap_pyfunction!(date_picker_button_response, m)?)?;
     m.add_function(wrap_pyfunction!(crate::image_response, m)?)?;
     m.add_function(wrap_pyfunction!(progress_response, m)?)?;

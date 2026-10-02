@@ -102,49 +102,21 @@ jobs:
           maturin build --release --locked --out dist --find-interpreter
           pip install --find-links dist --force-reinstall pyegui
 
+          # The export gate lives in tests/expected_exports.py so it can be
+          # edited and linted as Python rather than as a YAML block scalar.
           python - <<'PY'
+          import sys
+
+          sys.path.insert(0, "tests")
           import pyegui
+          import expected_exports
 
-          # Guard the registration of every exported name. New widgets must be
-          # added here or this fails, which is the point.
-          required = {
-              # entrypoint
-              "run_native",
-              # every exported class
-              "Bool", "Context", "Date", "Float", "Group", "Int", "Layout", "LayoutType",
-              "PointerButton", "RGB", "Response", "Scope", "Str",
-              # every exported plain widget / helper function
-              "add_enabled", "add_space", "button_clicked", "centered_and_justified",
-              "checkbox", "close_menu", "code", "code_editor", "collapsing",
-              "color_edit_button_rgb", "combo_box", "date_picker_button", "disable",
-              "drag_angle", "drag_angle_tau", "drag_float", "drag_int", "group",
-              "heading", "horizontal", "horizontal_centered", "horizontal_top",
-              "horizontal_wrapped", "hyperlink", "hyperlink_to", "image",
-              "image_and_text_clicked", "indent", "label", "link_clicked", "monospace",
-              "progress", "radio", "radio_value", "run_native", "scope",
-              "scroll_area_horizontal", "scroll_area_vertical", "selectable_label",
-              "selectable_value", "separator", "set_invisible", "set_opacity",
-              "slider_float", "slider_int", "small", "small_button_clicked", "spinner",
-              "strong", "text_edit_multiline", "text_edit_singleline", "toggle_value",
-              "vertical", "vertical_centered", "vertical_centered_justified", "weak",
-              # *_response variants wrapping egui::Response
-              "button_response", "checkbox_response", "code_editor_response",
-              "code_response", "color_edit_button_rgb_response",
-              "date_picker_button_response", "drag_angle_response",
-              "drag_angle_tau_response", "drag_float_response", "drag_int_response",
-              "heading_response", "hyperlink_response", "hyperlink_to_response",
-              "image_and_text_response", "image_response", "label_response",
-              "link_response", "monospace_response", "progress_response",
-              "radio_response", "radio_value_response", "selectable_label_response",
-              "selectable_value_response", "separator_response", "slider_float_response",
-              "slider_int_response", "small_button_response", "small_response",
-              "spinner_response", "strong_response", "text_edit_multiline_response",
-              "text_edit_singleline_response", "toggle_value_response", "weak_response"
-          }
-          missing = sorted(n for n in required if not hasattr(pyegui, n))
-          assert not missing, f"missing exports: {missing}"
+          expected_exports.check(pyegui)
+          expected_exports.check_no_unexpected(pyegui)
 
-          functions = [n for n in dir(pyegui) if not n.startswith("_")]
-          print(f"pyegui exports {len(functions)} public names")
-          print(f"{len(required)} required names present")
+          print(f"pyegui exports {len(expected_exports.REQUIRED)} public names")
+          print(f"{len(expected_exports.CLASSES)} classes, "
+                f"{len(expected_exports.FUNCTIONS)} functions, "
+                f"{len(expected_exports.RESPONSE_VARIANTS)} response variants")
+          print("all declared exports present, no undeclared exports")
           PY
