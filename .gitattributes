@@ -1,8 +1,10 @@
-# GitHub renders relative image paths in a README against the repository root,
-# but Sphinx resolves them relative to docs/ because index.rst does
-# `include ../README.rst`. The same figure directive cannot satisfy both, so
-# the paths in README.rst are written the way Sphinx needs and the rule below
-# tells GitHub where to actually find those files.
+# GitHub resolves relative image paths in a README against the repository
+# root, but Sphinx resolves them relative to docs/ because index.rst does
+# `include ../README.rst`. One figure directive cannot satisfy both, so the
+# paths in README.rst use the short Sphinx-relative form and the rule below
+# redirects GitHub to the real directory.
 #
-# Pattern matches the referenced path, value is the prefix to prepend.
-docs/screenshots/*.png  docs/screenshots/
+# Note: plain git reports "not a valid attribute name" for this line, because
+# git only knows `name=value` attributes and a path is not a valid name. The
+# directive is a GitHub extension; the warning is expected and harmless.
+docs/*.png  docs/screenshots/
