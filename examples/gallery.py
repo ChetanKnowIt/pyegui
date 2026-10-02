@@ -546,14 +546,18 @@ def page_overlays(ctx):
         if button_clicked("Close"):
             ctx.close()
 
+    # The modal must be drawn before the central panel, so the central panel
+    # does not cover its backdrop.
     if show_modal.value:
         if modal(ctx, "demo_modal", modal_contents, default_width=300.0):
             show_modal.value = False
-    elif button_clicked("Open modal"):
-        show_modal.value = True
 
     def main_contents():
         label("The central panel is drawn last.")
+        # Widgets need a Ui, and this page composes its own frame, so the
+        # button has to live inside a container rather than here.
+        if button_clicked("Reopen modal"):
+            show_modal.value = True
         separator()
         heading("A resizable area")
         # resize() needs an existing Ui, so it can only be called from inside
