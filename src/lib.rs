@@ -1062,28 +1062,27 @@ impl eframe::App for PyeguiApp<'_> {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         let ctx_r = Context(ctx.clone());
 
+        // Python owns frame composition, exactly as an egui app does. egui
+        // requires CentralPanel to be added after every other top-level
+        // panel, so pyegui cannot open one on Python's behalf without making
+        // that order unenforceable. `update_func` therefore receives only a
+        // Context and must call `central_panel(ctx, contents)` itself, last.
+        //
+        // `ctx` is eframe's own Context, already inside the frame that
+        // `eframe::App::update` is called from, so it is passed straight
+        // through. Do not wrap this in `egui::Context::run`: that is the
+        // frame driver eframe itself calls to reach this method, not a
+        // wrapper for use inside it.
         unsafe {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                debug!("Getting ui stack pointer");
-                let ui_stack = UI.as_mut().expect(UI_PTR_NULL_ERR);
+            debug!("Execute update_func");
 
-                debug!("Push UI");
-                ui_stack.push(&raw mut *ui);
-
-                debug!("Execute update_func");
-
-                Python::with_gil(|py| {
-                    if let Err(err) = self.update_func.call1((ctx_r,)) {
-                        err.display(py);
-                    }
-                });
-
-                debug!("Executed update_func");
-
-                ui_stack.pop().expect(UI_STACK_ERR);
-
-                debug!("Pop UI");
+            Python::with_gil(|py| {
+                if let Err(err) = self.update_func.call1((ctx_r,)) {
+                    err.display(py);
+                }
             });
+
+            debug!("Executed update_func");
         }
     }
 }
