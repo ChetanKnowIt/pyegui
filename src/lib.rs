@@ -134,6 +134,22 @@ impl Context {
         self.0
             .send_viewport_cmd(egui::viewport::ViewportCommand::Close);
     }
+
+    /// Ask egui to redraw on the next frame.
+    ///
+    /// egui only repaints when something changes, so an app that draws
+    /// something once and then sits still will show a stale window. Call this
+    /// when you have changed something egui cannot see.
+    ///
+    /// Example::
+    ///
+    ///   def update_func(ctx):
+    ///     label(f"frame {counter}")
+    ///     counter.value += 1
+    ///     ctx.request_repaint()
+    fn request_repaint(&self) {
+        self.0.request_repaint();
+    }
 }
 
 /// Str stores string value that can be referenced

@@ -305,27 +305,42 @@ def page_state(ctx):
 
 # ---------------------------------------------------------------- driver
 
-# egui repaints on demand, so an idle app renders a few frames and then stops.
-# The screenshot would catch a blank or half-drawn window, so instead of racing
-# that, the gallery draws for a fixed number of frames, sleeps to be sure the
-# last one has been composited, then closes itself via ctx.close().
-FRAMES_BEFORE_CLOSE = 6
-SETTLE_SECONDS = 1.5
+# The screenshot has to catch a fully drawn window, so the gallery repaints for
+# a fixed time and then closes itself via ctx.close().
+#
+# MAX_SECONDS is the bound that matters. A frame counter alone can never be
+# reached if the window fails to map, and the app would then hang until the
+# CI job's own timeout -- six hours by default. The CI job wraps each page in
+# `timeout` as a second line of defence, but the app should not depend on
+# being killed.
+MAX_SECONDS = 6.0
+SETTLE_SECONDS = 1.0
 
 
 def run_page(page_name, page_fn):
-    """Draw one page, then close the window."""
+    """Draw one page for a fixed time, then close the window.
+
+    Repaints explicitly each frame. egui only repaints when it detects a
+    change, so without the explicit request the page would draw once and then
+    idle -- which is fine interactively but leaves the screenshot racing the
+    compositor.
+    """
 
     import time
 
-    state = {"frames": 0}
+    started = time.monotonic()
 
     def update(ctx):
         page_fn(ctx)
-        state["frames"] += 1
-        if state["frames"] >= FRAMES_BEFORE_CLOSE:
+
+        if time.monotonic() - started >= MAX_SECONDS:
+            # Hold briefly so the last frame is composited before closing,
+            # otherwise the capture can catch an undrawn window.
             time.sleep(SETTLE_SECONDS)
             ctx.close()
+            return
+
+        ctx.request_repaint()
 
     run_native(
         f"pyegui gallery - {page_name}",

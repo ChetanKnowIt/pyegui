@@ -133,7 +133,9 @@ work so far — this is the next large gap after containers.
 - [ ] Input state: `input`, `is_pointer_over_area`, `wants_keyboard_input`,
       `wants_pointer_input`, `is_using_pointer`, `pointer_hover_pos`,
       `pointer_latest_pos`, `pointer_interact_pos`, `multi_touch`
-- [ ] `request_repaint` and the `_after` / `_of` variants
+- [~] `Context.request_repaint()` ships, but not the `_after` / `_of` /
+      `_after_secs` variants. `Context.close()` also ships, which is the one
+      viewport command currently reachable.
 - [ ] `memory`, `memory_mut`
 - [ ] Styling: `style`, `style_mut`, `set_style`, `visuals`, `visuals_mut`,
       `spacing`, `spacing_mut`, `set_visuals`

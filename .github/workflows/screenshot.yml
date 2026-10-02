@@ -34,6 +34,11 @@ jobs:
   gallery:
     name: render gallery pages
     runs-on: ubuntu-22.04
+    # Backstop only. Each page is individually bounded (a wall-clock ceiling in
+    # the gallery, plus `timeout` in the step), so reaching this means
+    # something is wrong at a level neither of those can see -- a wedged
+    # compositor, say. 20 minutes is ~8 pages x (6s render + 1s settle + slack).
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -111,9 +116,13 @@ jobs:
           mkdir -p screenshots
           failed=""
 
+          # Per-page timeout. The gallery bounds itself with a wall-clock
+          # ceiling, but if that path ever breaks -- a window that never maps,
+          # a close that is never acted on -- the job would otherwise sit until
+          # the six-hour GitHub limit. 45s is generous: a page settles for 8s.
           for page in $(python examples/gallery.py list); do
             echo "::group::rendering ${page}"
-            if python "examples/gallery.py" "${page}"; then
+            if timeout --kill-after=5s 45s python "examples/gallery.py" "${page}"; then
               # -crop trims the X root down to the window's actual geometry.
               # The gallery sets a fixed inner size, so the window is placed
               # at a known offset and the capture is deterministic.
@@ -121,7 +130,12 @@ jobs:
                 -crop 560x820+0+0 +repage "screenshots/${page}.png"
               echo "captured screenshots/${page}.png"
             else
-              echo "::error::page ${page} exited non-zero"
+              status=$?
+              if [ $status -eq 124 ] || [ $status -eq 137 ]; then
+                echo "::error::page ${page} timed out and was killed"
+              else
+                echo "::error::page ${page} exited ${status}"
+              fi
               failed="${failed} ${page}"
             fi
             echo "::endgroup::"
