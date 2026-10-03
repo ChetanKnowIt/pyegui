@@ -1977,28 +1977,13 @@ unsafe fn opt_color32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<e
         None => return Ok(None),
     };
 
-    if let Ok(color) = value.extract::<Color32>() {
-        return Ok(Some(egui::Color32::from_rgba_unmultiplied(
-            color.r, color.g, color.b, color.a,
-        )));
-    }
-
-    let quad: Vec<u8> = value.extract().map_err(|_| {
+    let color = color32_from_any(&value).map_err(|_| {
         PyValueError::new_err(format!(
             "{name} must be a Color32 or an (r, g, b, a) tuple of ints in 0-255"
         ))
     })?;
 
-    if quad.len() != 4 {
-        return Err(PyValueError::new_err(format!(
-            "{name} must have exactly 4 components, got {}",
-            quad.len()
-        )));
-    }
-
-    Ok(Some(egui::Color32::from_rgba_unmultiplied(
-        quad[0], quad[1], quad[2], quad[3],
-    )))
+    Ok(Some(color))
 }
 
 /// Read an optional `egui::CornerRadius` from `opts`.
@@ -2130,8 +2115,12 @@ unsafe fn opt_stroke(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<eg
 ///
 /// Shared by `opt_color32` and `opt_stroke`, which both accept either a
 /// `Color32` class instance or a bare `(r, g, b, a)` tuple.
+///
+/// `downcast`, not `extract`: `Color32` is a plain `#[pyclass]` with no
+/// `extract` impl, so `Bound::extract::<Color32>` does not compile.
 fn color32_from_any(value: &Bound<'_, PyAny>) -> PyResult<egui::Color32> {
-    if let Ok(color) = value.extract::<Color32>() {
+    if let Ok(color) = value.downcast::<Color32>() {
+        let color = color.borrow();
         return Ok(egui::Color32::from_rgba_unmultiplied(
             color.r, color.g, color.b, color.a,
         ));
@@ -2192,7 +2181,14 @@ const FRAME_OPTIONS: &[&str] = &[
 ];
 
 /// Apply egui's `Frame` setters from a Python kwargs dict.
-fn apply_frame_options(frame: egui::Frame, opts: &Bound<'_, PyDict>) -> PyResult<egui::Frame> {
+///
+/// `unsafe` because every `opt_*` helper is -- they call `PyDict::get_item`,
+/// which pyo3 marks unsafe. Edition 2021, so this body is an implicit unsafe
+/// block, same as `apply_window_options`.
+unsafe fn apply_frame_options(
+    frame: egui::Frame,
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<egui::Frame> {
     let mut frame = frame;
 
     if let Some(v) = opt_color32(opts, "fill")? {
@@ -3095,17 +3091,24 @@ const SCROLL_AREA_OPTIONS: &[&str] = &[
     "stick_to_bottom",
 ];
 
-/// Read an optional `egui::ScrollBarVisibility` from `opts`.
+/// Read an optional `ScrollBarVisibility` from `opts`.
+///
+/// egui 0.31.1 declares the enum in `containers::scroll_area` but does not
+/// re-export it from the crate root -- `containers::mod` only re-exports the
+/// `ScrollArea` itself -- so it has to be named by its full path. Reaching for
+/// `egui::ScrollBarVisibility` does not compile.
 unsafe fn opt_scroll_bar_visibility(
     opts: &Bound<'_, PyDict>,
-) -> PyResult<Option<egui::ScrollBarVisibility>> {
+) -> PyResult<Option<egui::containers::scroll_area::ScrollBarVisibility>> {
+    use egui::containers::scroll_area::ScrollBarVisibility;
+
     match opts.get_item("scroll_bar_visibility")? {
         Some(value) => {
             let name: String = value.extract()?;
             let visibility = match name.as_str() {
-                "always_hidden" => egui::ScrollBarVisibility::AlwaysHidden,
-                "visible_when_needed" => egui::ScrollBarVisibility::VisibleWhenNeeded,
-                "always_visible" => egui::ScrollBarVisibility::AlwaysVisible,
+                "always_hidden" => ScrollBarVisibility::AlwaysHidden,
+                "visible_when_needed" => ScrollBarVisibility::VisibleWhenNeeded,
+                "always_visible" => ScrollBarVisibility::AlwaysVisible,
                 _ => {
                     return Err(PyValueError::new_err(format!(
                         "unknown scroll_bar_visibility {name:?}; expected one of \
@@ -3125,7 +3128,10 @@ unsafe fn opt_scroll_bar_visibility(
 /// `scroll_area_both` so the option list is defined once. The axis is chosen
 /// by the caller before this runs, because egui's `vertical()`/`horizontal()`/
 /// `both()` are constructors rather than setters.
-fn apply_scroll_area_options(
+///
+/// `unsafe` because every `opt_*` helper is. Edition 2021, so this body is an
+/// implicit unsafe block.
+unsafe fn apply_scroll_area_options(
     area: egui::ScrollArea,
     opts: &Bound<'_, PyDict>,
 ) -> PyResult<egui::ScrollArea> {
