@@ -3216,9 +3216,13 @@ unsafe fn scene(
     }
 
     // egui mutates the rect as the user pans and zooms, and reads it to decide
-    // what to show. Converting by reference and writing it back keeps the
+    // what to show. Converting in, then writing the result back out, keeps the
     // Python-side object as the single source of truth across frames.
-    let mut inner = egui::Rect::from(view);
+    //
+    // `egui::Rect::from(view)` does not compile: the impl below is for `&Rect`,
+    // and trait resolution does not reborrow a `&mut Rect` to `&Rect` on its
+    // own. Naming the type makes it unambiguous.
+    let mut inner: egui::Rect = egui::Rect::from(&*view);
 
     let shown = builder.show(ui, &mut inner, |ui| {
         run_nested_update_func_lossy(ui, contents.clone())
