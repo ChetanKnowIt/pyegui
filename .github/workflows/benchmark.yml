@@ -21,7 +21,11 @@ on:
       widgets:
         description: 'Widgets per frame, comma separated (e.g. 50,500,2000)'
         required: false
-        default: '500'
+        default: '50,500,2000'
+      trials:
+        description: 'Repeats per widget count. >1 reports a median and spread.'
+        required: false
+        default: '5'
 
 permissions:
   contents: read
@@ -34,8 +38,12 @@ jobs:
   benchmark:
     name: pyegui vs egui
     runs-on: ubuntu-22.04
-    # 30 min covers the eframe release build with time to spare.
-    timeout-minutes: 30
+    # 30 min covered the eframe release build with time to spare when one trial
+    # was measured. Each count costs roughly 100s across both languages, so the
+    # default of 5 trials at 3 counts is ~25 min of measurement on top of a
+    # ~4 min build. Raised rather than left to discover as a timeout, which
+    # would look like a benchmark failure rather than a budget one.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -72,6 +80,7 @@ jobs:
         env:
           DISPLAY: ':99'
           WIDGETS: ${{ inputs.widgets }}
+          TRIALS: ${{ inputs.trials }}
         run: |
           set -euo pipefail
 
@@ -94,6 +103,10 @@ jobs:
           # every count is measured in this one run: a ratio measured on a
           # different day on a different runner is not comparable to one taken
           # today, which is the whole reason the README quotes ratios.
+          #
+          # TRIALS repeats each count within that one run, because three runs
+          # of identical code gave 1.30x, 1.52x and 1.38-1.55x. One sample per
+          # count cannot tell a real difference from runner noise.
           WIDGET_COUNTS="${WIDGETS:-500}"
           # Blank entries, e.g. "50,,2000" or a trailing comma from a copy/paste.
           WIDGET_COUNTS="$(printf '%s' "$WIDGET_COUNTS" | tr ',' ' ')"
@@ -113,7 +126,20 @@ jobs:
             echo "no widget count given" >&2
             exit 2
           fi
-          echo "widget counts: ${WIDGET_COUNTS}"
+          # A blank input means "not supplied", so it defaults to 1. Rejecting
+          # it would fail the run for someone who cleared the dispatch field,
+          # which is the same thing as leaving it alone.
+          case "${TRIALS:-1}" in
+            *[!0-9]*)
+              echo "trials must be a positive integer, got '${TRIALS}'" >&2
+              exit 2
+              ;;
+          esac
+          if [ "${TRIALS:-1}" -lt 1 ]; then
+            echo "trials must be at least 1, got '${TRIALS}'" >&2
+            exit 2
+          fi
+          echo "widget counts: ${WIDGET_COUNTS}  trials: ${TRIALS:-1}"
 
           # import cost, in a fresh interpreter so the module is not already up
           python -c "
@@ -138,19 +164,66 @@ jobs:
           test -x bench/target/release/pyegui-bench
 
           for count in $WIDGET_COUNTS; do
-            echo "=== ${count} widgets per frame ==="
+            case "$count" in
+              ''|*[!0-9]*)
+                echo "widget counts must be positive integers, got '$count'" >&2
+                exit 2
+                ;;
+            esac
+            if [ "$count" -lt 1 ]; then
+              echo "widget count must be at least 1, got '$count'" >&2
+              exit 2
+            fi
+          done
+          if [ -z "$(printf '%s' "$WIDGET_COUNTS" | tr -d ' ')" ]; then
+            echo "no widget count given" >&2
+            exit 2
+          fi
 
-            # Bounded, so a stall surfaces as a timeout rather than a hung job:
-            # an earlier attempt sat for 25 minutes with no output. `set -o
-            # pipefail` is already on, so a timeout fails the step rather than
-            # being masked by tee's exit status -- otherwise a killed benchmark
-            # would write a truncated file and the combine step would read a
-            # half-finished run as if it were a result.
-            WIDGETS="${count}" timeout 300 python bench/bench.py \
-              | tee "bench/results/pyegui-${count}.json"
 
-            WIDGETS="${count}" timeout 600 bench/target/release/pyegui-bench \
-              | tee "bench/results/egui-${count}.json"
+          # import cost, in a fresh interpreter so the module is not already up
+          python -c "
+          import json, subprocess, sys, time
+          # Run in a child so the measurement is a cold import.
+          code = 'import time; t=time.perf_counter(); import pyegui; print((time.perf_counter()-t)*1000)'
+          best = None
+          for _ in range(7):
+              out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
+              v = float(out.stdout.strip())
+              best = v if best is None else min(best, v)
+          json.dump({'import_pyegui_ms': round(best, 3)}, open('bench/results/import.json', 'w'))
+          print('import pyegui:', round(best, 3), 'ms')
+          "
+
+          # Both sides are timed from the same loop. The Rust binary is built
+          # once, outside every measurement: cargo caches it, and an unbuilt
+          # release binary would otherwise be compiled inside a timed run. The
+          # binary is named after the package (pyegui-bench), not `bench`.
+          cargo build --release --quiet --manifest-path bench/Cargo.toml
+          test -x bench/target/release/pyegui-bench
+
+          # Trials are the outer loop and widget counts the inner one, so every
+          # count is measured once per trial in the same time window. The
+          # reverse order measures 50 widgets while the machine is idle and
+          # 2000 while it is warm, which is indistinguishable from a real
+          # effect of widget count.
+          #
+          # Bounded, so a stall surfaces as a timeout rather than a hung job:
+          # an earlier attempt sat for 25 minutes with no output. `set -o
+          # pipefail` is already on, so a timeout fails the step rather than
+          # being masked by tee's exit status -- otherwise a killed benchmark
+          # would write a truncated file and the combine step would read a
+          # half-finished run as if it were a result.
+          for trial in $(seq 1 "${TRIALS:-1}"); do
+            for count in $WIDGET_COUNTS; do
+              echo "=== trial ${trial}/${TRIALS:-1}, ${count} widgets per frame ==="
+
+              WIDGETS="${count}" timeout 300 python bench/bench.py \
+                | tee "bench/results/pyegui-${count}-t${trial}.json"
+
+              WIDGETS="${count}" timeout 600 bench/target/release/pyegui-bench \
+                | tee "bench/results/egui-${count}-t${trial}.json"
+            done
           done
 
       - name: Combine and compare
@@ -160,71 +233,149 @@ jobs:
           import json
           import pathlib
           import re
+          import statistics
 
           results = pathlib.Path("bench/results")
           imp = json.loads((results / "import.json").read_text())
 
-          # Every count that was measured, keyed by the count itself. File names
-          # carry the count so nothing is overwritten, and the count is read back
-          # out of the payload as well -- a file named 2000 that reports 500
-          # would mean the two sides measured different workloads.
+          # Files are named `pyegui-<count>-t<trial>.json`. Both parts are parsed
+          # back out rather than trusted from the name alone, and the payload's
+          # own widgets_per_frame is checked against the name -- a file written
+          # under the wrong name would otherwise silently pair two different
+          # workloads.
           #
-          # `search`, not `match`: the stem is `pyegui-500`, so the digits are
-          # at the end and `match` would anchor to the front and find nothing.
-          counts = sorted(
-              int(m.group(1))
-              for m in (re.search(r"(\d+)$", p.stem) for p in results.glob("pyegui-*.json"))
-              if m
-          )
-          if not counts:
-              raise SystemExit("no benchmark results to combine")
+          # `search`, not `match`: the digits are mid-string, so `match` would
+          # anchor to the front and find nothing.
+          pattern = re.compile(r"pyegui-(\d+)-t(\d+)\.json$")
+          trials = {}
+          for path in sorted(results.glob("pyegui-*.json")):
+              m = pattern.search(path.name)
+              if not m:
+                  continue
+              count, trial = int(m.group(1)), int(m.group(2))
+              trials.setdefault(count, {})[trial] = json.loads(path.read_text())
 
-          by_count = {}
-          for count in counts:
-              pyegui = json.loads((results / f"pyegui-{count}.json").read_text())
-              egui = json.loads((results / f"egui-{count}.json").read_text())
-
-              # The two sides have drifted before (one repainted and one did
-              # not), so confirm they measured the same workload before
-              # comparing them. A ratio between different workloads is a
-              # meaningless number, and it looks like a real one.
-              for field in ("widgets_per_frame", "frames_measured"):
-                  if pyegui[field] != egui[field]:
-                      raise SystemExit(
-                          f"{field} mismatch at {count} widgets: pyegui measured "
-                          f'{pyegui[field]}, egui measured {egui[field]} -- the '
-                          "ratio would be comparing two different workloads"
+          if not trials:
+              # A single-trial run writes no -t suffix, so the runs recorded
+              # before trials existed still combine. The Rust side is looked up
+              # under both names, because assuming the suffixed one made a
+              # legacy results directory fail with "missing Rust result".
+              legacy = re.compile(r"pyegui-(\d+)\.json$")
+              for path in sorted(results.glob("pyegui-*.json")):
+                  m = legacy.search(path.name)
+                  if m:
+                      trials.setdefault(int(m.group(1)), {})[1] = json.loads(
+                          path.read_text()
                       )
 
-              py_per = pyegui["per_widget_us"]["min"]
-              rs_per = egui["per_widget_us"]["min"]
-              py_first = pyegui["first_frame_ms"]
-              rs_first = egui["first_frame_ms"]
+          if not trials:
+              raise SystemExit("no benchmark results to combine")
 
-              by_count[str(count)] = {
-                  "python": pyegui,
-                  "rust": egui,
+          def median(values):
+              return statistics.median(values)
+
+          by_count = {}
+          for count in sorted(trials):
+              per_trial = []
+              for trial in sorted(trials[count]):
+                  pyegui = trials[count][trial]
+                  egui_path = results / f"egui-{count}-t{trial}.json"
+                  if not egui_path.exists():
+                      # Trial 1 of a legacy single-trial run.
+                      egui_path = results / f"egui-{count}.json"
+                  if not egui_path.exists():
+                      raise SystemExit(
+                          f"missing Rust result for {count} widgets, trial {trial}"
+                      )
+                  egui = json.loads(egui_path.read_text())
+
+                  # The two sides have drifted before (one repainted and one
+                  # did not), so confirm they measured the same workload before
+                  # comparing them. A ratio between different workloads is a
+                  # meaningless number, and it looks like a real one.
+                  for field in ("widgets_per_frame", "frames_measured"):
+                      if pyegui[field] != egui[field]:
+                          raise SystemExit(
+                              f"{field} mismatch at {count} widgets, trial "
+                              f"{trial}: pyegui measured {pyegui[field]}, egui "
+                              f"measured {egui[field]} -- the ratio would be "
+                              "comparing two different workloads"
+                          )
+                  if pyegui["widgets_per_frame"] != count:
+                      raise SystemExit(
+                          f"{pyegui['widgets_per_frame']} widgets recorded in a "
+                          f"file named for {count}"
+                      )
+
+                  py_per = pyegui["per_widget_us"]["min"]
+                  rs_per = egui["per_widget_us"]["min"]
+                  per_trial.append(
+                      {
+                          "trial": trial,
+                          "pyegui_us": py_per,
+                          "egui_us": rs_per,
+                          "ratio": round(py_per / rs_per, 3),
+                          "extra_us": round(py_per - rs_per, 4),
+                          "pyegui_first_frame_ms": pyegui["first_frame_ms"],
+                          "egui_first_frame_ms": egui["first_frame_ms"],
+                      }
+                  )
+
+              ratios = [r["ratio"] for r in per_trial]
+              py_all = [r["pyegui_us"] for r in per_trial]
+              rs_all = [r["egui_us"] for r in per_trial]
+
+              # The median, not the mean: a shared runner has outliers, and one
+              # slow trial drags a mean away from the typical case. The spread
+              # is reported alongside because three runs of identical code gave
+              # 1.30x, 1.52x and 1.38-1.55x, which is too wide to quote a single
+              # figure without it.
+              entry = {
+                  "trials": len(per_trial),
+                  "per_trial": per_trial,
+                  "python": trials[count][sorted(trials[count])[0]],
                   "comparison": {
-                      "per_widget_ratio": round(py_per / rs_per, 2),
-                      "first_frame_ratio": round(py_first / rs_first, 2),
-                      "steady_frame_ratio": round(
-                          pyegui["steady_frame_ms"]["min"] / egui["steady_frame_ms"]["min"], 2
+                      "ratio_median": round(median(ratios), 2),
+                      "ratio_min": round(min(ratios), 2),
+                      "ratio_max": round(max(ratios), 2),
+                      "ratio_spread": round(max(ratios) - min(ratios), 2),
+                      "pyegui_us_median": round(median(py_all), 3),
+                      "egui_us_median": round(median(rs_all), 3),
+                      "extra_us_median": round(
+                          median([r["extra_us"] for r in per_trial]), 4
                       ),
-                      # The absolute cost of crossing the binding, per widget.
-                      # Unlike the ratio this is not portable across machines,
-                      # but it is what a reader can do arithmetic with.
-                      "per_widget_extra_us": round(py_per - rs_per, 3),
                   },
               }
-              print(
-                  f"{count} widgets/frame: "
-                  f'per widget {py_per} us (pyegui) vs {rs_per} us (egui) '
-                  f'= {by_count[str(count)]["comparison"]["per_widget_ratio"]}x'
-              )
+              if len(per_trial) > 1:
+                  # Relative spread of the ratio: how much of the number is
+                  # the measurement rather than the binding.
+                  entry["comparison"]["ratio_spread_pct"] = round(
+                      100.0 * (max(ratios) - min(ratios)) / median(ratios), 1
+                  )
+              by_count[str(count)] = entry
+
+              c = entry["comparison"]
+              if entry["trials"] > 1:
+                  print(
+                      f"{count} widgets/frame over {entry['trials']} trials: "
+                      f"ratio median {c['ratio_median']}x "
+                      f"(min {c['ratio_min']}x, max {c['ratio_max']}x, "
+                      f"spread {c['ratio_spread_pct']}%)  "
+                      f"per widget median {c['pyegui_us_median']} us vs "
+                      f"{c['egui_us_median']} us"
+                  )
+              else:
+                  print(
+                      f"{count} widgets/frame, 1 trial: "
+                      f"ratio {c['ratio_median']}x  "
+                      f"per widget {c['pyegui_us_median']} us vs "
+                      f"{c['egui_us_median']} us"
+                  )
 
           combined = {"import": imp, "by_widget_count": by_count}
           (results / "combined.json").write_text(json.dumps(combined, indent=2))
           PY
+
 
       - name: Summarise
         run: |
@@ -232,15 +383,11 @@ jobs:
           {
             echo "### pyegui vs egui"
             echo
-            echo "One row per widget count: the ratio is measured in a single run on"
-            echo "a single runner, so these rows are comparable with each other."
-            echo
-            echo '| widgets/frame | per widget pyegui (us) | per widget egui (us) | ratio | extra per widget (us) |'
-            echo '| ---: | ---: | ---: | ---: | ---: |'
             python - <<'PY'
           import json, pathlib
           c = json.loads((pathlib.Path("bench/results") / "combined.json").read_text())
           by_count = c["by_widget_count"]
+          trials = max(e["trials"] for e in by_count.values())
 
           def us(value):
               # Fixed to 4 dp, not repr: a float straight out of json prints as
@@ -248,32 +395,48 @@ jobs:
               # not a measurement. 1 ns is well past the noise here.
               return f"{value:.4f}".rstrip("0").rstrip(".") or "0"
 
+          if trials > 1:
+              print(f"Median of {trials} trials per widget count, all in this one run,")
+              print("so the rows are comparable with each other.")
+          else:
+              print("One trial per widget count. Re-run with trials > 1 for a spread.")
+          print()
+          print("| widgets/frame | pyegui (us) | egui (us) | ratio median | ratio min-max | spread | extra (us) |")
+          print("| ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
           for count in sorted(by_count, key=int):
-              entry = by_count[count]
-              py, rs, cmp_ = entry["python"], entry["rust"], entry["comparison"]
+              e = by_count[count]
+              c_ = e["comparison"]
+              rng = f'{c_["ratio_min"]}x-{c_["ratio_max"]}x'
+              spread = f'{c_["ratio_spread_pct"]}%' if "ratio_spread_pct" in c_ else "-"
               print(
                   f'| {count} '
-                  f'| {us(py["per_widget_us"]["min"])} '
-                  f'| {us(rs["per_widget_us"]["min"])} '
-                  f'| {cmp_["per_widget_ratio"]}x '
-                  f'| {us(cmp_["per_widget_extra_us"])} |'
+                  f'| {us(c_["pyegui_us_median"])} '
+                  f'| {us(c_["egui_us_median"])} '
+                  f'| {c_["ratio_median"]}x '
+                  f'| {rng} '
+                  f'| {spread} '
+                  f'| {us(c_["extra_us_median"])} |'
               )
           print()
-          print('| widgets/frame | first frame pyegui (ms) | first frame egui (ms) | ratio |')
-          print('| ---: | ---: | ---: | ---: |')
-          for count in sorted(by_count, key=int):
-              entry = by_count[count]
-              py, rs, cmp_ = entry["python"], entry["rust"], entry["comparison"]
-              print(
-                  f'| {count} '
-                  f'| {us(py["first_frame_ms"])} '
-                  f'| {us(rs["first_frame_ms"])} '
-                  f'| {cmp_["first_frame_ratio"]}x |'
-              )
-          print()
+          if trials > 1:
+              print("Every trial, so the spread is visible rather than summarised:")
+              print()
+              print("| widgets/frame | trial | pyegui (us) | egui (us) | ratio |")
+              print("| ---: | ---: | ---: | ---: | ---: |")
+              for count in sorted(by_count, key=int):
+                  for r in by_count[count]["per_trial"]:
+                      print(
+                          f'| {count} '
+                          f'| {r["trial"]} '
+                          f'| {us(r["pyegui_us"])} '
+                          f'| {us(r["egui_us"])} '
+                          f'| {r["ratio"]}x |'
+                      )
+              print()
           print(f'`import pyegui`: {us(c["import"]["import_pyegui_ms"])} ms (n/a for Rust)')
           PY
           } >> "$GITHUB_STEP_SUMMARY"
+
 
       - uses: actions/upload-artifact@v4
         with:
