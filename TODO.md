@@ -207,37 +207,52 @@ a positional label reach the builders.
 
 ## 7. Benchmarks: what does the binding actually cost
 
-**Status: measured (run 37061272948) and in the README. The result is 1.84x per
-widget, not "almost no overhead" — the README says so plainly.**
+**Status: measured at three widget counts (run 37093530513) and in the README.
+The result is ~1.3x per widget, not "almost no overhead" — the README says so
+plainly.**
 
-Measured, 500 labels/frame, 60 frames, both sides, on a GitHub-hosted runner:
+Measured, 61 frames, both sides, all three counts in one run on one
+GitHub-hosted runner (so the rows are comparable with each other):
 
-| metric | pyegui | egui (Rust) | ratio |
-| --- | ---: | ---: | ---: |
-| per widget, us (min) | 0.903 | 0.491 | 1.84x |
-| 500-widget frame, ms (min) | 0.4516 | 0.2456 | 1.84x |
-| first frame, ms | 1.401 | 1.5527 | 0.90x |
-| `import pyegui` | 15.438 ms | n/a | — |
+| widgets/frame | pyegui us | egui us | ratio | extra us |
+| ---: | ---: | ---: | ---: | ---: |
+| 50 | 0.633 | 0.477 | 1.33x | 0.156 |
+| 500 | 0.507 | 0.391 | 1.30x | 0.116 |
+| 2000 | 0.516 | 0.389 | 1.33x | 0.127 |
 
-A widget call through Python costs about 412 ns more than from Rust. A
-500-widget frame is 0.45 ms against egui's 16.7 ms budget for 60 fps, so the
-binding is not what a profiler would point at in a typical app. The overhead
-becomes relevant in the thousands of widgets.
+`import pyegui` is 7.7 ms.
 
-The original ask was to show "almost no time to launch". That is not what the
-numbers say, so it is not what the README says. Reporting 1.84x with the
-methodology is more useful than a slogan, and it is the only version that
-survives someone re-running the workflow.
+**The ratio does not scale with widget count, which is the finding.** The
+expectation was that a fixed per-call toll amortises over more of egui's own
+work, so the ratio should fall as widgets rise. It does not: 1.33x, 1.30x,
+1.33x, which is inside run-to-run noise. A 2000-widget frame is 1.03 ms
+through pyegui against 0.78 ms in Rust, or about 6% of egui's 16.7 ms budget
+at 60 fps, so the binding is not what a profiler would point at. The point
+where it would matter is the tens of thousands of widgets, not the thousands
+measured here.
+
+This supersedes the earlier single-count run (37061272948), which reported
+1.84x at 500 widgets. That figure is not wrong as a measurement of that run;
+it was quoted as though it described the binding, and it does not. Two
+changes moved it: the widget count is now an input rather than a constant, and
+the combine step refuses to compute a ratio unless both sides report the same
+widget count and frame count — the two halves had drifted apart before, and a
+ratio between different workloads is indistinguishable from a real one.
 
 Remaining, all of them about making the measurement more trustworthy rather than
 about finding a better number:
 
-- [ ] Re-run at a second widget count. Overhead scales with widget count, so a
-      ratio at 500 does not describe 50 or 5,000, and the README says so.
+- [x] Re-run at a second widget count. Done at 50/500/2000, in one run so the
+      ratios are comparable with each other. The count is `WIDGETS` on both
+      sides, so the workflow no longer measures 500 whatever it is asked for.
 - [x] Record the runner class, with the note that the ratios are the portable
       part and the absolute microseconds are not
 - [ ] Measure a heavier widget (image, text edit, drag) — `label` is the
       cheapest path through the binding and may flatter it
+- [ ] Establish the run-to-run spread. The three counts above differ by up to
+      25% in absolute per-widget cost on one runner, so the flat ratio rests on
+      a single sample per count; a second run of the same counts would say
+      whether 1.30x and 1.33x are one number or two
 
 The question worth answering is not "is Python fast" but "what does the binding
 add on top of egui". Rendering speed is egui's and identical either way, so a
@@ -245,7 +260,7 @@ number describing it says nothing about pyegui. Measuring only pyegui would be
 worse than measuring nothing, since it puts a figure next to the word
 "overhead" without saying what it is overhead relative to.
 
-- [x] `bench/src/main.rs` — egui baseline: 500 labels/frame, 60 frames, timed
+- [x] `bench/src/main.rs` — egui baseline: N labels/frame, 61 frames, timed
       around building the frame
 - [x] `bench/bench.py` — the same work through pyegui
 - [x] `.github/workflows/benchmark.yml` — builds both, writes
