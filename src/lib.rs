@@ -1952,6 +1952,207 @@ unsafe fn apply_window_options(
 /// Widgets resolve their `Ui` from an internal stack, so they must be drawn
 /// inside a callback such as this one, never directly in `update_func`.
 /// Read an optional `(min, max)` float range from `opts`, egui's `Rangef`.
+unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Rangef>> {
+    match opts.get_item(name)? {
+        Some(value) => {
+            let (min, max): (f32, f32) = value.extract().map_err(|_| {
+                PyValueError::new_err(format!(
+                    "{name} must be a (min, max) tuple of numbers"
+                ))
+            })?;
+            Ok(Some(egui::Rangef::new(min, max)))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Read an optional `egui::Color32` from `opts`.
+///
+/// Accepts either a `Color32` or an `(r, g, b, a)` 4-tuple of ints in 0-255,
+/// since a caller reaching for a fill should not have to construct a class just
+/// to name a colour.
+unsafe fn opt_color32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Color32>> {
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    if let Ok(color) = value.extract::<Color32>() {
+        return Ok(Some(egui::Color32::from_rgba_unmultiplied(
+            color.r, color.g, color.b, color.a,
+        )));
+    }
+
+    let quad: Vec<u8> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a Color32 or an (r, g, b, a) tuple of ints in 0-255"
+        ))
+    })?;
+
+    if quad.len() != 4 {
+        return Err(PyValueError::new_err(format!(
+            "{name} must have exactly 4 components, got {}",
+            quad.len()
+        )));
+    }
+
+    Ok(Some(egui::Color32::from_rgba_unmultiplied(
+        quad[0], quad[1], quad[2], quad[3],
+    )))
+}
+
+/// Read an optional `egui::CornerRadius` from `opts`.
+///
+/// egui's is four `u8` corners. A single number sets all four (which is what
+/// `CornerRadius::same` does); a 2-sequence sets (nw, ne, sw, se), matching
+/// how a CSS-style `a b / c d` reads.
+unsafe fn opt_corner_radius(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+) -> PyResult<Option<egui::CornerRadius>> {
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    if let Ok(same) = value.extract::<u8>() {
+        return Ok(Some(egui::CornerRadius::same(same)));
+    }
+
+    let pair: Vec<u8> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a number, or a 2-sequence of numbers, e.g. \
+             {name}=(6, 2)"
+        ))
+    })?;
+
+    match pair.len() {
+        2 => Ok(Some(egui::CornerRadius {
+            nw: pair[0],
+            ne: pair[1],
+            sw: pair[0],
+            se: pair[1],
+        })),
+        4 => Ok(Some(egui::CornerRadius {
+            nw: pair[0],
+            ne: pair[1],
+            sw: pair[2],
+            se: pair[3],
+        })),
+        n => Err(PyValueError::new_err(format!(
+            "{name} must have 2 or 4 components, got {n}"
+        ))),
+    }
+}
+
+/// Read an optional `egui::Margin` from `opts`.
+///
+/// egui's margins are `i8`, one per side. A single number sets all four (what
+/// `Margin::same` does); a 2-sequence sets (horizontal, vertical).
+unsafe fn opt_margin(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Margin>> {
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    if let Ok(same) = value.extract::<i8>() {
+        return Ok(Some(egui::Margin::same(same)));
+    }
+
+    let pair: Vec<i8> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a number, or a 2-sequence of numbers, e.g. \
+             {name}=(8, 4)"
+        ))
+    })?;
+
+    match pair.len() {
+        2 => Ok(Some(egui::Margin::symmetric(pair[0], pair[1]))),
+        4 => Ok(Some(egui::Margin {
+            left: pair[0],
+            right: pair[1],
+            top: pair[2],
+            bottom: pair[3],
+        })),
+        n => Err(PyValueError::new_err(format!(
+            "{name} must have 2 or 4 components, got {n}"
+        ))),
+    }
+}
+
+/// Read an optional `egui::Stroke` from `opts`.
+///
+/// egui's is a width in points plus a colour. Accepts `(width, color)` where
+/// color is anything `opt_color32` accepts, or a bare number, which means that
+/// width in the style's current foreground colour -- the common case for a
+/// divider line.
+unsafe fn opt_stroke(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Stroke>> {
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    if let Ok(width) = value.extract::<f32>() {
+        return Ok(Some(egui::Stroke::new(
+            width,
+            current_ui(&UI)?.visuals().widgets.noninteractive.bg_stroke.color,
+        )));
+    }
+
+    let pair: Vec<Bound<'_, PyAny>> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a width, or a (width, color) pair"
+        ))
+    })?;
+
+    if pair.len() != 2 {
+        return Err(PyValueError::new_err(format!(
+            "{name} must have exactly 2 components, got {}",
+            pair.len()
+        )));
+    }
+
+    let width: f32 = pair[0].extract().map_err(|_| {
+        PyValueError::new_err(format!("{name}: the first component must be a width"))
+    })?;
+
+    let color = color32_from_any(&pair[1]).map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name}: the second component must be a Color32 or an \
+             (r, g, b, a) tuple"
+        ))
+    })?;
+
+    Ok(Some(egui::Stroke::new(width, color)))
+}
+
+/// Build a `Color32` from an already-extracted Python value.
+///
+/// Shared by `opt_color32` and `opt_stroke`, which both accept either a
+/// `Color32` class instance or a bare `(r, g, b, a)` tuple.
+fn color32_from_any(value: &Bound<'_, PyAny>) -> PyResult<egui::Color32> {
+    if let Ok(color) = value.extract::<Color32>() {
+        return Ok(egui::Color32::from_rgba_unmultiplied(
+            color.r, color.g, color.b, color.a,
+        ));
+    }
+
+    let quad: Vec<u8> = value.extract().map_err(|_| {
+        PyValueError::new_err("expected a Color32 or an (r, g, b, a) tuple of ints in 0-255")
+    })?;
+
+    if quad.len() != 4 {
+        return Err(PyValueError::new_err(format!(
+            "expected 4 components, got {}",
+            quad.len()
+        )));
+    }
+
+    Ok(egui::Color32::from_rgba_unmultiplied(
+        quad[0], quad[1], quad[2], quad[3],
+    ))
+}
+
 /// Read an optional `egui::Order` from `opts`, under the key "order".
 ///
 /// egui 0.31.1 has five variants. Shared by `window` and `area` so the accepted
@@ -1979,19 +2180,157 @@ unsafe fn opt_order(opts: &Bound<'_, PyDict>) -> PyResult<Option<egui::Order>> {
     }
 }
 
-unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Rangef>> {
-    match opts.get_item(name)? {
-        Some(value) => {
-            let (min, max): (f32, f32) = value.extract().map_err(|_| {
-                PyValueError::new_err(format!(
-                    "{name} must be a (min, max) tuple of numbers"
-                ))
-            })?;
-            Ok(Some(egui::Rangef::new(min, max)))
-        }
-        None => Ok(None),
+/// Builder options for `egui::Frame`, matching its setters exactly.
+const FRAME_OPTIONS: &[&str] = &[
+    "fill",
+    "stroke",
+    "corner_radius",
+    "rounding",
+    "inner_margin",
+    "outer_margin",
+    "multiply_with_opacity",
+];
+
+/// Apply egui's `Frame` setters from a Python kwargs dict.
+fn apply_frame_options(frame: egui::Frame, opts: &Bound<'_, PyDict>) -> PyResult<egui::Frame> {
+    let mut frame = frame;
+
+    if let Some(v) = opt_color32(opts, "fill")? {
+        frame = frame.fill(v);
     }
+    if let Some(v) = opt_stroke(opts, "stroke")? {
+        frame = frame.stroke(v);
+    }
+    // `corner_radius` and `rounding` are egui's own aliases for the same
+    // setter, so both are accepted here too.
+    for name in ["corner_radius", "rounding"] {
+        if let Some(v) = opt_corner_radius(opts, name)? {
+            frame = frame.corner_radius(v);
+        }
+    }
+    if let Some(v) = opt_margin(opts, "inner_margin")? {
+        frame = frame.inner_margin(v);
+    }
+    if let Some(v) = opt_margin(opts, "outer_margin")? {
+        frame = frame.outer_margin(v);
+    }
+    if let Some(v) = opt_f32(opts, "multiply_with_opacity")? {
+        frame = frame.multiply_with_opacity(v);
+    }
+
+    Ok(frame)
 }
+
+/// Draw `contents` inside an egui frame, mirroring `egui::Frame`.
+///
+/// A frame is egui's decoration: a background fill, a border, a corner radius
+/// and padding. egui ships eight presets, each a `Frame` associated function
+/// rather than a builder, so they are exposed here as the constructors
+/// `frame_group`, `frame_popup`, `frame_menu`, `frame_window`,
+/// `frame_canvas`, `frame_dark_canvas`, `frame_central_panel` and
+/// `frame_side_top_panel`. Each takes the same keyword arguments, and
+/// `frame_*` builds one from scratch with egui's defaults.
+///
+/// The presets read the *current* style, so a frame looks right in a dark
+/// theme and a light one without the caller naming a colour. That is also why
+/// these take no `Context`: they need a `Ui` to resolve the style from, which
+/// `current_ui` provides.
+///
+/// Example::
+///
+///     def contents():
+///       label("inside a popup-styled frame")
+///
+///     frame_popup(contents)
+///
+/// Unknown keyword arguments raise `ValueError` naming them.
+#[pyfunction]
+#[pyo3(signature = (contents, **options))]
+unsafe fn frame(contents: Bound<'_, PyAny>, options: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+    let mut built = egui::Frame::none();
+
+    if let Some(opts) = options {
+        validate_options(opts, FRAME_OPTIONS)?;
+        built = apply_frame_options(built, opts)?;
+    }
+
+    built.show(ui, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
+}
+
+/// The eight `egui::Frame` presets, as constructors.
+///
+/// egui exposes these as associated functions on `Frame`, which Python cannot
+/// call, so each becomes a module-level function. They all take the same
+/// keyword arguments as `frame`; see that function for the option list.
+macro_rules! frame_preset {
+    ($pyfn:ident, $egui_fn:ident, $doc:expr) => {
+        #[doc = $doc]
+        #[pyfunction]
+        #[pyo3(signature = (contents, **options))]
+        unsafe fn $pyfn(
+            contents: Bound<'_, PyAny>,
+            options: Option<&Bound<'_, PyDict>>,
+        ) -> PyResult<()> {
+            let ui = current_ui(&UI)?;
+            let mut built = egui::Frame::$egui_fn(&ui.style());
+
+            if let Some(opts) = options {
+                validate_options(opts, FRAME_OPTIONS)?;
+                built = apply_frame_options(built, opts)?;
+            }
+
+            built.show(ui, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+            Ok(())
+        }
+    };
+}
+
+frame_preset!(
+    frame_group,
+    group,
+    "A `Frame` with egui's `group` preset: a rounded, filled background. This \
+     is what the existing `group` helper draws."
+);
+frame_preset!(
+    frame_popup,
+    popup,
+    "A `Frame` with egui's `popup` preset, used for popups and tooltips."
+);
+frame_preset!(
+    frame_menu,
+    menu,
+    "A `Frame` with egui's `menu` preset, used for menu backgrounds."
+);
+frame_preset!(
+    frame_window,
+    window,
+    "A `Frame` with egui's `window` preset, matching a `Window`'s background."
+);
+frame_preset!(
+    frame_canvas,
+    canvas,
+    "A `Frame` with egui's `canvas` preset, the flat surface behind a plot."
+);
+frame_preset!(
+    frame_dark_canvas,
+    dark_canvas,
+    "A `Frame` with egui's `dark_canvas` preset: a dark canvas regardless of \
+     theme, so plotted colours keep their meaning."
+);
+frame_preset!(
+    frame_central_panel,
+    central_panel,
+    "A `Frame` with egui's `central_panel` preset."
+);
+frame_preset!(
+    frame_side_top_panel,
+    side_top_panel,
+    "A `Frame` with egui's `side_top_panel` preset."
+);
 
 /// Builder options for `egui::SidePanel`, matching its setters exactly.
 const SIDE_PANEL_OPTIONS: &[&str] = &[
@@ -2506,17 +2845,209 @@ unsafe fn centered_and_justified(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
         .inner
 }
 
-/// A CollapsingHeader that starts out collapsed.
+/// Builder options for `egui::CollapsingHeader`, matching its setters exactly.
+const COLLAPSING_OPTIONS: &[&str] = &[
+    "default_open",
+    "open",
+    "id_salt",
+    "id_source",
+    "enabled",
+    "show_background",
+];
+
+/// A `CollapsingHeader`, mirroring `egui::CollapsingHeader`.
+///
+/// The existing `collapsing` helper always starts closed. This takes egui's
+/// builder options, so a header can start open (`default_open=True`), be framed
+/// (`show_background=True`), or be driven by a `Bool` the user toggles.
+///
+/// Returns the header's `Response` -- the clickable header itself. egui's own
+/// `CollapsingResponse` is not a `Response` and is not exposed as a type; its
+/// `openness` is 1.0 when fully open and 0.0 when fully closed, and is folded
+/// into the `Bool` when one is passed as `open`.
+///
+/// `open` is a `Bool` that egui reads and writes: pass one and clicking the
+/// header arrow drives it.
+///
+/// Example::
+///
+///     def body():
+///       label("hidden until the header is opened")
+///
+///     collapsing_response("Details", body, default_open=True)
+#[pyfunction]
+#[pyo3(signature = (heading, update_fun, open=None, **options))]
+unsafe fn collapsing_response(
+    heading: &str,
+    update_fun: Bound<'_, PyAny>,
+    mut open: Option<&mut Bool>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    // Own the heading text: the builder holds a `WidgetText` that would
+    // otherwise borrow the Python string for as long as the builder lives.
+    let heading = heading.to_owned();
+    let mut builder = egui::CollapsingHeader::new(heading);
+
+    if let Some(opts) = options {
+        validate_options(opts, COLLAPSING_OPTIONS)?;
+        if let Some(v) = opt_bool(opts, "default_open")? {
+            builder = builder.default_open(v);
+        }
+        if let Some(v) = opt_bool(opts, "enabled")? {
+            builder = builder.enabled(v);
+        }
+        if let Some(v) = opt_bool(opts, "show_background")? {
+            builder = builder.show_background(v);
+        }
+        // egui's own alias pair; both hash a str directly.
+        for name in ["id_salt", "id_source"] {
+            if let Some(value) = opts.get_item(name)? {
+                let salt: String = value
+                    .extract()
+                    .map_err(|_| PyValueError::new_err(format!("{name} must be a string")))?;
+                builder = builder.id_salt(salt);
+            }
+        }
+    }
+
+    // `CollapsingHeader::open` takes `Option<bool>`: Some drives the header
+    // from the caller's value and reports the user's choice back through
+    // `openness`. Passing Some always, when a Bool was supplied, is what makes
+    // the arrow actually move the Bool.
+    if let Some(open) = open.as_deref_mut() {
+        builder = builder.open(Some(open.value));
+    }
+
+    let response = builder.show(ui, |ui| run_nested_update_func_lossy(ui, update_fun.clone()));
+
+    // `openness` is 1.0 fully open, 0.0 fully closed, and in between while
+    // animating. Treating anything above half-open as open is what the arrow
+    // shows, and storing the raw float would put a number in a Bool.
+    if let Some(open) = open.as_deref_mut() {
+        open.value = response.openness > 0.5;
+    }
+
+    Ok(Response {
+        inner: response.header_response,
+    })
+}
+
+/// A `CollapsingHeader` that starts out collapsed.
 ///
 /// Example::
 ///
 ///     def update_func():
 ///       heading("hi")
-///     collapsing("collapsed", update_func)
+///       collapsing("collapsed", update_func)
 #[pyfunction]
-unsafe fn collapsing(heading: &str, update_fun: Bound<'_, PyAny>) -> PyResult<()> {
-    current_ui(&UI)?.collapsing(heading, |ui| run_nested_update_func(ui, update_fun));
+#[pyo3(signature = (heading, update_fun, **options))]
+unsafe fn collapsing(
+    heading: &str,
+    update_fun: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    collapsing_response(heading, update_fun, None, options)?;
     Ok(())
+}
+
+/// Keyword arguments `menu_button` accepts.
+///
+/// Empty by design: egui 0.31.1's `menu_button` takes no builder options. The
+/// list exists so that an unknown keyword is reported by name, rather than
+/// being silently accepted and dropped -- which is the failure this whole
+/// option parser exists to prevent.
+const MENU_BUTTON_OPTIONS: &[&str] = &[];
+
+/// A menu button that opens a popup menu when clicked, mirroring
+/// `Ui::menu_button`.
+///
+/// egui 0.31.1 has no menu-bar container; this is the whole menu surface. A
+/// `menu_button` inside a `menu_button` is a submenu, so nesting these builds
+/// one. `close_menu` closes the innermost menu, which is how a menu item acts
+/// as a button.
+///
+/// Returns the button's `Response`, so a menu item that is itself a button can
+/// be written as `menu_button(...)` wrapping `button_clicked(...)`.
+///
+/// Example::
+///
+///     def file_menu():
+///       if button_clicked("New"):
+///         print("new")
+///       close_menu()
+///
+///     def main():
+///       menu_button("File", file_menu)
+#[pyfunction]
+#[pyo3(signature = (text, contents, **options))]
+unsafe fn menu_button(
+    text: &str,
+    contents: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    if let Some(opts) = options {
+        validate_options(opts, MENU_BUTTON_OPTIONS)?;
+    }
+
+    Ok(Response {
+        inner: ui
+            .menu_button(text.to_owned(), |ui| {
+                run_nested_update_func_lossy(ui, contents.clone())
+            })
+            .response,
+    })
+}
+
+/// A menu button with an image to the left of the text, mirroring
+/// `Ui::menu_image_button`.
+///
+/// `source` is a URI, exactly as for `image`.
+///
+/// Example::
+///
+///     menu_image_button("file://icon.png", lambda: label("Open"))
+#[pyfunction]
+#[pyo3(signature = (source, contents))]
+unsafe fn menu_image_button(source: &str, contents: Bound<'_, PyAny>) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    Ok(Response {
+        inner: ui
+            .menu_image_button(source, |ui| {
+                run_nested_update_func_lossy(ui, contents.clone())
+            })
+            .response,
+    })
+}
+
+/// A menu button with an image followed by text, mirroring
+/// `Ui::menu_image_text_button`.
+///
+/// `source` is a URI, exactly as for `image`.
+///
+/// Example::
+///
+///     menu_image_text_button("file://icon.png", "Open", lambda: label("hi"))
+#[pyfunction]
+#[pyo3(signature = (source, text, contents))]
+unsafe fn menu_image_text_button(
+    source: &str,
+    text: &str,
+    contents: Bound<'_, PyAny>,
+) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    Ok(Response {
+        inner: ui
+            .menu_image_text_button(source, text.to_owned(), |ui| {
+                run_nested_update_func_lossy(ui, contents.clone())
+            })
+            .response,
+    })
 }
 
 /// Create a child ui which is indented to the right.
@@ -2548,6 +3079,105 @@ unsafe fn group(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
         .inner
 }
 
+/// Builder options for `egui::ScrollArea`, matching its setters exactly.
+const SCROLL_AREA_OPTIONS: &[&str] = &[
+    "max_width",
+    "max_height",
+    "min_scrolled_width",
+    "min_scrolled_height",
+    "scroll_bar_visibility",
+    "id_source",
+    "id_salt",
+    "auto_shrink",
+    "animated",
+    "drag_to_scroll",
+    "stick_to_right",
+    "stick_to_bottom",
+];
+
+/// Read an optional `egui::ScrollBarVisibility` from `opts`.
+unsafe fn opt_scroll_bar_visibility(
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<Option<egui::ScrollBarVisibility>> {
+    match opts.get_item("scroll_bar_visibility")? {
+        Some(value) => {
+            let name: String = value.extract()?;
+            let visibility = match name.as_str() {
+                "always_hidden" => egui::ScrollBarVisibility::AlwaysHidden,
+                "visible_when_needed" => egui::ScrollBarVisibility::VisibleWhenNeeded,
+                "always_visible" => egui::ScrollBarVisibility::AlwaysVisible,
+                _ => {
+                    return Err(PyValueError::new_err(format!(
+                        "unknown scroll_bar_visibility {name:?}; expected one of \
+                         'always_hidden', 'visible_when_needed', 'always_visible'"
+                    )))
+                }
+            };
+            Ok(Some(visibility))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Apply egui's `ScrollArea` setters from a Python kwargs dict.
+///
+/// Shared by `scroll_area_vertical`, `scroll_area_horizontal` and
+/// `scroll_area_both` so the option list is defined once. The axis is chosen
+/// by the caller before this runs, because egui's `vertical()`/`horizontal()`/
+/// `both()` are constructors rather than setters.
+fn apply_scroll_area_options(
+    area: egui::ScrollArea,
+    opts: &Bound<'_, PyDict>,
+) -> PyResult<egui::ScrollArea> {
+    let mut area = area;
+
+    for name in ["max_width", "max_height", "min_scrolled_width", "min_scrolled_height"] {
+        if let Some(v) = opt_f32(opts, name)? {
+            area = match name {
+                "max_width" => area.max_width(v),
+                "max_height" => area.max_height(v),
+                "min_scrolled_width" => area.min_scrolled_width(v),
+                _ => area.min_scrolled_height(v),
+            };
+        }
+    }
+
+    if let Some(v) = opt_scroll_bar_visibility(opts)? {
+        area = area.scroll_bar_visibility(v);
+    }
+
+    // egui takes `impl Into<Vec2b>` here; a plain bool converts and means both
+    // axes, which is what "shrink both ways" means.
+    if let Some(v) = opt_bool(opts, "auto_shrink")? {
+        area = area.auto_shrink(v);
+    }
+
+    for name in ["animated", "drag_to_scroll", "stick_to_right", "stick_to_bottom"] {
+        if let Some(v) = opt_bool(opts, name)? {
+            area = match name {
+                "animated" => area.animated(v),
+                "drag_to_scroll" => area.drag_to_scroll(v),
+                "stick_to_right" => area.stick_to_right(v),
+                _ => area.stick_to_bottom(v),
+            };
+        }
+    }
+
+    // `id_source` and `id_salt` are egui's own aliases for the same setter.
+    // Both take `impl Hash`; a Python str hashes, so it is passed through
+    // unchanged rather than converted.
+    for name in ["id_source", "id_salt"] {
+        if let Some(value) = opts.get_item(name)? {
+            let salt: String = value.extract().map_err(|_| {
+                PyValueError::new_err(format!("{name} must be a string"))
+            })?;
+            area = area.id_source(salt);
+        }
+    }
+
+    Ok(area)
+}
+
 /// Create a vertical scroll area.
 ///
 /// Example::
@@ -2556,13 +3186,16 @@ unsafe fn group(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
 ///       heading("hi")
 ///       heading("there")
 ///       # a lot of elements
-///     
+///
 ///     scroll_area_vertical(update_func)
 #[pyfunction]
-unsafe fn scroll_area_vertical(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
-    egui::ScrollArea::vertical().show(current_ui(&UI)?, |ui| run_nested_update_func(ui, update_fun)).inner
+#[pyo3(signature = (update_fun, **options))]
+unsafe fn scroll_area_vertical(
+    update_fun: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    scroll_area(egui::ScrollArea::vertical(), update_fun, options)
 }
-
 
 /// Create a horizontal scroll area.
 ///
@@ -2572,11 +3205,57 @@ unsafe fn scroll_area_vertical(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
 ///       heading("hi")
 ///       heading("there")
 ///       # a lot of elements
-///     
+///
 ///     scroll_area_horizontal(update_func)
 #[pyfunction]
-unsafe fn scroll_area_horizontal(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
-    egui::ScrollArea::horizontal().show(current_ui(&UI)?, |ui| run_nested_update_func(ui, update_fun)).inner
+#[pyo3(signature = (update_fun, **options))]
+unsafe fn scroll_area_horizontal(
+    update_fun: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    scroll_area(egui::ScrollArea::horizontal(), update_fun, options)
+}
+
+/// Create a scroll area scrollable on both axes.
+///
+/// `scroll_area_vertical` and `scroll_area_horizontal` each lock one axis.
+/// This one scrolls on both, which is what a table, a log view or a canvas
+/// larger than its viewport needs.
+///
+/// Example::
+///
+///     scroll_area_both(update_func, max_height=200.0)
+#[pyfunction]
+#[pyo3(signature = (update_fun, **options))]
+unsafe fn scroll_area_both(
+    update_fun: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    scroll_area(egui::ScrollArea::both(), update_fun, options)
+}
+
+/// Shared body of the three scroll-area entry points.
+///
+/// egui's `vertical()`/`horizontal()`/`both()` are constructors, so the axis is
+/// fixed by the caller and everything else arrives as keyword arguments.
+unsafe fn scroll_area(
+    builder: egui::ScrollArea,
+    update_fun: Bound<'_, PyAny>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    let mut builder = builder;
+    if let Some(opts) = options {
+        validate_options(opts, SCROLL_AREA_OPTIONS)?;
+        builder = apply_scroll_area_options(builder, opts)?;
+    }
+
+    builder
+        .show(ui, |ui| run_nested_update_func(ui, update_fun))
+        .inner?;
+
+    Ok(())
 }
 
 /// Create a scoped child ui.
@@ -3756,10 +4435,24 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(vertical_centered_justified, m)?)?;
     m.add_function(wrap_pyfunction!(centered_and_justified, m)?)?;
     m.add_function(wrap_pyfunction!(collapsing, m)?)?;
+    m.add_function(wrap_pyfunction!(collapsing_response, m)?)?;
+    m.add_function(wrap_pyfunction!(menu_button, m)?)?;
+    m.add_function(wrap_pyfunction!(menu_image_button, m)?)?;
+    m.add_function(wrap_pyfunction!(menu_image_text_button, m)?)?;
     m.add_function(wrap_pyfunction!(indent, m)?)?;
     m.add_function(wrap_pyfunction!(group, m)?)?;
+    m.add_function(wrap_pyfunction!(frame, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_group, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_popup, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_menu, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_window, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_canvas, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_dark_canvas, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_central_panel, m)?)?;
+    m.add_function(wrap_pyfunction!(frame_side_top_panel, m)?)?;
     m.add_function(wrap_pyfunction!(scroll_area_vertical, m)?)?;
     m.add_function(wrap_pyfunction!(scroll_area_horizontal, m)?)?;
+    m.add_function(wrap_pyfunction!(scroll_area_both, m)?)?;
     m.add_function(wrap_pyfunction!(scope, m)?)?;
     m.add_function(wrap_pyfunction!(slider_float, m)?)?;
     m.add_function(wrap_pyfunction!(slider_int, m)?)?;

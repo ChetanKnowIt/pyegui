@@ -95,17 +95,37 @@ egui 0.31.1 ships all of these.
 Shipped: `CentralPanel` (`central_panel`) and `Window` (`window`, with a
 `Bool`-driven `open` and egui's own builder options as keyword arguments).
 
+**Two names in this section do not exist in egui 0.31.1 and were dropped rather
+than shipped as stubs.** Verified against the sources at tag 0.31.1, not a
+newer release:
+
+  - `Popup`. There is no `egui::Popup` type in 0.31.1. `containers/popup.rs` at
+    that tag defines only free functions -- `show_tooltip_text`,
+    `was_tooltip_open_last_frame`, `seconds_since_last_tooltip`,
+    `next_tooltip_id`, `tooltip_id` -- and `lib.rs` exports no `Popup`. The
+    capability is reachable under its real names: `Response.on_hover_ui` and
+    `Response.context_menu` ship, and `show_tooltip_text` is reachable
+    through them.
+  - `MenuBar` / submenus *as a container*. egui 0.31.1 has no `MenuBar` type;
+    `MenuBar` landed in a later release. 0.31.1's menu surface is
+    `Ui::menu_button`, `Ui::menu_image_button`, `Ui::menu_image_text_button`
+    and `Ui::close_menu`, which open a popup menu at the widget's position.
+    Submenus are the same call nested -- a `menu_button` inside a
+    `menu_button` is a submenu. Those four ship; a wrapping `MenuBar`
+    container has nothing to wrap until the pin moves.
+
+The rest of this section is real work against real 0.31.1 APIs.
+
 - [x] `Window` — secondary windows
 - [x] `CentralPanel` — `central_panel(ctx, contents, **options)`
 - [x] `SidePanel` (`left`/`right`) — `side_panel_left`, `side_panel_right`
 - [x] `TopBottomPanel` (`top`/`bottom`) — `top_panel`, `bottom_panel`
-- [ ] `Area`
-- [ ] `Popup`
-- [ ] `Modal`
-- [ ] `Resize`
+- [x] `Area` — `area(ctx, id, contents, **options)`
+- [x] `Modal` — `modal(ctx, id, contents, **options)`
+- [x] `Resize` — `resize(contents, **options)`. Not a top-level container:
+      egui's `Resize::show` takes a `&mut Ui`.
 - [ ] `Scene`
-- [ ] `MenuBar` / submenus
-- [~] `CollapsingHeader` — only the `collapsing` helper exists. Missing
+- [ ] `CollapsingHeader` — only the `collapsing` helper exists. Missing
       `default_open`, `show_background`, `icon`, `open` toggling,
       `CollapsingState` access
 - [~] `Frame` — only `Frame::group`. Missing `fill`, `stroke`,
@@ -114,6 +134,7 @@ Shipped: `CentralPanel` (`central_panel`) and `Window` (`window`, with a
 - [~] `ScrollArea` — only vertical/horizontal. Missing `both`, `max_width`,
       `max_height`, `min_scrolled_width`, `min_scrolled_height`,
       `scroll_bar_visibility`, `id_source`
+- [ ] `menu_button` / `menu_image_button` / `menu_image_text_button`
 
 ## 4. Layout, sizing and geometry
 
