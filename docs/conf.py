@@ -25,12 +25,19 @@ include_patterns = ['*.rst', '**.rst']
 html_theme = "sphinx_rtd_theme"
 html_static_path = ['_static']
 
-# index.rst pulls in ../README.rst, and GitHub renders a README's relative
-# image paths against the repository root while docutils resolves them
-# relative to docs/. No single spelling satisfies both -- docs/_static/x.png,
-# _static/x.png and /docs/_static/x.png were each tried and each is
-# unreadable from here. The README therefore uses the GitHub-rooted form and
-# the docs gallery page (docs/gallery.rst) carries the Sphinx-correct one.
-# Only that one unresolved-path warning is silenced; a genuinely missing
-# image elsewhere in the tree still fails the build.
-suppress_warnings = ['image.not_readable']
+# index.rst pulls in ../README.rst. GitHub renders a .rst README as plain
+# text -- no RST directive is processed -- so the README's screenshots are
+# Markdown ![](docs/_static/...) links, which GitHub renders and which docutils
+# passes through as literal text. Nothing to resolve here, and nothing to
+# silence: an unresolved path is still a real warning.
+#
+# docs/gallery.rst is the page Sphinx actually renders figures on, using the
+# `_static/` form that resolves relative to docs/. That is where the images
+# appear in the built documentation.
+#
+# An earlier version of this file claimed the README used RST figure
+# directives with GitHub-rooted paths, and suppressed image.not_readable to
+# cover the ones Sphinx could not resolve. That was checked and is not what
+# happens: `gh api repos/.../readme` returns the README with no img tags at all.
+# The suppression is removed rather than left in place, since there is now
+# nothing for it to hide.

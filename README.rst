@@ -66,7 +66,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **146 names** today: 18 classes, 128 functions and 46
+The API surface is **174 names** today: 18 classes, 156 functions and 46
 ``*_response`` variants. This number comes from the ``check`` job, which builds
 the wheel and asserts the module's exports against
 `tests/expected_exports.py
@@ -134,6 +134,16 @@ Available now
   ``frame_window``, ``frame_canvas``, ``frame_dark_canvas``,
   ``frame_central_panel``, ``frame_side_top_panel``
 - Pan and zoom: ``scene``, with a ``Rect`` to hold the visible region
+- Layout: ``columns`` (one callable per column), ``end_row``,
+  ``set_row_height``, and the existing ``horizontal`` / ``vertical`` family
+- Sizing: ``set_width``, ``set_height``, ``set_min_width``, ``set_max_width``,
+  ``set_min_height``, ``set_max_height``, ``set_min_size``, ``set_max_size``,
+  ``set_width_range``, ``set_height_range``, ``shrink_width_to_current``,
+  ``shrink_height_to_current``
+- Measurement: ``available_size``, ``available_width``, ``available_height``,
+  ``cursor``, ``min_rect``, ``max_rect``, ``min_size``,
+  ``pixels_per_point``, ``next_widget_position``, ``is_rect_visible``
+- Ids: ``push_id``, for giving repeated widgets their own state
 - Menus: ``menu_button``, ``menu_image_button``, ``menu_image_text_button``,
   ``close_menu``
 - Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
@@ -283,66 +293,57 @@ software renderer, and captures each page. The same job doubles as a render
 smoke test: a widget that compiles and imports but draws nothing fails it,
 which the export gate cannot catch.
 
-.. figure:: docs/_static/scene.png
-   :alt: The scene page: a pan-and-zoom canvas with a coordinate grid, and a readout of the Rect egui writes back
+The images are Markdown links rather than ``.. figure::`` directives. GitHub
+renders a ``.rst`` README as plain text -- no RST directive is processed, and
+the directive text appears verbatim -- so a figure never displays there. The
+Markdown form is what GitHub renders, and the Sphinx build reads this file as
+plain text and passes it through. The same screenshots with ``.. figure::``
+are on the ``docs/gallery.rst`` page, which is where Sphinx resolves their
+paths correctly.
 
-   ``scene``: drag to pan, scroll to zoom. The ``view min`` / ``view max``
-   readout is written by egui as the user interacts, not computed by the page
-   -- which is why the ``Rect`` has to be the same object every frame.
+![The scene page: a pan-and-zoom canvas with a coordinate grid, and a readout of the Rect egui writes back](docs/_static/scene.png)
 
-.. figure:: docs/_static/overlays.png
-   :alt: The overlays page: a modal dialog over a resizable area
+``scene``: drag to pan, scroll to zoom. The ``view min`` / ``view max`` readout is written by egui as the user interacts, not computed by the page -- which is why the ``Rect`` has to be the same object every frame.
 
-   ``modal`` returns ``True`` when the backdrop is clicked, and ``resize``
-   draws a box with a real resize grip. Both need an existing container:
-   ``modal`` before the central panel, ``resize`` inside it.
+![The overlays page: a modal dialog over a resizable area](docs/_static/overlays.png)
 
-.. figure:: docs/_static/panels.png
-   :alt: The panels page: a left side panel, a top panel, a bottom panel and a central panel
+``modal`` returns ``True`` when the backdrop is clicked, and ``resize`` draws a box with a real resize grip. Both need an existing container: ``modal`` before the central panel, ``resize`` inside it.
 
-   Independent containers composed explicitly. egui asks for the side, top and
-   bottom panels first, and ``central_panel`` last, which then takes whatever
-   space is left over.
+![The panels page: a left side panel, a top panel, a bottom panel and a central panel](docs/_static/panels.png)
 
-.. figure:: docs/_static/response.png
-   :alt: The Response page: a tooltip button, a checkbox and two sliders
+Independent containers composed explicitly. egui asks for the side, top and bottom panels first, and ``central_panel`` last, which then takes whatever space is left over.
 
-   ``Response``: hover tooltips, focus, context menus and change detection.
+![The Response page: a tooltip button, a checkbox and two sliders](docs/_static/response.png)
 
-.. figure:: docs/_static/colours.png
-   :alt: The colour pickers page: five colour swatches and a date picker
+``Response``: hover tooltips, focus, context menus and change detection.
 
-   All eight egui 0.31.1 colour spaces, plus the date picker.
+![The colour pickers page: five colour swatches and a date picker](docs/_static/colours.png)
 
-.. figure:: docs/_static/text.png
-   :alt: The text page: headings, styled text, text fields and a code editor
+All eight egui 0.31.1 colour spaces, plus the date picker.
 
-   Text widgets, text fields and the code editor.
+![The text page: headings, styled text, text fields and a code editor](docs/_static/text.png)
 
-.. figure:: docs/_static/selection.png
-   :alt: The selection page: checkbox, radio buttons, selectable labels and a combo box
+Text widgets, text fields and the code editor.
 
-   Selection widgets and the combo box.
+![The selection page: checkbox, radio buttons, selectable labels and a combo box](docs/_static/selection.png)
 
-.. figure:: docs/_static/numbers.png
-   :alt: The numbers page: sliders, drag values, two angle dials, a progress bar and a spinner
+Selection widgets and the combo box.
 
-   Sliders, drag values, angle dials, progress and spinner.
+![The numbers page: sliders, drag values, two angle dials, a progress bar and a spinner](docs/_static/numbers.png)
 
-.. figure:: docs/_static/buttons.png
-   :alt: The buttons page: a button, a small button, an icon button and a group
+Sliders, drag values, angle dials, progress and spinner.
 
-   Buttons, links and groups.
+![The buttons page: a button, a small button, an icon button and a group](docs/_static/buttons.png)
 
-.. figure:: docs/_static/layout.png
-   :alt: The layout page: horizontal buttons, a centred button, a collapsed header, a framed group, a scroll area and indented text
+Buttons, links and groups.
 
-   Layout containers: ``Layout``, ``Group``, ``collapsing``, ``scroll_area_vertical``, ``indent``.
+![The layout page: horizontal buttons, a centred button, a collapsed header, a framed group, a scroll area and indented text](docs/_static/layout.png)
 
-.. figure:: docs/_static/state.png
-   :alt: The state page: a normal button, a disabled button and a half-opacity button
+Layout containers: ``Layout``, ``Group``, ``collapsing``, ``scroll_area_vertical``, ``indent``.
 
-   Ui state: ``add_enabled`` and ``set_opacity``.
+![The state page: a normal button, a disabled button and a half-opacity button](docs/_static/state.png)
+
+Ui state: ``add_enabled`` and ``set_opacity``.
 
 The images live in ``docs/_static/``. To refresh them, push a change to
 ``examples/gallery.py``, download the ``gallery-screenshots`` artifact and
@@ -355,18 +356,17 @@ Not available yet — planned
 Ordered roughly by value per unit of work. "egui" names the upstream
 API this would wrap.
 
-**Missing layout and sizing** — now the largest remaining gap
+**Layout and sizing** — the remaining part
 
-- ``Grid``, ``columns`` / ``columns_const``, ``end_row``,
-  ``set_row_height`` — no multi-column layout at all today
-- Sizing: ``set_width``, ``set_height``, ``set_min_size``, ``set_max_size``,
-  ``set_width_range``, ``shrink_width_to_current`` …
-- Measurement: ``available_size``, ``available_width``, ``cursor``,
-  ``min_rect``, ``max_rect``, ``pixels_per_point``,
-  ``next_widget_position``
-- ``with_layout``, ``wrap_mode``, ``push_id``, ``unique_id``
+- ``with_layout``, ``wrap_mode``, ``wrap_text`` — ``with_layout`` takes a whole
+  ``egui::Layout``, which the existing ``Layout`` / ``LayoutType`` classes do
+  not cover
 - ``UiBuilder`` / ``scope_builder`` / ``new_child``
 - ``Painter`` access — no custom painting, shapes or text layout
+- ``unique_id``, ``next_auto_id``, ``auto_id_with`` — these return egui's
+  ``Id``, which has no Python equivalent and nothing useful to do in Python
+
+**Context API** — see below
 
 **Missing Context API**
 

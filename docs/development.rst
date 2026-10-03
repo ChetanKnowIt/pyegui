@@ -134,13 +134,19 @@ screenshot.yml -- gallery renders and README images
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Renders every page of ``examples/gallery.py`` and uploads one PNG per page.
-The images are checked into ``docs/_static/`` and rendered on the
-``docs/gallery.rst`` page. They deliberately do *not* go in the README: a
-figure directive cannot satisfy both renderers, because GitHub resolves a
-README's relative paths against the repository root while Sphinx resolves
-them relative to ``docs/`` (index.rst does ``include ../README.rst``).
-Referencing them from a page inside ``docs/`` makes the two agree, and keeps
-each image next to the repo's other documentation images.
+The images are checked into ``docs/_static/`` and appear in two places.
+
+In ``docs/gallery.rst`` they are ``.. figure::`` directives with the
+``_static/`` path, which is what Sphinx resolves. That is the built
+documentation.
+
+In ``README.rst`` they are Markdown ``![](docs/_static/...)`` links. GitHub
+renders a ``.rst`` README as plain text, so an RST ``figure`` directive never
+displays there -- the directive text simply appears verbatim. Verified rather
+than assumed: ``gh api repos/ChetanKnowIT/pyegui/readme`` returns the rendered
+README, and it contains no ``img`` tags while the ``figure::`` lines are
+present as literal text. Markdown is what GitHub renders, and docutils passes
+it through unchanged, so both renderers are satisfied by their own syntax.
 
 This is also a render smoke test. The export gate proves the module imports
 and exposes the right names; this proves the widgets actually draw. A widget

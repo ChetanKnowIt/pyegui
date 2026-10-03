@@ -132,6 +132,39 @@ allow zooming in; text goes blurry past 1:1 (egui issue 4813).
 
 See `examples/scene_canvas.py`.
 
+**Layout, sizing and measurement**
+
+- `columns(num_columns, contents)` — multi-column layout, mirroring
+  `Ui::columns`. egui hands its callback a slice of `Ui`s, one per column; a
+  Python callable cannot receive a slice, so this takes a **list of callables**,
+  one per column, each run in its own `Ui`. That is what makes columns work:
+  each column is its own `Ui` with its own cursor.
+  `end_row()` closes a row early and `set_row_height()` gives a row a uniform
+  height.
+- Sizing: `set_width`, `set_height`, `set_min_width`, `set_max_width`,
+  `set_min_height`, `set_max_height`, `set_min_size`, `set_max_size`,
+  `set_width_range`, `set_height_range`, `shrink_width_to_current`,
+  `shrink_height_to_current`. Each takes one value and returns nothing, because
+  that is egui's shape — they set the size of the current `Ui`.
+- Measurement: `available_size`, `available_width`, `available_height`,
+  `available_size_before_wrap`, `available_rect_before_wrap`, `cursor`,
+  `min_rect`, `max_rect`, `min_size`, `pixels_per_point`,
+  `next_widget_position`, `is_rect_visible`. Points and sizes come back as
+  2-tuples, rectangles as a `Rect`. All are in egui **points**, not pixels.
+- `push_id(salt, contents)` — egui derives widget ids from position in the `Ui`
+  tree, so identical widgets in a loop share one id and their state leaks
+  between iterations. `push_id` gives a subtree its own id space, which is what
+  makes a list of repeated inputs work at all.
+
+```python
+values = [Str("") for _ in range(3)]
+
+for i, value in enumerate(values):
+    push_id(i, lambda i=i, value=value: text_edit_singleline(value))
+```
+
+See `examples/layout_and_sizing.py`.
+
 `modal` returns `True` when the backdrop is clicked, which is the signal to
 dismiss it -- egui's `ModalResponse` has no `should_close`, and its
 `is_top_modal` field answers "am I the topmost modal", which a lone modal

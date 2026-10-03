@@ -608,6 +608,61 @@ def page_overlays(ctx):
     central_panel(ctx, main_contents)
 
 
+# State for the layout page. Module level, because checkbox writes into the Bool
+# it is handed and a fresh one each frame would reset the tick.
+layout_ticks = [Bool(True), Bool(False)]
+
+
+def gallery_col_a():
+    heading("column A")
+    label("each column is its own Ui,")
+    label("with its own cursor.")
+    checkbox(layout_ticks[0], "a checkbox")
+
+
+def gallery_col_b():
+    heading("column B")
+    label("sized to content,")
+    label("bounded by set_max_width.")
+    slider_float(0.5, 0.0, 1.0, "a slider")
+
+
+def gallery_col_c():
+    heading("column C")
+    checkbox(layout_ticks[1], "another checkbox")
+    label("end_row closes a row early;")
+
+
+@page("layout2")
+def page_layout2(ctx):
+    """Columns, explicit sizing, and the numbers a Ui reports about itself."""
+
+    def sized():
+        set_max_width(200.0)
+        shrink_width_to_current()
+        label("set_max_width(200) + shrink")
+        button_clicked("click me")
+
+    def readings():
+        w, h = available_size()
+        label(f"available  {w:.0f} x {h:.0f}")
+        label(f"ppp        {pixels_per_point():.2f}")
+        nx, ny = next_widget_position()
+        label(f"next pos   ({nx:.0f}, {ny:.0f})")
+
+    def main_contents():
+        label("columns(3, [...]):")
+        add_space(4.0)
+        columns(3, [gallery_col_a, gallery_col_b, gallery_col_c])
+        add_space(8.0)
+
+        frame_group(sized)
+        add_space(6.0)
+        frame_group(readings)
+
+    central_panel(ctx, main_contents)
+
+
 # The scene's visible region, which egui writes as the user pans and zooms.
 # Module level, because it has to be the same object every frame -- a fresh Rect
 # each frame would discard whatever the user just did.

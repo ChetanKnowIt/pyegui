@@ -3165,6 +3165,19 @@ impl From<&Rect> for egui::Rect {
     }
 }
 
+impl From<&egui::Rect> for Rect {
+    /// egui's rects become pyegui ones by value, since the measurement
+    /// functions hand back a fresh rect rather than borrowed storage.
+    fn from(rect: &egui::Rect) -> Self {
+        Rect {
+            min_x: rect.min.x,
+            min_y: rect.min.y,
+            max_x: rect.max.x,
+            max_y: rect.max.y,
+        }
+    }
+}
+
 /// Builder options for `egui::Scene`, matching its setters exactly.
 const SCENE_OPTIONS: &[&str] = &["zoom_range", "max_inner_size"];
 
@@ -3236,6 +3249,334 @@ unsafe fn scene(
     Ok(Response {
         inner: shown.response,
     })
+}
+
+// ------------------------------------------------------- layout and sizing
+//
+// egui's sizing calls all take one value and return nothing: they set the size
+// of the Ui they are called on, for the rest of that Ui's life. There is no
+// builder to chain, so each is a separate function rather than keyword options
+// on a container.
+//
+// They apply to the *current* Ui, which is whatever container most recently
+// pushed onto the stack. Inside a callback that is the callback's own Ui.
+//
+// `set_width` fixes the width; `set_width_range` bounds it. Setting both is
+// allowed and egui honours the tighter of the two, which is why the range
+// variants exist rather than a min/max pair.
+
+/// Fix the width of the current `Ui`, mirroring `Ui::set_width`.
+#[pyfunction]
+unsafe fn set_width(width: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_width(width);
+    Ok(())
+}
+
+/// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
+#[pyfunction]
+unsafe fn set_height(height: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_height(height);
+    Ok(())
+}
+
+/// Set the minimum width of the current `Ui`, mirroring `Ui::set_min_width`.
+#[pyfunction]
+unsafe fn set_min_width(width: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_min_width(width);
+    Ok(())
+}
+
+/// Set the maximum width of the current `Ui`, mirroring `Ui::set_max_width`.
+#[pyfunction]
+unsafe fn set_max_width(width: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_max_width(width);
+    Ok(())
+}
+
+/// Set the minimum height of the current `Ui`, mirroring `Ui::set_min_height`.
+#[pyfunction]
+unsafe fn set_min_height(height: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_min_height(height);
+    Ok(())
+}
+
+/// Set the maximum height of the current `Ui`, mirroring `Ui::set_max_height`.
+#[pyfunction]
+unsafe fn set_max_height(height: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_max_height(height);
+    Ok(())
+}
+
+/// Set the minimum size of the current `Ui`, mirroring `Ui::set_min_size`.
+///
+/// Takes a 2-sequence, e.g. `set_min_size((100.0, 50.0))`.
+#[pyfunction]
+unsafe fn set_min_size(size: (f32, f32)) -> PyResult<()> {
+    current_ui(&UI)?.set_min_size(egui::vec2(size.0, size.1));
+    Ok(())
+}
+
+/// Set the maximum size of the current `Ui`, mirroring `Ui::set_max_size`.
+///
+/// Takes a 2-sequence, e.g. `set_max_size((400.0, 300.0))`.
+#[pyfunction]
+unsafe fn set_max_size(size: (f32, f32)) -> PyResult<()> {
+    current_ui(&UI)?.set_max_size(egui::vec2(size.0, size.1));
+    Ok(())
+}
+
+/// Bound the width of the current `Ui`, mirroring `Ui::set_width_range`.
+///
+/// Takes a `(min, max)` tuple, e.g. `set_width_range((100.0, 300.0))`.
+#[pyfunction]
+unsafe fn set_width_range(r: (f32, f32)) -> PyResult<()> {
+    current_ui(&UI)?.set_width_range(egui::Rangef::new(r.0, r.1));
+    Ok(())
+}
+
+/// Bound the height of the current `Ui`, mirroring `Ui::set_height_range`.
+///
+/// Takes a `(min, max)` tuple, e.g. `set_height_range((50.0, 200.0))`.
+#[pyfunction]
+unsafe fn set_height_range(r: (f32, f32)) -> PyResult<()> {
+    current_ui(&UI)?.set_height_range(egui::Rangef::new(r.0, r.1));
+    Ok(())
+}
+
+/// Shrink the current `Ui` to its content's width, mirroring
+/// `Ui::shrink_width_to_current`.
+///
+/// The counterpart to `set_width`: rather than fixing the width, this lets the
+/// Ui take exactly what it needs.
+#[pyfunction]
+unsafe fn shrink_width_to_current() -> PyResult<()> {
+    current_ui(&UI)?.shrink_width_to_current();
+    Ok(())
+}
+
+/// Shrink the current `Ui` to its content's height, mirroring
+/// `Ui::shrink_height_to_current`.
+#[pyfunction]
+unsafe fn shrink_height_to_current() -> PyResult<()> {
+    current_ui(&UI)?.shrink_height_to_current();
+    Ok(())
+}
+
+// ---------------------------------------------------- multi-column layout
+//
+// egui's `columns` hands the callback a slice of Uis, one per column, rather
+// than a single one. That is the shape that makes columns work: each column is
+// its own Ui with its own cursor, so widgets in one do not affect the others.
+// A Python callback cannot receive a slice of Uis as a slice, so `columns`
+// takes a list of callables instead -- one per column -- and each is run with
+// its own Ui. That is the shape pyegui uses everywhere else: a callable per
+// container rather than a struct the caller has to learn.
+//
+//     columns(3, [col_a, col_b, col_c])
+//
+// Use `end_row` to close a row early and start the next, exactly as egui does.
+
+/// Show `num_columns` side by side, mirroring `Ui::columns`.
+///
+/// `contents` is a list of callables, one per column, each run in its own Ui.
+/// A column may be `None` to leave it empty.
+///
+/// Example::
+///
+///     columns(3, [
+///         lambda: heading("left"),
+///         lambda: heading("middle"),
+///         lambda: heading("right"),
+///     ])
+#[pyfunction]
+#[pyo3(signature = (num_columns, contents))]
+unsafe fn columns(num_columns: usize, contents: Vec<Bound<'_, PyAny>>) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    if contents.len() != num_columns {
+        return Err(PyValueError::new_err(format!(
+            "columns() was given {} columns but {} callables; \
+             one callable per column, or None for an empty column",
+            num_columns,
+            contents.len()
+        )));
+    }
+
+    // egui's callback wants `&mut [Ui]`. The Uis are created inside egui's own
+    // call, so they cannot exist before it runs; a raw pointer per column is
+    // borrowed through the Ui stack for the duration, which is how every other
+    // nested container in this file already reaches a Ui it did not create.
+    let mut slots: Vec<*mut egui::Ui> = vec![std::ptr::null_mut(); num_columns];
+
+    ui.columns(num_columns, |column_uis| {
+        for (slot, column) in slots.iter_mut().zip(column_uis.iter_mut()) {
+            *slot = column as *mut egui::Ui;
+        }
+
+        for (index, content) in contents.iter().enumerate() {
+            let column_ui = slots[index];
+            if column_ui.is_null() {
+                continue;
+            }
+            let column_ui = unsafe { &mut *column_ui };
+            run_nested_update_func_lossy(column_ui, content.clone());
+        }
+    });
+
+    Ok(())
+}
+
+/// Close the current column and move to the next row, mirroring `Ui::end_row`.
+///
+/// Only meaningful inside `columns`. egui wraps automatically when the last
+/// column fills, so this is only needed to start a new row early.
+#[pyfunction]
+unsafe fn end_row() -> PyResult<()> {
+    current_ui(&UI)?.end_row();
+    Ok(())
+}
+
+/// Set the height of the current column, mirroring `Ui::set_row_height`.
+///
+/// egui sizes columns from their tallest sibling, so this is how a row of
+/// columns is given a uniform height.
+#[pyfunction]
+unsafe fn set_row_height(height: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_row_height(height);
+    Ok(())
+}
+
+/// The size still available in the current `Ui`, mirroring
+/// `Ui::available_size`.
+///
+/// Returns a 2-tuple, `(width, height)`.
+#[pyfunction]
+unsafe fn available_size() -> PyResult<(f32, f32)> {
+    let size = current_ui(&UI)?.available_size();
+    Ok((size.x, size.y))
+}
+
+/// The width still available in the current `Ui`, mirroring
+/// `Ui::available_width`.
+#[pyfunction]
+unsafe fn available_width() -> PyResult<f32> {
+    Ok(current_ui(&UI)?.available_width())
+}
+
+/// The height still available in the current `Ui`, mirroring
+/// `Ui::available_height`.
+#[pyfunction]
+unsafe fn available_height() -> PyResult<f32> {
+    Ok(current_ui(&UI)?.available_height())
+}
+
+/// The size available before wrapping, mirroring
+/// `Ui::available_size_before_wrap`.
+///
+/// Differs from `available_size` when the layout wraps: this is the width the
+/// Ui had before text wrapping was applied.
+#[pyfunction]
+unsafe fn available_size_before_wrap() -> PyResult<(f32, f32)> {
+    let size = current_ui(&UI)?.available_size_before_wrap();
+    Ok((size.x, size.y))
+}
+
+/// The area available before wrapping, mirroring
+/// `Ui::available_rect_before_wrap`.
+#[pyfunction]
+unsafe fn available_rect_before_wrap() -> PyResult<Rect> {
+    let rect = current_ui(&UI)?.available_rect_before_wrap();
+    Ok(Rect::from(&rect))
+}
+
+/// The cursor's rectangle, mirroring `Ui::cursor`.
+///
+/// This is where the next widget will be placed. Useful for custom painting and
+/// for positioning something relative to the current line.
+#[pyfunction]
+unsafe fn cursor() -> PyResult<Rect> {
+    let rect = current_ui(&UI)?.cursor();
+    Ok(Rect::from(&rect))
+}
+
+/// The smallest rectangle containing everything drawn so far, mirroring
+/// `Ui::min_rect`.
+#[pyfunction]
+unsafe fn min_rect() -> PyResult<Rect> {
+    let rect = current_ui(&UI)?.min_rect();
+    Ok(Rect::from(&rect))
+}
+
+/// The largest rectangle the current `Ui` may use, mirroring `Ui::max_rect`.
+///
+/// This is what `set_width`, `set_max_size` and the panels all bound
+/// themselves by.
+#[pyfunction]
+unsafe fn max_rect() -> PyResult<Rect> {
+    let rect = current_ui(&UI)?.max_rect();
+    Ok(Rect::from(&rect))
+}
+
+/// The size of everything drawn so far, mirroring `Ui::min_size`.
+#[pyfunction]
+unsafe fn min_size() -> PyResult<(f32, f32)> {
+    let size = current_ui(&UI)?.min_size();
+    Ok((size.x, size.y))
+}
+
+/// The scale factor between egui points and physical pixels, mirroring
+/// `Ui::pixels_per_point`.
+///
+/// Widget positions and sizes from the other measurement functions are in
+/// points; multiply by this to get pixels.
+#[pyfunction]
+unsafe fn pixels_per_point() -> PyResult<f32> {
+    Ok(current_ui(&UI)?.pixels_per_point())
+}
+
+/// Where the next widget will be placed, mirroring
+/// `Ui::next_widget_position`.
+///
+/// Returns a 2-tuple, `(x, y)`.
+#[pyfunction]
+unsafe fn next_widget_position() -> PyResult<(f32, f32)> {
+    let pos = current_ui(&UI)?.next_widget_position();
+    Ok((pos.x, pos.y))
+}
+
+/// Whether a rectangle is inside the current `Ui` and not clipped away, mirroring
+/// `Ui::is_rect_visible`.
+///
+/// Takes a 2-sequence of four numbers, `(min_x, min_y, max_x, max_y)`, or a
+/// `Rect`.
+#[pyfunction]
+unsafe fn is_rect_visible(rect: Rect) -> PyResult<bool> {
+    let inner: egui::Rect = (&rect).into();
+    Ok(current_ui(&UI)?.is_rect_visible(inner))
+}
+
+/// Run `contents` with an id salt applied, mirroring `Ui::push_id`.
+///
+/// egui derives every widget's id from its position in the Ui tree. Two
+/// identical widgets in a loop therefore share ids and their state leaks
+/// between iterations -- the first `text_edit` gets the value, the second
+/// renders it, and neither can be addressed. `push_id` gives a subtree its own
+/// id space, which is what a repeated widget needs.
+///
+/// `salt` may be any hashable value; a string is the usual case.
+///
+/// Example::
+///
+///     for i, name in enumerate(names):
+///         push_id(i, lambda i=i: text_edit_singleline(values[i]))
+#[pyfunction]
+#[pyo3(signature = (salt, contents))]
+unsafe fn push_id(salt: String, contents: Bound<'_, PyAny>) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+
+    ui.push_id(salt, |ui| run_nested_update_func_lossy(ui, contents.clone()));
+
+    Ok(())
 }
 
 /// Create a child ui which is indented to the right.
@@ -4653,6 +4994,34 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scroll_area_horizontal, m)?)?;
     m.add_function(wrap_pyfunction!(scroll_area_both, m)?)?;
     m.add_function(wrap_pyfunction!(scene, m)?)?;
+    m.add_function(wrap_pyfunction!(set_width, m)?)?;
+    m.add_function(wrap_pyfunction!(set_height, m)?)?;
+    m.add_function(wrap_pyfunction!(set_min_width, m)?)?;
+    m.add_function(wrap_pyfunction!(set_max_width, m)?)?;
+    m.add_function(wrap_pyfunction!(set_min_height, m)?)?;
+    m.add_function(wrap_pyfunction!(set_max_height, m)?)?;
+    m.add_function(wrap_pyfunction!(set_min_size, m)?)?;
+    m.add_function(wrap_pyfunction!(set_max_size, m)?)?;
+    m.add_function(wrap_pyfunction!(set_width_range, m)?)?;
+    m.add_function(wrap_pyfunction!(set_height_range, m)?)?;
+    m.add_function(wrap_pyfunction!(shrink_width_to_current, m)?)?;
+    m.add_function(wrap_pyfunction!(shrink_height_to_current, m)?)?;
+    m.add_function(wrap_pyfunction!(columns, m)?)?;
+    m.add_function(wrap_pyfunction!(end_row, m)?)?;
+    m.add_function(wrap_pyfunction!(set_row_height, m)?)?;
+    m.add_function(wrap_pyfunction!(available_size, m)?)?;
+    m.add_function(wrap_pyfunction!(available_width, m)?)?;
+    m.add_function(wrap_pyfunction!(available_height, m)?)?;
+    m.add_function(wrap_pyfunction!(available_size_before_wrap, m)?)?;
+    m.add_function(wrap_pyfunction!(available_rect_before_wrap, m)?)?;
+    m.add_function(wrap_pyfunction!(cursor, m)?)?;
+    m.add_function(wrap_pyfunction!(min_rect, m)?)?;
+    m.add_function(wrap_pyfunction!(max_rect, m)?)?;
+    m.add_function(wrap_pyfunction!(min_size, m)?)?;
+    m.add_function(wrap_pyfunction!(pixels_per_point, m)?)?;
+    m.add_function(wrap_pyfunction!(next_widget_position, m)?)?;
+    m.add_function(wrap_pyfunction!(is_rect_visible, m)?)?;
+    m.add_function(wrap_pyfunction!(push_id, m)?)?;
     m.add_function(wrap_pyfunction!(scope, m)?)?;
     m.add_function(wrap_pyfunction!(slider_float, m)?)?;
     m.add_function(wrap_pyfunction!(slider_int, m)?)?;

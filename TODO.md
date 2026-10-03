@@ -14,7 +14,7 @@ not reachable) · `[ ]` not implemented
 
 Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 
-146 names exported (`src/lib.rs`): 18 classes, 128 functions and 46
+174 names exported (`src/lib.rs`): 18 classes, 156 functions and 46
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 61 on `Response`.
@@ -139,21 +139,40 @@ The rest of this section is real work against real 0.31.1 APIs.
 
 ## 4. Layout, sizing and geometry
 
-- [ ] `columns`, `columns_const`, `end_row`, `set_row_height` — no
-      multi-column layout exists today
-- [ ] Sizing: `set_width`, `set_height`, `set_min_width`, `set_max_width`,
+egui 0.31.1 exposes 174 public methods on `Ui`. These are the layout, sizing and
+measurement ones pyegui did not reach.
+
+Shipped: the twelve sizing calls, multi-column layout, the measurement queries,
+and `push_id`.
+
+- [x] `columns(num_columns, contents)` — one callable per column, each run in
+      its own `Ui`. egui hands its callback a slice of `Ui`s; a Python callable
+      cannot receive that, so a list of callables is the shape used here
+- [x] `end_row`, `set_row_height`
+- [x] Sizing: `set_width`, `set_height`, `set_min_width`, `set_max_width`,
       `set_min_height`, `set_max_height`, `set_min_size`, `set_max_size`,
       `set_width_range`, `set_height_range`, `shrink_width_to_current`,
       `shrink_height_to_current`
-- [ ] Measurement queries: `available_size`, `available_width`,
-      `available_height`, `available_rect_before_wrap`, `cursor`, `min_rect`,
-      `max_rect`, `min_size`, `pixels_per_point`, `next_widget_position`
-- [ ] `with_layout`, `wrap_mode`, `wrap_text`
-- [ ] `push_id`, `auto_id_with`, `unique_id`, `make_persistent_id`,
-      `next_auto_id`, `skip_ahead_auto_ids`, `id`
+- [x] Measurement queries: `available_size`, `available_width`,
+      `available_height`, `available_size_before_wrap`,
+      `available_rect_before_wrap`, `cursor`, `min_rect`, `max_rect`,
+      `min_size`, `pixels_per_point`, `next_widget_position`,
+      `is_rect_visible`
+- [x] `push_id` — gives a subtree its own id space, which is what makes a list
+      of repeated widgets work at all
+- [ ] `with_layout`, `wrap_mode`, `wrap_text`. `with_layout` takes a whole
+      `egui::Layout`; the existing `Layout`/`LayoutType` classes are a
+      different, narrower thing and do not cover it
+- [ ] `unique_id`, `make_persistent_id`, `next_auto_id`, `auto_id_with`,
+      `skip_ahead_auto_ids`, `id` — these return egui's `Id`, which has no
+      Python equivalent and no useful Python-facing operation
 - [ ] `scope_builder`, `new_child`, `child_ui`, `UiBuilder` support
-- [ ] `interact`, `interact_opt`
+- [ ] `interact`, `interact_opt` — take a `Rect`, an `Id` and a `Sense`
 - [ ] `painter` access for custom painting (shapes, text layout)
+
+The measurement functions return plain tuples for points and sizes, and a
+`Rect` for rectangles. They are in egui points, not pixels — multiply by
+`pixels_per_point()`.
 
 ## 5. Context API
 
