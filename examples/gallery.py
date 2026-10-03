@@ -356,6 +356,42 @@ def page_layout(ctx):
     scroll_area_vertical(scroll_rows)
 
     add_space(8)
+    label("scroll area, both axes, bounded:")
+    scroll_area_both(
+        lambda: horizontal(lambda: label("wide content that scrolls sideways too")),
+        max_height=60.0,
+    )
+
+    add_space(8)
+    label("collapsing, open by default and framed:")
+    collapsing_response(
+        "always visible",
+        lambda: label("default_open=True, show_background=True"),
+        default_open=True,
+        show_background=True,
+    )
+
+    add_space(8)
+    label("frames -- egui's presets, each reading the current style:")
+    frame_group(lambda: label("frame_group"))
+    frame_popup(lambda: label("frame_popup"))
+    frame_canvas(lambda: label("frame_canvas"))
+
+    add_space(8)
+    label("a frame built by hand:")
+    frame(
+        lambda: label("fill, stroke, corner_radius, inner_margin"),
+        fill=(40, 60, 90, 200),
+        stroke=(1.0, (120, 160, 220, 255)),
+        corner_radius=6,
+        inner_margin=(10, 6),
+    )
+
+    add_space(8)
+    label("menus -- click for a popup menu:")
+    horizontal(lambda: menu_button("File", lambda: menu_button("Recent", menu_contents)))
+
+    add_space(8)
     label("indent:")
     indent(lambda: label("indented"))
 

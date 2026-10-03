@@ -137,6 +137,49 @@ def main():
                 f"CHANGELOG.md presents class `{name}` as shipped, but it is not exported"
             )
 
+    # 4. The per-class and per-variant counts the TODO states.
+    #
+    #    These are the numbers that actually rot. The name total is checked
+    #    above, so a batch that adds a function and updates "**N names**"
+    #    still leaves "the Response class (28 getters and methods)", "41
+    #    *_response variants" and "34 of them" stale -- all three were wrong
+    #    here at once, alongside a stale claim in the README that no menus
+    #    existed at all. They are derived below from lib.rs rather than
+    #    trusted, so a count cannot drift away from the code.
+    todo = (REPO_ROOT / "TODO.md").read_text(encoding="utf-8")
+    lib = (REPO_ROOT / "src" / "lib.rs").read_text(encoding="utf-8")
+
+    # Response's own methods, counted from its pymethods block.
+    #
+    # Bounded to the `impl Response` block. A bare regex over the rest of the
+    # file also catches `PyeguiApp::update`, which is not a Response method --
+    # counting it gave 41 for a 40-method class, and the gate then failed on
+    # its own arithmetic.
+    response_methods = 0
+    if "impl Response" in lib:
+        block = lib[lib.index("impl Response"):]
+        end = block.find("\n}\n")
+        if end != -1:
+            block = block[:end]
+        # Top-level (4-space) methods only, so nested closures are not counted.
+        response_methods = len(re.findall(r"^    fn [a-z_0-9]+\(", block, re.M))
+
+    # *_response functions, from the gate's own list.
+    claims = [
+        (r"`Response` class \((\d+) (?:getters and methods|methods)\)",
+         response_methods, "TODO.md: the Response class's method count"),
+        (r"`\*_response` variants for existing widgets \((\d+) of them\)",
+         len(manifest.RESPONSE_VARIANTS), "TODO.md: the *_response variant count"),
+    ]
+    for pattern, expected, what in claims:
+        m = re.search(pattern, todo)
+        if m is None:
+            failures.append(f"TODO.md does not state {what}")
+        elif int(m.group(1)) != expected:
+            failures.append(
+                f"{what}: TODO.md says {m.group(1)}, the code has {expected}"
+            )
+
     for failure in failures:
         print(f"FAIL {failure}", file=sys.stderr)
 

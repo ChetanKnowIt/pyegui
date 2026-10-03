@@ -17,7 +17,7 @@ Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 144 names exported (`src/lib.rs`): 17 classes, 127 functions and 45
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
-exposes 174 inherent methods on `Ui` and 45 on `Response`.
+exposes 174 inherent methods on `Ui` and 61 on `Response`.
 
 `tests/expected_exports.py` is the authoritative list and the CI export gate;
 it is generated from, and asserted against, the `#[pymodule]` block.
@@ -53,7 +53,7 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
       `contains_pointer`, `interact_pointer_pos`, `hover_pos`,
       `is_pointer_button_down_on`, `mark_changed`, `is_tooltip_open`,
       `context_menu_opened`
-- [x] `*_response` variants for existing widgets (34 of them)
+- [x] `*_response` variants for existing widgets (45 of them)
 - [ ] `interact`, `interact_opt`, `highlight`, `widget_info`, `union`,
       `scroll_to_me`, `output_event`, `labelled_by` — builder-style methods
       that consume or replace the `Response`
@@ -156,8 +156,8 @@ The rest of this section is real work against real 0.31.1 APIs.
 
 ## 5. Context API
 
-`Context` exposes 8 methods; egui 0.31.1 has 151. Unchanged by the coverage
-work so far — this is the next large gap after containers.
+`Context` exposes 10 methods; egui 0.31.1 has 148 public ones. Unchanged by
+the coverage work so far — this is the next large gap after containers.
 
 - [ ] Input state: `input`, `is_pointer_over_area`, `wants_keyboard_input`,
       `wants_pointer_input`, `is_using_pointer`, `pointer_hover_pos`,
@@ -328,7 +328,7 @@ asserted. Same workload, same widgets, same number of lines — count them.
 
 Everything in the 0.5.0 appendix below, plus:
 
-Interaction state: the `Response` class (28 getters and methods) and 41
+Interaction state: the `Response` class (40 methods) and 45
 `*_response` variants covering every widget that has a binding. The boolean
 helpers are unchanged and now delegate to them.
 

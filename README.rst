@@ -54,10 +54,15 @@ where possible to accomplish more smooth experience in Python.
   unmultiplied), SRGB, HSVA, and the alpha variants
 - ``Response`` for every widget that has one, so hover, focus and drag state
   are reachable -- as ``*_response`` variants, or ``ctx.hovered()`` and friends
-- Containers: ``central_panel`` and ``window``. egui draws nothing until the
-  frame asks for one, so an app composes its own
+- Containers: ``central_panel``, ``window``, ``side_panel_left`` /
+  ``side_panel_right``, ``top_panel`` / ``bottom_panel``, ``modal``, ``area``
+  and ``resize``. egui draws nothing until the frame asks for one, so an app
+  composes its own
+- Menus: ``menu_button`` with nested submenus, plus ``close_menu``
+- Frames: ``frame`` and egui's eight presets, ``frame_group`` through
+  ``frame_side_top_panel``
 - Text fields, radio buttons, buttons, code, progress bar etc.
-- Scroll areas, collapsing sections, groups and scopes
+- Scroll areas on either or both axes, collapsing sections, groups and scopes
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
@@ -122,14 +127,26 @@ Available now
 - Layout: ``horizontal``, ``horizontal_centered``, ``horizontal_top``,
   ``horizontal_wrapped``, ``vertical``, ``vertical_centered``,
   ``vertical_centered_justified``, ``centered_and_justified``, ``indent``
-- Scopes: ``collapsing``, ``group``, ``scope``, ``scroll_area_vertical``,
-  ``scroll_area_horizontal``, ``Layout`` / ``LayoutType``, ``Group``
+- Scopes: ``collapsing``, ``collapsing_response``, ``group``, ``scope``,
+  ``scroll_area_vertical``, ``scroll_area_horizontal``,
+  ``scroll_area_both``, ``Layout`` / ``LayoutType``, ``Group``
+- Frames: ``frame``, ``frame_group``, ``frame_popup``, ``frame_menu``,
+  ``frame_window``, ``frame_canvas``, ``frame_dark_canvas``,
+  ``frame_central_panel``, ``frame_side_top_panel``
+- Menus: ``menu_button``, ``menu_image_button``, ``menu_image_text_button``,
+  ``close_menu``
 - Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
   ``set_opacity``, ``add_space``, ``separator``, ``close_menu``
 - App: ``run_native`` with viewport kwargs, ``Context`` (theme, fonts,
   ``open_url``, ``copy_text``, ``close``, ``request_repaint``)
 - State holders: ``Str``, ``Bool``, ``Int``, ``Float``, ``Date``
 - Colours: ``RGB``, ``RGBA``, ``HSVA``, ``Color32``, ``SRGB``
+
+Containers take egui's own builder options as keyword arguments, and an
+unrecognised keyword raises ``ValueError`` naming every valid option rather
+than being ignored. Geometry options take a number or a 2- or 4-sequence
+(``default_size=(400.0, 300.0)``); colours take either a ``Color32`` or an
+``(r, g, b, a)`` tuple.
 
 Interaction state
 ~~~~~~~~~~~~~~~~~
@@ -330,22 +347,7 @@ Not available yet — planned
 Ordered roughly by value per unit of work. "egui" names the upstream
 API this would wrap.
 
-**Missing containers — the largest remaining gap**
-
-- ``Window`` — no secondary windows (39 builder options upstream)
-- ``SidePanel`` / ``TopBottomPanel`` — only ``CentralPanel`` is ever used
-- ``Area``, ``Popup``, ``Modal``, ``Resize``, ``Scene``
-- ``MenuBar`` / ``menu_button`` / submenus — no menus at all
-- ``Frame`` with custom fill / stroke / corner radius, and the presets
-  (``popup``, ``menu``, ``window``, ``canvas``, ``central_panel``,
-  ``side_top_panel``) — only ``Frame::group`` is reachable
-- ``CollapsingHeader`` builder options: ``default_open``,
-  ``show_background``, ``icon``, open-state toggling
-- ``ScrollArea``: ``both``, ``max_width`` / ``max_height``,
-  ``min_scrolled_width`` / ``min_scrolled_height``,
-  ``scroll_bar_visibility``, ``id_source``
-
-**Missing layout and sizing**
+**Missing layout and sizing** — now the largest remaining gap
 
 - ``Grid``, ``columns`` / ``columns_const``, ``end_row``,
   ``set_row_height`` — no multi-column layout at all today
@@ -357,10 +359,13 @@ API this would wrap.
 - ``with_layout``, ``wrap_mode``, ``push_id``, ``unique_id``
 - ``UiBuilder`` / ``scope_builder`` / ``new_child``
 - ``Painter`` access — no custom painting, shapes or text layout
+- ``Scene`` — the last unwrapped container. Its ``show`` hands the callback a
+  transform as well as a ``Ui``, so it is a different calling convention from
+  every other binding here
 
 **Missing Context API**
 
-egui's ``Context`` exposes 151 methods; pyegui reaches 8.
+egui's ``Context`` exposes 148 public methods; pyegui reaches 10.
 
 - Input state: ``input``, ``is_pointer_over_area``,
   ``wants_keyboard_input``, ``wants_pointer_input``,
