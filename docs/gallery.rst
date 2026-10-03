@@ -10,6 +10,13 @@ which the export gate cannot catch.
 The images live in ``docs/_static/``. To refresh them, push a change to the
 gallery, download the ``gallery-screenshots`` artifact, and replace the files.
 
+.. figure:: _static/scene.png
+   :alt: The scene page: a pan-and-zoom canvas with a coordinate grid, and a readout of the Rect egui writes back
+
+   ``scene``: drag to pan, scroll to zoom. The ``view min`` / ``view max``
+   readout is written by egui as the user interacts, not computed by the page
+   -- which is why the ``Rect`` has to be the same object every frame.
+
 .. figure:: _static/overlays.png
    :alt: The overlays page: a modal dialog over a resizable area
 
