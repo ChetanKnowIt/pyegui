@@ -253,52 +253,53 @@ a positional label reach the builders.
 
 ## 7. Benchmarks: what does the binding actually cost
 
-**Status: measured at three widget counts (run 37093530513) and in the README.
-The result is ~1.3x per widget, not "almost no overhead" — the README says so
-plainly.**
+**Status: measured over 5 trials at 3 widget counts (run 37106337662). The
+result is ~1.33x per widget, flat across a 40x range of widget counts, with a
+within-run spread under 2.5%.**
 
-Measured, 61 frames, both sides, all three counts in one run on one
-GitHub-hosted runner (so the rows are comparable with each other):
+Median of 5 trials, all measured in one run so the rows are comparable:
 
-| widgets/frame | pyegui us | egui us | ratio | extra us |
-| ---: | ---: | ---: | ---: | ---: |
-| 50 | 0.633 | 0.477 | 1.33x | 0.156 |
-| 500 | 0.507 | 0.391 | 1.30x | 0.116 |
-| 2000 | 0.516 | 0.389 | 1.33x | 0.127 |
+| widgets/frame | pyegui us | egui us | ratio median | ratio min-max | spread | extra us |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 50 | 0.600 | 0.453 | 1.33x | 1.31x-1.34x | 1.7% | 0.151 |
+| 500 | 0.487 | 0.365 | 1.33x | 1.33x-1.34x | 0.8% | 0.121 |
+| 2000 | 0.484 | 0.365 | 1.32x | 1.31x-1.34x | 2.3% | 0.117 |
 
-`import pyegui` is 7.7 ms.
+`import pyegui` is 7.277 ms.
 
-**The ratio does not scale with widget count, which is the finding.** The
-expectation was that a fixed per-call toll amortises over more of egui's own
-work, so the ratio should fall as widgets rise. It does not: 1.33x, 1.30x,
-1.33x, which is inside run-to-run noise. A 2000-widget frame is 1.03 ms
-through pyegui against 0.78 ms in Rust, or about 6% of egui's 16.7 ms budget
-at 60 fps, so the binding is not what a profiler would point at. The point
-where it would matter is the tens of thousands of widgets, not the thousands
-measured here.
+**Two findings, and the second is the one that was nearly missed.**
 
-This supersedes the earlier single-count run (37061272948), which reported
-1.84x at 500 widgets. That figure is not wrong as a measurement of that run;
-it was quoted as though it described the binding, and it does not. Two
-changes moved it: the widget count is now an input rather than a constant, and
-the combine step refuses to compute a ratio unless both sides report the same
-widget count and frame count — the two halves had drifted apart before, and a
-ratio between different workloads is indistinguishable from a real one.
+The ratio is flat: 1.33x, 1.33x, 1.32x across 50, 500 and 2000 widgets. The
+expectation was that a fixed per-call toll would amortise over more of egui's
+own work as the frame grows, so the ratio should fall. It does not, over a 40x
+range. The binding is not a per-call tax that widget density dilutes.
 
-Remaining, all of them about making the measurement more trustworthy rather than
-about finding a better number:
+Within one run the measurement is tight — every ratio falls between 1.31x and
+1.34x, a spread of 0.8% to 2.3%. The 1.30x/1.52x/1.38x-1.55x range recorded
+across three earlier runs was therefore *not* measurement noise within a run. It
+was variation between runs, i.e. between different hosted machines. That is a
+much better problem to have, and it means the ratio itself is a real and stable
+property while the absolute microseconds are not portable.
 
-- [x] Re-run at a second widget count. Done at 50/500/2000, in one run so the
-      ratios are comparable with each other. The count is `WIDGETS` on both
-      sides, so the workflow no longer measures 500 whatever it is asked for.
+A 2000-widget frame is 1.03 ms through pyegui against 0.78 ms in Rust, about
+6% of egui's 16.7 ms budget at 60 fps. Where the overhead would start to matter
+is the tens of thousands of widgets, not the thousands measured here.
+
+- [x] Re-run at a second widget count, and at five trials each
 - [x] Record the runner class, with the note that the ratios are the portable
       part and the absolute microseconds are not
+- [x] Establish the run-to-run spread. Within a run it is under 2.5%; between
+      runs it is 1.30x-1.55x, which is hosted-machine variation rather than
+      anything about the binding
 - [ ] Measure a heavier widget (image, text edit, drag) — `label` is the
       cheapest path through the binding and may flatter it
-- [ ] Establish the run-to-run spread. The three counts above differ by up to
-      25% in absolute per-widget cost on one runner, so the flat ratio rests on
-      a single sample per count; a second run of the same counts would say
-      whether 1.30x and 1.33x are one number or two
+- [ ] Say in the README that the absolute microseconds are runner-specific and
+      the ratio is the portable part. The current text implies the microseconds
+      transfer between machines, which the between-run spread shows they do not.
+
+Trials are the outer loop and widget counts the inner, deliberately: the
+reverse order measures 50 widgets on a cool machine and 2000 on a warm one, and
+that gradient is indistinguishable from a real effect of widget count.
 
 The question worth answering is not "is Python fast" but "what does the binding
 add on top of egui". Rendering speed is egui's and identical either way, so a
@@ -309,20 +310,20 @@ worse than measuring nothing, since it puts a figure next to the word
 - [x] `bench/src/main.rs` — egui baseline: N labels/frame, 61 frames, timed
       around building the frame
 - [x] `bench/bench.py` — the same work through pyegui
-- [x] `.github/workflows/benchmark.yml` — builds both, writes
-      `bench/results/combined.json`, prints the comparison to the run summary
+- [x] `.github/workflows/benchmark.yml` — builds both, takes `widgets` and
+      `trials`, writes `bench/results/combined.json`, prints medians and spread
+      to the run summary
 - [x] Both exclude eframe's compositing from the measurement
 - [x] `min` reported alongside the mean: `min` is the cost of the call itself,
       the mean folds in whatever else the runner was doing
-- [ ] Record results on the runner class used, since a GitHub runner is shared
-      and slower than a laptop — the ratios are the portable part, the
-      absolutes are not
 - [x] `bench/hello_egui.rs` + `bench/hello_pyegui.py` — the same app in each
       language, for the ergonomics claim that timings cannot support
 - [x] Both benchmark halves request repaints and draw a panel, so they measure
       the same work. They had drifted: the Rust side repainted, the Python side
       did not, and the labels sat outside any panel on the Python side. Both
       bugs were found by running the benchmark, not by reading it
+- [x] Trials are interleaved with counts, and the median is reported with its
+      min-max, so runner noise is visible rather than summarised away
 
 Deliberately **not** claimed:
 
@@ -334,16 +335,14 @@ Deliberately **not** claimed:
 - [ ] **First frame folded into the steady-state average.** The first frame
       includes shader compilation, texture upload and font rasterisation, none
       of which recur. It is reported as a separate line.
-- [ ] **A single blended "performance" score.** Overhead varies with widget
-      count; a ratio measured at 500 labels/frame does not transfer to 50 or
-      5,000.
+- [ ] **A single blended "performance" score.** The per-widget cost differs
+      between 50 and 500 widgets, and one figure would hide that.
 
-**Ergonomics is the stronger claim and is not yet measured.** The API point is
-that a complete egui app is expressible in Python without losing interaction
-state, and that reading `Response` does not mean learning a second framework.
-That is a claim about the examples, not about timing, and it should be
-demonstrated by a side-by-side of one example in each language rather than
-asserted. Same workload, same widgets, same number of lines — count them.
+**Ergonomics is the stronger claim and is not measured by timing.** The API
+point is that a complete egui app is expressible in Python without losing
+interaction state, and that reading `Response` does not mean learning a second
+framework. That is a claim about the examples, demonstrated by the side-by-side
+of `bench/hello_egui.rs` and `bench/hello_pyegui.py` rather than asserted.
 
 ---
 

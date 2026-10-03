@@ -2,7 +2,7 @@
 
 ## Current state
 
-Branch `feature/egui-0.31-coverage`, 11 commits ahead of `main`. `main` is
+Branch `feature/egui-0.31-coverage`, 13 commits ahead of `main`. `main` is
 deliberately untouched at `1e16c16` and must stay that way until the 0.31.1
 work is done; see "Branch policy" below.
 
@@ -12,7 +12,7 @@ Latest runs, all green: `check` 37104300409, `examples` 37104300424,
 **174 exported names** — 18 classes, 156 functions (110 plain + 46
 `*_response`), clippy at 0 diagnostics.
 
-TODO totals: **35 open, 7 partial, 38 done.** §3 (containers) is closed.
+TODO totals: **34 open, 7 partial, 40 done.** §3 (containers) is closed.
 
 | Section | open | partial | done |
 | --- | ---: | ---: | ---: |
@@ -23,7 +23,7 @@ TODO totals: **35 open, 7 partial, 38 done.** §3 (containers) is closed.
 | §5 Context API | 9 | 2 | 0 |
 | §6 Builder options on existing widgets | 7 | 0 | 0 |
 | §7 egui_extras | 4 | 1 | 0 |
-| §7 Benchmarks | 6 | 0 | 9 |
+| §7 Benchmarks | 5 | 0 | 11 |
 
 Shipped since the previous handoff:
 
@@ -37,6 +37,8 @@ Shipped since the previous handoff:
 | `851cdc5` | Scene screenshot into the README and gallery. |
 | `9098a27` | Layout, sizing, measurement, `push_id`, `columns`. 146 → 174. |
 | `2a67f6f` | README renamed to Markdown. |
+| `95cea3c` | Handoff doc and TODO §3 brought up to date. |
+| `b0918e7` | Benchmark measures 5 trials per count and reports median + spread. |
 
 ## Constraints
 
@@ -236,29 +238,52 @@ verification for Rust changes under `bench/` is a `benchmark` run.
 Roughly 3 minutes for `check`, 5–6 for `benchmark`. `make build`,
 `make build-manylinux`, `make develop` and `make doc` all cannot run locally.
 
-## The benchmark is not yet a stable number
+## The benchmark: solved, and what it says
 
-Three runs of identical code on a GitHub-hosted runner:
+Measured over 5 trials at 3 widget counts, run 37106337662:
 
-| Run | 50 widgets | 500 widgets | 2000 widgets |
-| --- | ---: | ---: | ---: |
-| 37093530513 | 1.33x | 1.30x | 1.33x |
-| 37097926441 | 1.53x | 1.52x | 1.52x |
-| 37101858384 | 1.55x | 1.48x | 1.38x |
+| widgets/frame | pyegui us | egui us | ratio median | min-max | spread |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 50 | 0.600 | 0.453 | 1.33x | 1.31x-1.34x | 1.7% |
+| 500 | 0.487 | 0.365 | 1.33x | 1.33x-1.34x | 0.8% |
+| 2000 | 0.484 | 0.365 | 1.32x | 1.31x-1.34x | 2.3% |
 
-A 1.30–1.55 spread, and the within-run spread across counts is about as large
-as the between-run spread. The README quotes **1.30x**, from the first run
-only, and says so — but it is one sample of a noisy measurement, and the
-flat-ratio finding ("the ratio does not move with widget count") rests on a
-single sample per count.
+`import pyegui` 7.277 ms. Reproduce with:
 
-TODO §7 carries this as an open item: *establish the run-to-run spread*. The
-plan under discussion is repeated trials per count, reporting a median and a
-spread rather than a point estimate. Comparing medians across trials is the
-part that matters — whether the ratio is genuinely flat or an artifact of
-runner noise cannot be answered from one run per count.
+```bash
+gh workflow run benchmark --repo ChetanKnowIT/pyegui \
+  --ref feature/egui-0.31-coverage -f widgets='50,500,2000' -f trials='5'
+```
 
-Do not quote a new figure in the README until that is done.
+**Two findings.**
+
+The ratio is flat -- 1.33x, 1.33x, 1.32x across a 40x range of widget counts.
+A fixed per-call toll was expected to amortise as frames grow, so the ratio
+should have fallen. It does not, so the binding is not a per-call tax that
+widget density dilutes.
+
+Within a run the spread is under 2.5%. The 1.30x / 1.52x / 1.38x-1.55x range
+across three earlier runs was therefore **not** within-run noise -- it was
+variation between hosted machines. That is the better outcome: the ratio is a
+real, stable property of the binding, while the absolute microseconds are
+specific to a runner and do not transfer.
+
+Two design decisions in the workflow are what made this visible, and both are
+easy to undo by accident:
+
+- **Trials are the outer loop, widget counts the inner.** Counts-outer measures
+  50 widgets on a cool machine and 2000 on a warm one, and that gradient looks
+  exactly like a real effect of widget count. Interleaving is the only reason
+  the flatness can be trusted.
+- **The median with its min-max, not a mean.** A shared runner has outliers;
+  one slow trial drags a mean away from the typical case.
+
+Files are `pyegui-<count>-t<trial>.json`, and the combine step re-reads the
+count from the payload to check it against the filename.
+
+**Still to do:** the README's Performance section still quotes 1.30x from the
+first single-trial run and does not say that the absolute microseconds are
+runner-specific. It should be rewritten against the table above.
 
 ## Settled decisions
 
@@ -288,8 +313,10 @@ without new information.
 
 ## Next up, in order
 
-1. **The benchmark spread** (§7) — the measurement is currently the least
-   trustworthy number in the repo, and the README quotes it.
+1. **Rewrite the README's Performance section** against the 5-trial table. It
+   still quotes 1.30x from the first single-trial run, and it does not say that
+   the absolute microseconds are runner-specific while the ratio is the portable
+   part. That is the last known-wrong number in the documentation.
 2. **Builder options (§6)** — the largest single block: `Slider` 23 options,
    `TextEdit` 18, `DragValue` 13, `DatePickerButton` 12, `run_native` viewport
    kwargs 20, `NativeOptions` 11, plus `App::save` / `Storage`.
@@ -303,6 +330,10 @@ without new information.
    `egui::Layout`, which the existing `Layout` / `LayoutType` classes do not
    cover), `UiBuilder` / `scope_builder` / `new_child`, `interact`, and
    `painter` access for custom drawing.
+7. **Benchmark, one heavier widget** — `label` is the cheapest path through the
+   binding and may flatter it. Lower priority now that the ratio is known to be
+   stable, since the question it answers is whether the cost scales with widget
+   complexity rather than count.
 
 ## House rules for this repo
 
