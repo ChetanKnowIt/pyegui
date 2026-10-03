@@ -126,16 +126,21 @@ The rest of this section is real work against real 0.31.1 APIs.
       egui's `Resize::show` takes a `&mut Ui`.
 - [x] `Scene` — `scene(contents, view, **options)`, plus the `Rect` class it
       reads and writes. `zoom_range`, `max_inner_size`.
-- [ ] `CollapsingHeader` — only the `collapsing` helper exists. Missing
-      `default_open`, `show_background`, `icon`, `open` toggling,
-      `CollapsingState` access
-- [~] `Frame` — only `Frame::group`. Missing `fill`, `stroke`,
-      `corner_radius`, `inner_margin`, and the presets (`popup`, `menu`,
-      `window`, `canvas`, `central_panel`, `side_top_panel`)
-- [~] `ScrollArea` — only vertical/horizontal. Missing `both`, `max_width`,
-      `max_height`, `min_scrolled_width`, `min_scrolled_height`,
-      `scroll_bar_visibility`, `id_source`
-- [ ] `menu_button` / `menu_image_button` / `menu_image_text_button`
+- [x] `CollapsingHeader` — `collapsing_response` with `default_open`, `open`,
+      `enabled`, `show_background`, `id_salt`/`id_source`, plus the original
+      `collapsing`, which now passes options through
+- [x] `Frame` — `frame` plus all eight presets as `frame_group`,
+      `frame_popup`, `frame_menu`, `frame_window`, `frame_canvas`,
+      `frame_dark_canvas`, `frame_central_panel`, `frame_side_top_panel`, with
+      `fill`, `stroke`, `corner_radius`/`rounding`, `inner_margin`,
+      `outer_margin`, `multiply_with_opacity`
+- [x] `ScrollArea` — `scroll_area_both` added, and all three take
+      `max_width`, `max_height`, `min_scrolled_width`, `min_scrolled_height`,
+      `scroll_bar_visibility`, `id_source`/`id_salt`, `auto_shrink`,
+      `animated`, `drag_to_scroll`, `stick_to_right`, `stick_to_bottom`
+- [x] `menu_button` / `menu_image_button` / `menu_image_text_button`
+
+TODO section 3 is closed apart from the two names that do not exist in 0.31.1.
 
 ## 4. Layout, sizing and geometry
 
