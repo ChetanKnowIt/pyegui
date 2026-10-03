@@ -35,6 +35,7 @@ Run under Xvfb, since eframe opens a real window:
 """
 
 import json
+import os
 import statistics
 import sys
 import time
@@ -42,7 +43,11 @@ import time
 import pyegui
 from pyegui import *  # noqa: F401,F403  -- names come from the star import
 
-WIDGETS_PER_FRAME = 500
+# Overhead scales with widget count, so a single figure at one count describes
+# no other. `WIDGETS` lets the workflow re-run this at a second count without a
+# code change; `bench/src/main.rs` reads the same variable, so both sides always
+# measure the same thing.
+WIDGETS_PER_FRAME = int(os.environ.get("WIDGETS", "500"))
 STEADY_FRAMES = 60
 
 # Fill a frame with work, and report how long the frame body took rather than

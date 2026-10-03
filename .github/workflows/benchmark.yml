@@ -19,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       widgets:
-        description: 'Widgets per frame'
+        description: 'Widgets per frame, comma separated (e.g. 50,500,2000)'
         required: false
         default: '500'
 
@@ -89,6 +89,32 @@ jobs:
 
           mkdir -p bench/results
 
+          # Overhead scales with widget count, so one figure at one count
+          # describes no other count. The input is a comma separated list and
+          # every count is measured in this one run: a ratio measured on a
+          # different day on a different runner is not comparable to one taken
+          # today, which is the whole reason the README quotes ratios.
+          WIDGET_COUNTS="${WIDGETS:-500}"
+          # Blank entries, e.g. "50,,2000" or a trailing comma from a copy/paste.
+          WIDGET_COUNTS="$(printf '%s' "$WIDGET_COUNTS" | tr ',' ' ')"
+          for count in $WIDGET_COUNTS; do
+            case "$count" in
+              ''|*[!0-9]*)
+                echo "widget counts must be positive integers, got '$count'" >&2
+                exit 2
+                ;;
+            esac
+            if [ "$count" -lt 1 ]; then
+              echo "widget count must be at least 1, got '$count'" >&2
+              exit 2
+            fi
+          done
+          if [ -z "$(printf '%s' "$WIDGET_COUNTS" | tr -d ' ')" ]; then
+            echo "no widget count given" >&2
+            exit 2
+          fi
+          echo "widget counts: ${WIDGET_COUNTS}"
+
           # import cost, in a fresh interpreter so the module is not already up
           python -c "
           import json, subprocess, sys, time
@@ -103,12 +129,29 @@ jobs:
           print('import pyegui:', round(best, 3), 'ms')
           "
 
-          # Bounded, so a stall surfaces as a timeout rather than a hung job:
-          # the previous attempt sat for 25 minutes with no output.
-          timeout 300 python bench/bench.py | tee bench/results/pyegui.json
+          # Both sides are timed from the same loop, and each count gets its own
+          # files, so a second count cannot overwrite the first. The Rust binary
+          # is built once, outside the loop: cargo caches it, and an unbuilt
+          # release binary would otherwise be compiled inside the measured run.
+          # The binary is named after the package (pyegui-bench), not `bench`.
+          cargo build --release --quiet --manifest-path bench/Cargo.toml
+          test -x bench/target/release/pyegui-bench
 
-          timeout 600 cargo run --release --quiet --manifest-path bench/Cargo.toml \
-            | tee bench/results/egui.json
+          for count in $WIDGET_COUNTS; do
+            echo "=== ${count} widgets per frame ==="
+
+            # Bounded, so a stall surfaces as a timeout rather than a hung job:
+            # an earlier attempt sat for 25 minutes with no output. `set -o
+            # pipefail` is already on, so a timeout fails the step rather than
+            # being masked by tee's exit status -- otherwise a killed benchmark
+            # would write a truncated file and the combine step would read a
+            # half-finished run as if it were a result.
+            WIDGETS="${count}" timeout 300 python bench/bench.py \
+              | tee "bench/results/pyegui-${count}.json"
+
+            WIDGETS="${count}" timeout 600 bench/target/release/pyegui-bench \
+              | tee "bench/results/egui-${count}.json"
+          done
 
       - name: Combine and compare
         run: |
@@ -116,32 +159,71 @@ jobs:
           python - <<'PY'
           import json
           import pathlib
+          import re
 
           results = pathlib.Path("bench/results")
-          pyegui = json.loads((results / "pyegui.json").read_text())
-          egui = json.loads((results / "egui.json").read_text())
           imp = json.loads((results / "import.json").read_text())
 
-          py_per = pyegui["per_widget_us"]["min"]
-          rs_per = egui["per_widget_us"]["min"]
-          py_first = pyegui["first_frame_ms"]
-          rs_first = egui["first_frame_ms"]
+          # Every count that was measured, keyed by the count itself. File names
+          # carry the count so nothing is overwritten, and the count is read back
+          # out of the payload as well -- a file named 2000 that reports 500
+          # would mean the two sides measured different workloads.
+          #
+          # `search`, not `match`: the stem is `pyegui-500`, so the digits are
+          # at the end and `match` would anchor to the front and find nothing.
+          counts = sorted(
+              int(m.group(1))
+              for m in (re.search(r"(\d+)$", p.stem) for p in results.glob("pyegui-*.json"))
+              if m
+          )
+          if not counts:
+              raise SystemExit("no benchmark results to combine")
 
-          combined = {
-              "python": pyegui,
-              "rust": egui,
-              "import": imp,
-              "comparison": {
-                  "per_widget_ratio": round(py_per / rs_per, 2),
-                  "first_frame_ratio": round(py_first / rs_first, 2),
-                  "steady_frame_ratio": round(
-                      pyegui["steady_frame_ms"]["min"] / egui["steady_frame_ms"]["min"], 2
-                  ),
-              },
-          }
+          by_count = {}
+          for count in counts:
+              pyegui = json.loads((results / f"pyegui-{count}.json").read_text())
+              egui = json.loads((results / f"egui-{count}.json").read_text())
 
+              # The two sides have drifted before (one repainted and one did
+              # not), so confirm they measured the same workload before
+              # comparing them. A ratio between different workloads is a
+              # meaningless number, and it looks like a real one.
+              for field in ("widgets_per_frame", "frames_measured"):
+                  if pyegui[field] != egui[field]:
+                      raise SystemExit(
+                          f"{field} mismatch at {count} widgets: pyegui measured "
+                          f'{pyegui[field]}, egui measured {egui[field]} -- the '
+                          "ratio would be comparing two different workloads"
+                      )
+
+              py_per = pyegui["per_widget_us"]["min"]
+              rs_per = egui["per_widget_us"]["min"]
+              py_first = pyegui["first_frame_ms"]
+              rs_first = egui["first_frame_ms"]
+
+              by_count[str(count)] = {
+                  "python": pyegui,
+                  "rust": egui,
+                  "comparison": {
+                      "per_widget_ratio": round(py_per / rs_per, 2),
+                      "first_frame_ratio": round(py_first / rs_first, 2),
+                      "steady_frame_ratio": round(
+                          pyegui["steady_frame_ms"]["min"] / egui["steady_frame_ms"]["min"], 2
+                      ),
+                      # The absolute cost of crossing the binding, per widget.
+                      # Unlike the ratio this is not portable across machines,
+                      # but it is what a reader can do arithmetic with.
+                      "per_widget_extra_us": round(py_per - rs_per, 3),
+                  },
+              }
+              print(
+                  f"{count} widgets/frame: "
+                  f'per widget {py_per} us (pyegui) vs {rs_per} us (egui) '
+                  f'= {by_count[str(count)]["comparison"]["per_widget_ratio"]}x'
+              )
+
+          combined = {"import": imp, "by_widget_count": by_count}
           (results / "combined.json").write_text(json.dumps(combined, indent=2))
-          print(json.dumps(combined["comparison"], indent=2))
           PY
 
       - name: Summarise
@@ -150,26 +232,46 @@ jobs:
           {
             echo "### pyegui vs egui"
             echo
-            echo '| metric | pyegui | egui (Rust) | ratio |'
-            echo '| --- | ---: | ---: | ---: |'
+            echo "One row per widget count: the ratio is measured in a single run on"
+            echo "a single runner, so these rows are comparable with each other."
+            echo
+            echo '| widgets/frame | per widget pyegui (us) | per widget egui (us) | ratio | extra per widget (us) |'
+            echo '| ---: | ---: | ---: | ---: | ---: |'
             python - <<'PY'
           import json, pathlib
           c = json.loads((pathlib.Path("bench/results") / "combined.json").read_text())
-          py, rs, cmp_ = c["python"], c["rust"], c["comparison"]
-          rows = [
-              ("per widget (us, min)",
-               py["per_widget_us"]["min"], rs["per_widget_us"]["min"],
-               cmp_["per_widget_ratio"]),
-              ("first frame (ms)",
-               py["first_frame_ms"], rs["first_frame_ms"],
-               cmp_["first_frame_ratio"]),
-              ("steady frame (ms, min)",
-               py["steady_frame_ms"]["min"], rs["steady_frame_ms"]["min"],
-               cmp_["steady_frame_ratio"]),
-          ]
-          for name, a, b, r in rows:
-              print(f"| {name} | {a} | {b} | {r}x |")
-          print(f"| `import pyegui` (ms) | {c['import']['import_pyegui_ms']} | n/a (statically linked) | - |")
+          by_count = c["by_widget_count"]
+
+          def us(value):
+              # Fixed to 4 dp, not repr: a float straight out of json prints as
+              # 0.049100000000000005, which is a binary fraction being displayed,
+              # not a measurement. 1 ns is well past the noise here.
+              return f"{value:.4f}".rstrip("0").rstrip(".") or "0"
+
+          for count in sorted(by_count, key=int):
+              entry = by_count[count]
+              py, rs, cmp_ = entry["python"], entry["rust"], entry["comparison"]
+              print(
+                  f'| {count} '
+                  f'| {us(py["per_widget_us"]["min"])} '
+                  f'| {us(rs["per_widget_us"]["min"])} '
+                  f'| {cmp_["per_widget_ratio"]}x '
+                  f'| {us(cmp_["per_widget_extra_us"])} |'
+              )
+          print()
+          print('| widgets/frame | first frame pyegui (ms) | first frame egui (ms) | ratio |')
+          print('| ---: | ---: | ---: | ---: |')
+          for count in sorted(by_count, key=int):
+              entry = by_count[count]
+              py, rs, cmp_ = entry["python"], entry["rust"], entry["comparison"]
+              print(
+                  f'| {count} '
+                  f'| {us(py["first_frame_ms"])} '
+                  f'| {us(rs["first_frame_ms"])} '
+                  f'| {cmp_["first_frame_ratio"]}x |'
+              )
+          print()
+          print(f'`import pyegui`: {us(c["import"]["import_pyegui_ms"])} ms (n/a for Rust)')
           PY
           } >> "$GITHUB_STEP_SUMMARY"
 

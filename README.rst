@@ -169,7 +169,7 @@ Performance
 
 pyegui is a binding, not a faster egui. Rendering is egui's work and identical
 either way, so the only honest question is what the binding adds on top. Both
-sides below do the same work -- 500 labels per frame, 61 frames, timed
+sides below do the same work -- 500 labels per frame, 60 frames, timed
 around building the frame -- measured by ``bench/bench.py`` and
 ``bench/src/main.rs`` and run together by ``.github/workflows/benchmark.yml``.
 

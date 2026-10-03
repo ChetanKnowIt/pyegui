@@ -23,8 +23,18 @@ use std::time::Instant;
 
 use eframe::egui;
 
-const WIDGETS_PER_FRAME: usize = 500;
 const STEADY_FRAMES: usize = 60;
+
+/// Widgets per frame. Overhead scales with widget count, so the count is an
+/// input rather than a constant: `WIDGETS` lets the workflow re-run the
+/// comparison at a second count without a code change. `bench/bench.py` reads
+/// the same variable, so both sides always measure the same thing.
+fn widgets_per_frame() -> usize {
+    std::env::var("WIDGETS")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(500)
+}
 
 #[derive(Default)]
 struct Bench {
@@ -32,6 +42,9 @@ struct Bench {
     first_frame_ms: Option<f64>,
     steady: Vec<f64>,
     frame_index: usize,
+    // Read once in main, not per frame: `std::env` in the measured path would be
+    // this benchmark's own overhead rather than the binding's.
+    widgets: usize,
 }
 
 impl eframe::App for Bench {
@@ -43,7 +56,7 @@ impl eframe::App for Bench {
         egui::CentralPanel::default().show(ctx, |ui| {
             let t0 = Instant::now();
 
-            for i in 0..WIDGETS_PER_FRAME {
+            for i in 0..self.widgets {
                 ui.label(format!("row {i}"));
             }
 
@@ -94,11 +107,11 @@ impl Bench {
             0.0
         };
 
-        let per_widget_us = |ms: f64| ms / WIDGETS_PER_FRAME as f64 * 1000.0;
+        let per_widget_us = |ms: f64| ms / self.widgets as f64 * 1000.0;
 
         println!("{{");
         println!("  \"language\": \"rust\",");
-        println!("  \"widgets_per_frame\": {WIDGETS_PER_FRAME},");
+        println!("  \"widgets_per_frame\": {},", self.widgets);
         println!("  \"frames_measured\": {},", self.steady.len());
         println!(
             "  \"first_frame_ms\": {:.4},",
@@ -129,6 +142,11 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "bench",
         options,
-        Box::new(|_cc| Ok(Box::new(Bench::default()))),
+        Box::new(|_cc| {
+            Ok(Box::new(Bench {
+                widgets: widgets_per_frame(),
+                ..Default::default()
+            }))
+        }),
     )
 }

@@ -210,7 +210,7 @@ a positional label reach the builders.
 **Status: measured (run 37061272948) and in the README. The result is 1.84x per
 widget, not "almost no overhead" — the README says so plainly.**
 
-Measured, 500 labels/frame, 61 frames, both sides, on a GitHub-hosted runner:
+Measured, 500 labels/frame, 60 frames, both sides, on a GitHub-hosted runner:
 
 | metric | pyegui | egui (Rust) | ratio |
 | --- | ---: | ---: | ---: |
