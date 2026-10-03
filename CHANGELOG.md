@@ -69,6 +69,39 @@ then takes the space that is left over.
 - Unknown container options raise `ValueError` naming every valid option,
   rather than being ignored.
 
+**Frames, scroll areas, collapsing headers and menus**
+
+egui 0.31.1 has no menu-bar container and no `Popup` type. Its menu surface is
+`menu_button` and its two image variants plus `close_menu`, and a
+`menu_button` inside a `menu_button` is a submenu. Both the capability and the
+popup surface are shipped here under those real names.
+
+- `frame(contents, **options)` — `egui::Frame`, built from scratch, with
+  `fill`, `stroke`, `corner_radius` (and egui's alias `rounding`),
+  `inner_margin`, `outer_margin` and `multiply_with_opacity`.
+- `frame_group`, `frame_popup`, `frame_menu`, `frame_window`, `frame_canvas`,
+  `frame_dark_canvas`, `frame_central_panel`, `frame_side_top_panel` — egui's
+  eight presets. Each is an associated function in Rust, so each is a
+  constructor here; all read the current style, so they look right in any
+  theme.
+- `scroll_area_vertical`, `scroll_area_horizontal` and the new
+  `scroll_area_both`, all now accepting `max_width`, `max_height`,
+  `min_scrolled_width`, `min_scrolled_height`, `scroll_bar_visibility`,
+  `id_source`, `id_salt`, `auto_shrink`, `animated`, `drag_to_scroll`,
+  `stick_to_right` and `stick_to_bottom`.
+- `collapsing_response(heading, update_fun, open=None, **options)` — the
+  header's `Response`, with `default_open`, `enabled`, `show_background`,
+  `id_salt`, `id_source` and an optional `Bool` for `open`. `collapsing` remains
+  and now passes its options through.
+- `menu_button(text, contents)`, `menu_image_button(source, contents)` and
+  `menu_image_text_button(source, text, contents)` — egui's popup menu. Images
+  are URIs, as for `image`.
+
+Margins and corner radii accept a single number or a 2- or 4-sequence;
+colours accept either a `Color32` or an `(r, g, b, a)` tuple.
+
+See `examples/menus_and_popups.py`.
+
 `modal` returns `True` when the backdrop is clicked, which is the signal to
 dismiss it -- egui's `ModalResponse` has no `should_close`, and its
 `is_top_modal` field answers "am I the topmost modal", which a lone modal
