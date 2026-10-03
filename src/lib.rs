@@ -3046,6 +3046,194 @@ unsafe fn menu_image_text_button(
     })
 }
 
+/// A rectangle, mirroring `egui::Rect`.
+///
+/// egui's is two corners (`min` and `max`), not a position and a size. This is
+/// the value `scene` reads and writes between frames: egui mutates it as the
+/// user pans and zooms, so it has to survive across frames.
+///
+/// Usage::
+///
+///     view = Rect((0.0, 0.0), (1000.0, 1000.0))
+#[pyclass]
+#[derive(Clone, Copy)]
+struct Rect {
+    #[pyo3(get, set)]
+    min_x: f32,
+    #[pyo3(get, set)]
+    min_y: f32,
+    #[pyo3(get, set)]
+    max_x: f32,
+    #[pyo3(get, set)]
+    max_y: f32,
+}
+
+#[pymethods]
+impl Rect {
+    /// A rectangle from its minimum corner and its size.
+    ///
+    /// This is how a scene is usually set up: the region of content to show.
+    #[new]
+    #[pyo3(signature = (min=(0.0, 0.0), size=(0.0, 0.0)))]
+    fn new(min: (f32, f32), size: (f32, f32)) -> Self {
+        Rect {
+            min_x: min.0,
+            min_y: min.1,
+            max_x: min.0 + size.0,
+            max_y: min.1 + size.1,
+        }
+    }
+
+    /// Build from a minimum corner and a maximum corner, egui's own `Rect`.
+    #[staticmethod]
+    fn from_corners(min: (f32, f32), max: (f32, f32)) -> Self {
+        Rect {
+            min_x: min.0,
+            min_y: min.1,
+            max_x: max.0,
+            max_y: max.1,
+        }
+    }
+
+    /// egui's `Rect::ZERO`, which `scene` treats as "no view yet" and resets.
+    #[staticmethod]
+    fn zero() -> Self {
+        Rect {
+            min_x: 0.0,
+            min_y: 0.0,
+            max_x: 0.0,
+            max_y: 0.0,
+        }
+    }
+
+    #[getter]
+    fn min(&self) -> (f32, f32) {
+        (self.min_x, self.min_y)
+    }
+
+    #[getter]
+    fn max(&self) -> (f32, f32) {
+        (self.max_x, self.max_y)
+    }
+
+    #[getter]
+    fn size(&self) -> (f32, f32) {
+        (self.max_x - self.min_x, self.max_y - self.min_y)
+    }
+
+    #[getter]
+    fn width(&self) -> f32 {
+        self.max_x - self.min_x
+    }
+
+    #[getter]
+    fn height(&self) -> f32 {
+        self.max_y - self.min_y
+    }
+
+    #[getter]
+    fn center(&self) -> (f32, f32) {
+        (
+            (self.min_x + self.max_x) / 2.0,
+            (self.min_y + self.max_y) / 2.0,
+        )
+    }
+
+    /// egui's `is_finite`. `scene` uses this to decide whether the stored view
+    /// is usable or needs resetting.
+    fn is_finite(&self) -> bool {
+        self.min_x.is_finite()
+            && self.min_y.is_finite()
+            && self.max_x.is_finite()
+            && self.max_y.is_finite()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Rect(min=({:.1}, {:.1}), max=({:.1}, {:.1}))",
+            self.min_x, self.min_y, self.max_x, self.max_y
+        )
+    }
+}
+
+impl From<&Rect> for egui::Rect {
+    fn from(rect: &Rect) -> Self {
+        egui::Rect::from_min_max(
+            egui::Pos2::new(rect.min_x, rect.min_y),
+            egui::Pos2::new(rect.max_x, rect.max_y),
+        )
+    }
+}
+
+/// Builder options for `egui::Scene`, matching its setters exactly.
+const SCENE_OPTIONS: &[&str] = &["zoom_range", "max_inner_size"];
+
+/// A pan-and-zoom canvas, mirroring `egui::Scene`.
+///
+/// A scene takes over the space its parent `Ui` has left, and lets the user drag
+/// to pan and scroll to zoom. The visible region is a `Rect` that egui reads
+/// and writes as the user interacts, so it has to be the same object every
+/// frame -- pass the same one each time, not a fresh one.
+///
+/// Start it at `Rect.zero()` and egui will fit the contents on the first frame;
+/// or give it a region up front with `Rect((0.0, 0.0), (w, h))`.
+///
+/// `zoom_range` is egui's `(min, max)`. The default, `(0.0, 1.0)`, allows
+/// zooming out arbitrarily but not in past 1:1; pass something like
+/// `(0.0, float("inf"))` to allow zooming in. Text gets blurry when zoomed in
+/// past 1:1 -- egui issue 4813.
+///
+/// Example::
+///
+///     view = Rect.zero()
+///     zoom = Float(1.0)
+///
+///     def contents():
+///         label("drag to pan, scroll to zoom")
+///         label(f"zoom {zoom.value:.2f}")
+///
+///     def main():
+///         scene(contents, view, zoom_range=(0.1, 4.0))
+#[pyfunction]
+#[pyo3(signature = (contents, view, **options))]
+unsafe fn scene(
+    contents: Bound<'_, PyAny>,
+    view: &mut Rect,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let mut builder = egui::Scene::new();
+
+    if let Some(opts) = options {
+        validate_options(opts, SCENE_OPTIONS)?;
+        if let Some(v) = opt_range(opts, "zoom_range")? {
+            builder = builder.zoom_range(v);
+        }
+        if let Some(v) = opt_vec2(opts, "max_inner_size")? {
+            builder = builder.max_inner_size(v);
+        }
+    }
+
+    // egui mutates the rect as the user pans and zooms, and reads it to decide
+    // what to show. Converting by reference and writing it back keeps the
+    // Python-side object as the single source of truth across frames.
+    let mut inner = egui::Rect::from(view);
+
+    let shown = builder.show(ui, &mut inner, |ui| {
+        run_nested_update_func_lossy(ui, contents.clone())
+    });
+
+    view.min_x = inner.min.x;
+    view.min_y = inner.min.y;
+    view.max_x = inner.max.x;
+    view.max_y = inner.max.y;
+
+    Ok(Response {
+        inner: shown.response,
+    })
+}
+
 /// Create a child ui which is indented to the right.
 /// Example::
 ///
@@ -4413,6 +4601,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scope>()?;
     m.add_class::<Group>()?;
     m.add_class::<Response>()?;
+    m.add_class::<Rect>()?;
     m.add_class::<PointerButton>()?;
     m.add_class::<RGBA>()?;
     m.add_class::<HSVA>()?;
@@ -4459,6 +4648,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scroll_area_vertical, m)?)?;
     m.add_function(wrap_pyfunction!(scroll_area_horizontal, m)?)?;
     m.add_function(wrap_pyfunction!(scroll_area_both, m)?)?;
+    m.add_function(wrap_pyfunction!(scene, m)?)?;
     m.add_function(wrap_pyfunction!(scope, m)?)?;
     m.add_function(wrap_pyfunction!(slider_float, m)?)?;
     m.add_function(wrap_pyfunction!(slider_int, m)?)?;

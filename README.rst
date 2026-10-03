@@ -66,7 +66,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **144 names** today: 17 classes, 127 functions and 45
+The API surface is **146 names** today: 18 classes, 128 functions and 46
 ``*_response`` variants. This number comes from the ``check`` job, which builds
 the wheel and asserts the module's exports against
 `tests/expected_exports.py
@@ -133,13 +133,14 @@ Available now
 - Frames: ``frame``, ``frame_group``, ``frame_popup``, ``frame_menu``,
   ``frame_window``, ``frame_canvas``, ``frame_dark_canvas``,
   ``frame_central_panel``, ``frame_side_top_panel``
+- Pan and zoom: ``scene``, with a ``Rect`` to hold the visible region
 - Menus: ``menu_button``, ``menu_image_button``, ``menu_image_text_button``,
   ``close_menu``
 - Ui state: ``disable``, ``add_enabled``, ``set_invisible``,
   ``set_opacity``, ``add_space``, ``separator``, ``close_menu``
 - App: ``run_native`` with viewport kwargs, ``Context`` (theme, fonts,
   ``open_url``, ``copy_text``, ``close``, ``request_repaint``)
-- State holders: ``Str``, ``Bool``, ``Int``, ``Float``, ``Date``
+- State holders: ``Str``, ``Bool``, ``Int``, ``Float``, ``Date``, ``Rect``
 - Colours: ``RGB``, ``RGBA``, ``HSVA``, ``Color32``, ``SRGB``
 
 Containers take egui's own builder options as keyword arguments, and an
@@ -359,9 +360,6 @@ API this would wrap.
 - ``with_layout``, ``wrap_mode``, ``push_id``, ``unique_id``
 - ``UiBuilder`` / ``scope_builder`` / ``new_child``
 - ``Painter`` access — no custom painting, shapes or text layout
-- ``Scene`` — the last unwrapped container. Its ``show`` hands the callback a
-  transform as well as a ``Ui``, so it is a different calling convention from
-  every other binding here
 
 **Missing Context API**
 

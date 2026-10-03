@@ -14,7 +14,7 @@ not reachable) · `[ ]` not implemented
 
 Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 
-144 names exported (`src/lib.rs`): 17 classes, 127 functions and 45
+146 names exported (`src/lib.rs`): 18 classes, 128 functions and 46
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 61 on `Response`.
@@ -53,7 +53,7 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
       `contains_pointer`, `interact_pointer_pos`, `hover_pos`,
       `is_pointer_button_down_on`, `mark_changed`, `is_tooltip_open`,
       `context_menu_opened`
-- [x] `*_response` variants for existing widgets (45 of them)
+- [x] `*_response` variants for existing widgets (46 of them)
 - [ ] `interact`, `interact_opt`, `highlight`, `widget_info`, `union`,
       `scroll_to_me`, `output_event`, `labelled_by` — builder-style methods
       that consume or replace the `Response`
@@ -124,7 +124,8 @@ The rest of this section is real work against real 0.31.1 APIs.
 - [x] `Modal` — `modal(ctx, id, contents, **options)`
 - [x] `Resize` — `resize(contents, **options)`. Not a top-level container:
       egui's `Resize::show` takes a `&mut Ui`.
-- [ ] `Scene`
+- [x] `Scene` — `scene(contents, view, **options)`, plus the `Rect` class it
+      reads and writes. `zoom_range`, `max_inner_size`.
 - [ ] `CollapsingHeader` — only the `collapsing` helper exists. Missing
       `default_open`, `show_background`, `icon`, `open` toggling,
       `CollapsingState` access

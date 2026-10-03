@@ -608,6 +608,66 @@ def page_overlays(ctx):
     central_panel(ctx, main_contents)
 
 
+# The scene's visible region, which egui writes as the user pans and zooms.
+# Module level, because it has to be the same object every frame -- a fresh Rect
+# each frame would discard whatever the user just did.
+scene_view = Rect.zero()
+
+scene_grid = Bool(True)
+
+
+def scene_page_contents():
+    """Inside the scene: placed in scene coordinates, not screen coordinates."""
+    heading("Scene")
+    label("Drag to pan, scroll to zoom.")
+    separator()
+    checkbox(scene_grid, "show the grid")
+    add_space(6.0)
+
+    frame(
+        lambda: label("a frame, inside a transformed Ui"),
+        fill=(40, 60, 90, 200),
+        stroke=(1.0, (120, 160, 220, 255)),
+        corner_radius=6,
+        inner_margin=(10, 6),
+    )
+
+    if scene_grid.value:
+        add_space(6.0)
+        for row in range(10):
+            horizontal(lambda row=row: [
+                label(f"({col * 130}, {row * 40})") for col in range(6)
+            ])
+
+
+@page("scene")
+def page_scene(ctx):
+    """A pan-and-zoom canvas, and the Rect egui writes back into it.
+
+    The scene takes whatever space is left, so the readout of its state goes
+    first. The numbers below are written by egui as the user interacts, not
+    computed by this page -- which is the whole point of the container.
+    """
+
+    def readout():
+        label(f"view min   {scene_view.min}")
+        label(f"view max   {scene_view.max}")
+        label(f"view size  {scene_view.size}")
+        label(f"finite     {scene_view.is_finite()}")
+        if button_clicked("reset"):
+            scene_view.min_x = 0.0
+            scene_view.min_y = 0.0
+            scene_view.max_x = 0.0
+            scene_view.max_y = 0.0
+
+    def main_contents():
+        frame_group(readout)
+        add_space(8.0)
+        scene(scene_page_contents, scene_view, zoom_range=(0.1, 4.0))
+
+    central_panel(ctx, main_contents)
+
+
 # ---------------------------------------------------------------- driver
 
 # The screenshot has to be taken while the window still exists, so the gallery

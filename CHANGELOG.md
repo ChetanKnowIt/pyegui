@@ -102,6 +102,36 @@ colours accept either a `Color32` or an `(r, g, b, a)` tuple.
 
 See `examples/menus_and_popups.py`.
 
+**Scene**
+
+`scene(contents, view, **options)` — a pan-and-zoom canvas, and the last of
+egui 0.31.1's containers. The user drags to pan and scrolls to zoom; the
+visible region is a `Rect` that egui reads and writes as they interact, so it
+has to be the same object every frame — pass the same one, not a fresh one.
+
+```python
+view = Rect.zero()
+
+def contents():
+    heading("inside the scene")
+    label("drag to pan, scroll to zoom")
+
+def main():
+    scene(contents, view, zoom_range=(0.1, 4.0))
+```
+
+`Rect` is a new class mirroring `egui::Rect`, which is two corners rather than
+a position and a size: `Rect(min, size)`, `Rect.from_corners(min, max)` and
+`Rect.zero()`, with `min`, `max`, `size`, `width`, `height`, `center`,
+`is_finite()` and a `repr`. `Rect.zero()` means "no view yet", which is what
+egui resets from — it fits the contents on the first frame.
+
+`zoom_range` defaults to egui's `(0.0, 1.0)`, which allows zooming out
+arbitrarily but not in past 1:1. Pass something like `(0.0, float("inf"))` to
+allow zooming in; text goes blurry past 1:1 (egui issue 4813).
+
+See `examples/scene_canvas.py`.
+
 `modal` returns `True` when the backdrop is clicked, which is the signal to
 dismiss it -- egui's `ModalResponse` has no `should_close`, and its
 `is_top_modal` field answers "am I the topmost modal", which a lone modal
