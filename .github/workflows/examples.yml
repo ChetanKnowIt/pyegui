@@ -24,7 +24,7 @@ on:
       - 'guides/**'
       - 'debug.py'
       - 'tests/**'
-      - 'README.rst'
+      - 'README.md'
       # The docs state a name count and a shipped-function list, and
       # tests/doc_claims.py compares both against expected_exports.py. Editing
       # them without re-running that check is how the changelog came to
@@ -42,7 +42,7 @@ on:
       - 'guides/**'
       - 'debug.py'
       - 'tests/**'
-      - 'README.rst'
+      - 'README.md'
       # The docs state a name count and a shipped-function list, and
       # tests/doc_claims.py compares both against expected_exports.py. Editing
       # them without re-running that check is how the changelog came to
@@ -164,7 +164,7 @@ jobs:
           xdpyinfo -display :99 >/dev/null
 
           # Documentation snippets, run first and in the same step as Xvfb.
-          # Two of README.rst's snippets used to show the pre-clean-break form
+          # Two of README.md's snippets used to show the pre-clean-break form
           # -- run_native drawing widgets with no container -- and no job
           # noticed, because no doc snippet is one of the apps. This executes
           # them for real, so a binding that no longer exists fails here on its

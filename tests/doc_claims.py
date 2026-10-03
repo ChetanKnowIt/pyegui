@@ -1,6 +1,6 @@
 """Check that the documentation describes the module that actually ships.
 
-The README and CHANGELOG state a name count and a feature list. Those were
+The README (Markdown) and CHANGELOG state a name count and a feature list. Those were
 written from memory and were wrong: the CHANGELOG advertised `Hsva`, `Hsl`,
 `Oklch` and `color_edit_oklch`, none of which have ever existed, and both files
 claimed 121 names when the module exports 123. Nothing caught it, because
@@ -25,7 +25,7 @@ sys.path.insert(0, str(REPO_ROOT / "tests"))
 import expected_exports as manifest  # noqa: E402
 
 DOCS = {
-    "README.rst": REPO_ROOT / "README.rst",
+    "README.md": REPO_ROOT / "README.md",
     "CHANGELOG.md": REPO_ROOT / "CHANGELOG.md",
 }
 
@@ -63,16 +63,16 @@ def main():
     total, classes, functions, response = counts()
     failures = []
 
-    readme = DOCS["README.rst"].read_text(encoding="utf-8")
+    readme = DOCS["README.md"].read_text(encoding="utf-8")
     changelog = DOCS["CHANGELOG.md"].read_text(encoding="utf-8")
 
     # 1. The name count, stated in the README.
     stated = re.search(r"\*\*(\d+) names\*\*", readme)
     if not stated:
-        failures.append("README.rst does not state a name count in the form '**N names**'")
+        failures.append("README.md does not state a name count in the form '**N names**'")
     elif int(stated.group(1)) != total:
         failures.append(
-            f"README.rst says {stated.group(1)} names; the module exports {total} "
+            f"README.md says {stated.group(1)} names; the module exports {total} "
             f"({classes} classes, {functions} functions, {response} response variants)"
         )
 

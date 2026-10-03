@@ -194,7 +194,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: |
-          pip install sphinx sphinx-rtd-theme pyegui
+          pip install sphinx sphinx-rtd-theme myst-parser pyegui
           sphinx-build -v ./docs/ ./docs/.build
       - name: Upload static files as artifact
         id: deployment

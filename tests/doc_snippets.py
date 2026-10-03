@@ -1,7 +1,7 @@
 """Check the Python snippets in the docs still match the code.
 
 The examples job runs every app in `examples/`, `guides/` and `debug.py`. None
-of them check the documentation, so a snippet in README.rst can show an API
+of them check the documentation, so a snippet in README.md can show an API
 that no longer exists and every job stays green -- which is exactly what
 happened to the two snippets that used to call `run_native` without a
 container.
@@ -22,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # RST literal blocks and fenced blocks both appear in the docs.
 #
-# The language is checked rather than assumed. README.rst also has `.. code::
+# The language is checked rather than assumed. README.md also has `.. code::
 # console` blocks holding shell commands, and feeding those to compile() would
 # report a dozen syntax errors that are not documentation bugs at all.
 PYTHON_LANGUAGES = {"python", "py", "python3", "default", ""}
@@ -34,7 +34,7 @@ FENCED_BLOCK = re.compile(r"```(\w*)[ \t]*\n(.*?)```", re.S)
 
 # Docs that show pyegui code. TODO.md is excluded: it is a plan, not reference
 # documentation, and snippets in it are expected to be aspirational.
-DOCS = ["README.rst", "docs/index.rst", "docs/development.rst"]
+DOCS = ["README.md", "docs/index.rst", "docs/development.rst"]
 
 
 def python_snippets(path):

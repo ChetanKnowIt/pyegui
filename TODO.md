@@ -409,5 +409,5 @@ paint/layer internals (`painter`, `painter_at`, `layer_id`, `opacity`,
 ### Upstream egui 0.36 upgrade
 
 Deliberately **out of scope** on this branch. The pin stays at 0.31.1; see the
-"Upgrade path to egui 0.36" section of `README.rst` for the ten blockers and
+"Upgrade path to egui 0.36" section of `README.md` for the ten blockers and
 why the bump is a project rather than a version edit.

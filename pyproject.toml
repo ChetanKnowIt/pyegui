@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "pyegui"
 description= "Immediate mode GUI library"
-readme = "README.rst"
+readme = "README.md"
 authors = [
   { name = "GachiLord" },
 ]

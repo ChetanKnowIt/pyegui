@@ -13,11 +13,20 @@ author = 'GachiLord'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
-extensions = ['sphinx.ext.autodoc']
+extensions = ['sphinx.ext.autodoc', 'myst_parser']
+
+# The README is Markdown and index.rst includes it. myst-parser is what makes
+# that work; without it Sphinx treats ../README.md as a literal include and the
+# build fails. myst_heading_anchors is needed because the README's links point
+# at its own headings, which only exist as anchors if myst generates them.
+myst_enable_extensions = ['colon_fence', 'deflist', 'fieldlist', 'linkify']
+myst_heading_anchors = 3
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-include_patterns = ['*.rst', '**.rst']
+# Must cover the Markdown: index.rst includes ../README.md, and an include
+# outside include_patterns is dropped with a warning.
+include_patterns = ['*.rst', '**.rst', '*.md', '**.md']
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -25,19 +34,12 @@ include_patterns = ['*.rst', '**.rst']
 html_theme = "sphinx_rtd_theme"
 html_static_path = ['_static']
 
-# index.rst pulls in ../README.rst. GitHub renders a .rst README as plain
-# text -- no RST directive is processed -- so the README's screenshots are
-# Markdown ![](docs/_static/...) links, which GitHub renders and which docutils
-# passes through as literal text. Nothing to resolve here, and nothing to
-# silence: an unresolved path is still a real warning.
+# The README is Markdown and index.rst includes it, so myst-parser handles
+# its syntax. Its screenshot paths are `docs/_static/...`, rooted at the
+# repository rather than at docs/, because that is where GitHub resolves them
+# from the repository root. Sphinx resolves an included file's relative paths
+# against the file's own directory, so `docs/_static/x.png` from inside
+# ../README.md resolves correctly and needs no suppression.
 #
-# docs/gallery.rst is the page Sphinx actually renders figures on, using the
-# `_static/` form that resolves relative to docs/. That is where the images
-# appear in the built documentation.
-#
-# An earlier version of this file claimed the README used RST figure
-# directives with GitHub-rooted paths, and suppressed image.not_readable to
-# cover the ones Sphinx could not resolve. That was checked and is not what
-# happens: `gh api repos/.../readme` returns the README with no img tags at all.
-# The suppression is removed rather than left in place, since there is now
-# nothing for it to hide.
+# docs/gallery.rst carries the same screenshots as `.. figure::` directives
+# with `_static/` paths, which resolve relative to docs/ directly.

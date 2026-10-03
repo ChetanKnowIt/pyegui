@@ -140,13 +140,17 @@ In ``docs/gallery.rst`` they are ``.. figure::`` directives with the
 ``_static/`` path, which is what Sphinx resolves. That is the built
 documentation.
 
-In ``README.rst`` they are Markdown ``![](docs/_static/...)`` links. GitHub
-renders a ``.rst`` README as plain text, so an RST ``figure`` directive never
-displays there -- the directive text simply appears verbatim. Verified rather
-than assumed: ``gh api repos/ChetanKnowIT/pyegui/readme`` returns the rendered
-README, and it contains no ``img`` tags while the ``figure::`` lines are
-present as literal text. Markdown is what GitHub renders, and docutils passes
-it through unchanged, so both renderers are satisfied by their own syntax.
+The README is Markdown and uses the Markdown form, because that is the only
+form GitHub processes at all: a ``.rst`` README is wrapped in
+``<div class="plain"><pre>`` and no RST directive, Markdown or raw HTML is
+rendered. Verified with ``gh api -H 'Accept: application/vnd.github/html'``,
+which returned no ``<img>`` tags for the ``.rst`` version -- so an RST figure
+directive and a Markdown link are equally invisible, and an earlier commit that
+claimed otherwise was wrong.
+
+Sphinx reads the README through ``myst-parser``. ``docs/gallery.rst`` keeps the
+RST ``.. figure::`` form because that is what Sphinx resolves natively, and
+because it leaves the images working even if the README moves again.
 
 This is also a render smoke test. The export gate proves the module imports
 and exposes the right names; this proves the widgets actually draw. A widget
