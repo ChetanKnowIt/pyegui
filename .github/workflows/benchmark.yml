@@ -28,7 +28,7 @@ on:
         default: '5'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: benchmark-${{ github.ref }}
@@ -160,45 +160,6 @@ jobs:
           # is built once, outside the loop: cargo caches it, and an unbuilt
           # release binary would otherwise be compiled inside the measured run.
           # The binary is named after the package (pyegui-bench), not `bench`.
-          cargo build --release --quiet --manifest-path bench/Cargo.toml
-          test -x bench/target/release/pyegui-bench
-
-          for count in $WIDGET_COUNTS; do
-            case "$count" in
-              ''|*[!0-9]*)
-                echo "widget counts must be positive integers, got '$count'" >&2
-                exit 2
-                ;;
-            esac
-            if [ "$count" -lt 1 ]; then
-              echo "widget count must be at least 1, got '$count'" >&2
-              exit 2
-            fi
-          done
-          if [ -z "$(printf '%s' "$WIDGET_COUNTS" | tr -d ' ')" ]; then
-            echo "no widget count given" >&2
-            exit 2
-          fi
-
-
-          # import cost, in a fresh interpreter so the module is not already up
-          python -c "
-          import json, subprocess, sys, time
-          # Run in a child so the measurement is a cold import.
-          code = 'import time; t=time.perf_counter(); import pyegui; print((time.perf_counter()-t)*1000)'
-          best = None
-          for _ in range(7):
-              out = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, check=True)
-              v = float(out.stdout.strip())
-              best = v if best is None else min(best, v)
-          json.dump({'import_pyegui_ms': round(best, 3)}, open('bench/results/import.json', 'w'))
-          print('import pyegui:', round(best, 3), 'ms')
-          "
-
-          # Both sides are timed from the same loop. The Rust binary is built
-          # once, outside every measurement: cargo caches it, and an unbuilt
-          # release binary would otherwise be compiled inside a timed run. The
-          # binary is named after the package (pyegui-bench), not `bench`.
           cargo build --release --quiet --manifest-path bench/Cargo.toml
           test -x bench/target/release/pyegui-bench
 
