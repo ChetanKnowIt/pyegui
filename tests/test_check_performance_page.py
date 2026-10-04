@@ -270,6 +270,59 @@ def test_missing_snapshot_file_warns_and_does_not_raise(tmp_path):
     assert any("no benchmark snapshot" in w for w in warnings), warnings
 
 
+# Bytes that are not valid UTF-8, built at runtime rather than written as
+# escapes. A page or snapshot saved in the platform's default encoding, or one
+# that is not text at all, arrives this way; catching only OSError would let
+# the UnicodeDecodeError escape and turn `examples` red.
+NOT_UTF8 = bytes([0xff, 0xfe])
+
+
+def test_non_utf8_snapshot_warns_and_does_not_raise(tmp_path):
+    sp = tmp_path / "combined.json"
+    sp.write_bytes(b'{"by_scenario": {}}' + NOT_UTF8)
+    page = tmp_path / "performance.rst"
+    page.write_text(MATCHING_PAGE, encoding="utf-8")
+    warnings = []
+    check_performance_page(sp, page, warnings)
+    assert any(
+        "could not be read or decoded as UTF-8" in w for w in warnings
+    ), warnings
+
+
+def test_non_utf8_page_warns_and_does_not_raise(tmp_path):
+    sp = tmp_path / "combined.json"
+    sp.write_text(json.dumps(SNAPSHOT), encoding="utf-8")
+    pp = tmp_path / "performance.rst"
+    pp.write_bytes(MATCHING_PAGE.encode("utf-8") + NOT_UTF8)
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    assert any(
+        "could not be read or decoded as UTF-8" in w for w in warnings
+    ), warnings
+
+
+def test_both_non_utf8_warns_once_and_does_not_raise(tmp_path):
+    """The page is read first, so it is the only one reported."""
+    sp = tmp_path / "combined.json"
+    sp.write_bytes(b'{"by_scenario": {}}' + NOT_UTF8)
+    pp = tmp_path / "performance.rst"
+    pp.write_bytes(MATCHING_PAGE.encode("utf-8") + NOT_UTF8)
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    assert any("decoded as UTF-8" in w for w in warnings), warnings
+
+
+def test_page_that_is_not_text_at_all_warns_and_does_not_raise(tmp_path):
+    """Pure binary content is the same failure mode as a wrong encoding."""
+    sp = tmp_path / "combined.json"
+    sp.write_text(json.dumps(SNAPSHOT), encoding="utf-8")
+    pp = tmp_path / "performance.rst"
+    pp.write_bytes(bytes([0x00, 0x01, 0x02, 0xfe, 0xff]))
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    assert any("decoded as UTF-8" in w for w in warnings), warnings
+
+
 def test_invalid_json_warns_and_does_not_raise(tmp_path):
     sp = tmp_path / "combined.json"
     sp.write_text("{not json", encoding="utf-8")

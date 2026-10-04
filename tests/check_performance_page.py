@@ -107,11 +107,14 @@ def check_performance_page(snapshot_path, page_path, warnings):
 
     try:
         page_text = page_path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # UnicodeDecodeError is a ValueError, not an OSError, so catching only
+        # OSError would let a page saved in the platform's default encoding --
+        # or a file that is not text at all -- escape and turn `examples` red.
         _warn(
             warnings,
-            f"docs/performance.rst: {page_path} could not be read ({exc}), so "
-            "its numbers cannot be checked.",
+            f"docs/performance.rst: {page_path} could not be read or decoded "
+            f"as UTF-8 ({exc}), so its numbers cannot be checked.",
         )
         return
     declared = _substitutions(page_text)
@@ -130,11 +133,15 @@ def check_performance_page(snapshot_path, page_path, warnings):
     except json.JSONDecodeError as exc:
         _warn(warnings, f"docs/performance.rst: snapshot is not valid JSON ({exc})")
         return
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
+        # Same hole as the page read: a snapshot written in another encoding
+        # decodes to a UnicodeDecodeError (a ValueError), which OSError alone
+        # would not catch.
         _warn(
             warnings,
             f"docs/performance.rst: the snapshot at {snapshot_path} could not "
-            f"be read ({exc}), so the page cannot be checked against it.",
+            f"be read or decoded as UTF-8 ({exc}), so the page cannot be "
+            "checked against it.",
         )
         return
 
