@@ -141,7 +141,7 @@ impl eframe::App for Bench {
                     // slider. See the comment on `SLIDER_MANY_OPTIONS`.
                     for _ in 0..self.widgets {
                         ui.add(
-                            egui::Slider::new(&mut value, 0.0..=100.0)
+                            egui::Slider::new(value, 0.0..=100.0)
                                 .text("v")
                                 .suffix(" u")
                                 .prefix("~ ")
