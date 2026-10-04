@@ -1523,6 +1523,11 @@ unsafe fn code_editor_response(text: &mut Str) -> PyResult<Response> {
 ///     text = Str("editable")
 ///     # inside update func
 ///     text_edit_singleline(text, hint_text="hint me bro")
+///
+/// Builder options go in **options: `hint_text`, `password`, `desired_width`,
+/// `desired_rows`, `char_limit`, `interactive`, `clip_text`, `lock_focus`,
+/// `frame`, `cursor_at_end`, `background_color`, `margin`, `horizontal_align`,
+/// `vertical_align`. An unknown name is an error.
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_singleline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
@@ -1539,6 +1544,11 @@ unsafe fn text_edit_singleline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>
 ///     response = text_edit_singleline_response(text, hint_text="type here")
 ///     if response.changed:
 ///       print("now", text.value)
+///
+/// Builder options go in **options: `hint_text`, `password`, `desired_width`,
+/// `desired_rows`, `char_limit`, `interactive`, `clip_text`, `lock_focus`,
+/// `frame`, `cursor_at_end`, `background_color`, `margin`, `horizontal_align`,
+/// `vertical_align`. An unknown name is an error.
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_singleline_response(
@@ -1546,24 +1556,18 @@ unsafe fn text_edit_singleline_response(
     kwargs: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
-
-    let mut w = egui::TextEdit::singleline(&mut text.value);
-
-    // Tracker only: no call to `reject_unknown_options` yet. `unused_mut`
-    // does not fire because `insert` needs the `&mut`.
     let mut used = OptNames::new();
 
-    if let Some(kwargs) = kwargs {
-        // `hint_text` is the only option either text_edit_* reads today, and
-        // both are explicit §6 targets. Recorded even though the check is not
-        // wired in yet: `reject_unknown_options` would otherwise read this
-        // untouched `get_item` as an unknown option and falsely reject a
-        // supported one.
-        used.insert("hint_text".to_string());
-        if let Some(hint_text) = kwargs.get_item("hint_text")? {
-            w = w.hint_text(hint_text.downcast::<PyString>()?.extract::<String>()?);
-        }
-    }
+    // The option list is shared with `text_edit_multiline_response` through
+    // `apply_text_edit_options`, which owns `used` for both. A name cannot
+    // arrive both as a keyword parameter and inside **kwargs (CPython raises
+    // TypeError on the duplicate first), so nothing else needs recording.
+    let w = apply_text_edit_options(
+        egui::TextEdit::singleline(&mut text.value),
+        kwargs,
+        &mut used,
+        "text_edit_singleline",
+    )?;
 
     Ok(Response {
         inner: ui.add(w),
@@ -1577,6 +1581,11 @@ unsafe fn text_edit_singleline_response(
 ///     text = Str("editable")
 ///     # inside update func
 ///     text_edit_multiline(text, hint_text="hint")
+///
+/// Builder options go in **options: `hint_text`, `password`, `desired_width`,
+/// `desired_rows`, `char_limit`, `interactive`, `clip_text`, `lock_focus`,
+/// `frame`, `cursor_at_end`, `background_color`, `margin`, `horizontal_align`,
+/// `vertical_align`. An unknown name is an error.
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_multiline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()> {
@@ -1584,14 +1593,19 @@ unsafe fn text_edit_multiline(text: &mut Str, kwargs: Option<&Bound<'_, PyDict>>
     Ok(())
 }
 
-/// Returns the Response of the multiline text field. Use changed to know the
-/// text was edited.
+/// Returns the Response of the multiline text field. Use changed to know
+/// the text was edited.
 ///
 /// Example::
 ///
 ///     text = Str("editable")
 ///     if text_edit_multiline_response(text).changed:
 ///       print("now", text.value)
+///
+/// Builder options go in **options: `hint_text`, `password`, `desired_width`,
+/// `desired_rows`, `char_limit`, `interactive`, `clip_text`, `lock_focus`,
+/// `frame`, `cursor_at_end`, `background_color`, `margin`, `horizontal_align`,
+/// `vertical_align`. An unknown name is an error.
 #[pyfunction]
 #[pyo3(signature = (text, **kwargs))]
 unsafe fn text_edit_multiline_response(
@@ -1599,22 +1613,15 @@ unsafe fn text_edit_multiline_response(
     kwargs: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
-
-    let mut w = egui::TextEdit::multiline(&mut text.value);
-
-    // Tracker only: no call to `reject_unknown_options` here yet. `unused_mut`
-    // does not fire because `insert` needs the `&mut`.
     let mut used = OptNames::new();
 
-    if let Some(kwargs) = kwargs {
-        // Recorded for the same reason as in `text_edit_singleline_response`:
-        // both text_edit_* functions are explicit §6 targets, so a check that
-        // did not see this insert would falsely reject `hint_text`.
-        used.insert("hint_text".to_string());
-        if let Some(hint_text) = kwargs.get_item("hint_text")? {
-            w = w.hint_text(hint_text.downcast::<PyString>()?.extract::<String>()?);
-        }
-    }
+    // See `text_edit_singleline_response`.
+    let w = apply_text_edit_options(
+        egui::TextEdit::multiline(&mut text.value),
+        kwargs,
+        &mut used,
+        "text_edit_multiline",
+    )?;
 
     Ok(Response {
         inner: ui.add(w),
@@ -1938,6 +1945,203 @@ fn validate_radix(parts: &[i64], name: &str) -> PyResult<()> {
         )));
     }
     Ok(())
+}
+
+/// Read an optional `String` from `opts`, recording `name` as consumed.
+///
+/// egui's `TextEdit::hint_text` takes `impl Into<WidgetText>`, so a plain
+/// `&str` is the useful Python shape and a `WidgetText` class (TODO §4) would
+/// be a later refinement rather than a prerequisite.
+unsafe fn opt_string(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<String>> {
+    used.insert(name.to_string());
+    match opts.get_item(name)? {
+        Some(value) => Ok(Some(value.extract()?)),
+        None => Ok(None),
+    }
+}
+
+/// Read the **options tail of a DragValue and return the rebuilt builder.
+///
+/// Takes and returns the builder by value for the same reason
+/// `apply_slider_options` does: egui's setters consume `self`, so
+/// `*drag = drag.suffix(v)` through a `&mut` would move out of a borrow.
+///
+/// The name says "tail" because `suffix`, `prefix`, `speed` and
+/// `clamping`-alike common names are keyword parameters on the pyfunctions and
+/// so never arrive in the dict. Only `range`-adjacent and display options do.
+///
+/// `unsafe` because the `opt_*` helpers are.
+unsafe fn apply_drag_options<'a>(
+    mut drag: egui::DragValue<'a>,
+    options: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+    widget: &str,
+) -> PyResult<egui::DragValue<'a>> {
+    let o = match options {
+        Some(o) => o,
+        None => return Ok(drag),
+    };
+
+    if let Some(v) = opt_bool(o, "update_while_editing", used)? {
+        drag = drag.update_while_editing(v);
+    }
+    if let Some(v) = opt_bool(o, "clamp_existing_to_range", used)? {
+        drag = drag.clamp_existing_to_range(v);
+    }
+    if let Some(v) = opt_usize(o, "fixed_decimals", used)? {
+        drag = drag.fixed_decimals(v);
+    }
+    if let Some(v) = opt_usize(o, "min_decimals", used)? {
+        drag = drag.min_decimals(v);
+    }
+    if let Some(v) = opt_usize(o, "max_decimals", used)? {
+        drag = drag.max_decimals(v);
+    }
+    // egui's radix builders take `(min_width, twos_complement)`, hexadecimal a
+    // third `upper`. Each replaces the custom formatter wholesale, so passing
+    // two means only the last takes effect -- egui's own behaviour, kept here.
+    if let Some(v) = opt_radix(o, "binary", used)? {
+        drag = drag.binary(v[0] as usize, v[1] != 0);
+    }
+    if let Some(v) = opt_radix(o, "octal", used)? {
+        drag = drag.octal(v[0] as usize, v[1] != 0);
+    }
+    if let Some(v) = opt_radix(o, "hexadecimal", used)? {
+        let upper = v.get(2).copied().unwrap_or(0) != 0;
+        drag = drag.hexadecimal(v[0] as usize, v[1] != 0, upper);
+    }
+
+    reject_unknown_options(o, used, widget)?;
+
+    Ok(drag)
+}
+
+/// Map an `Align` word onto egui's `Align`.
+///
+/// egui's `TextEdit::horizontal_align` / `vertical_align` take an `emath::Align`,
+/// which is re-exported as `egui::Align` (egui-0.31.1/src/lib.rs:461). The enum
+/// has exactly three variants -- `Min`, `Center`, `Max` -- with `LEFT`/`RIGHT`/
+/// `TOP`/`BOTTOM` as associated consts aliasing `Min`/`Max`. The accepted words
+/// are therefore the variant names in snake_case, not the const names: `"min"`
+/// and `"center"` and `"max"`.
+fn align(word: &str, name: &str) -> PyResult<egui::Align> {
+    enum_word(word, name, ALIGN_WORDS)?;
+    Ok(match word {
+        "min" => egui::Align::Min,
+        "center" => egui::Align::Center,
+        // `enum_word` already rejected anything else.
+        _ => egui::Align::Max,
+    })
+}
+
+/// The words `horizontal_align` and `vertical_align` accept.
+///
+/// egui's `Align` variants in declaration order. Note that `Align` also exposes
+/// `LEFT`/`TOP` (both `Min`) and `RIGHT`/`BOTTOM` (both `Max`) as consts; those
+/// spellings are NOT accepted here, because accepting them would give four words
+/// for three variants with no way to tell a caller which is which.
+const ALIGN_WORDS: &[&str] = &["min", "center", "max"];
+
+/// Read an `Align`-valued option from `opts`, recording `name` as consumed.
+///
+/// The dict-reading counterpart `enum_word_py` was written for, and the one
+/// `enum_word` itself could not serve: `enum_word` takes an already-extracted
+/// `&str`, but the value is a `PyAny` here.
+unsafe fn opt_align(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Align>> {
+    used.insert(name.to_string());
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let word = enum_word_py(&value, name, ALIGN_WORDS)?;
+    // `enum_word_py` has already checked the word against `ALIGN_WORDS`, so
+    // `align` cannot return its error here; the `unwrap_or` is unreachable and
+    // exists only to satisfy the signature.
+    let mapped = align(&word, name).unwrap_or(egui::Align::Min);
+    Ok(Some(mapped))
+}
+
+/// Read the **options tail of a TextEdit and return the rebuilt builder.
+///
+/// Shared by `text_edit_singleline_response` and `text_edit_multiline_response`,
+/// which differ only in `singleline()` vs `multiline()`. Delegating here is what
+/// keeps `hint_text` -- the one option that shipped in Task 1 -- and the eleven
+/// new ones in one list, so the two cannot drift.
+///
+/// `hint_text` stays in the dict rather than becoming a keyword parameter
+/// deliberately: it is the option this API has always accepted by keyword, and
+/// moving it into the signature would be a change to a shipped call rather than
+/// an addition. It is read with `opt_string` now instead of a bare `get_item`,
+/// which is behaviour-preserving: both extract a `String`, and both raise the
+/// same `TypeError` for a non-string.
+///
+/// Takes and returns by value because egui's setters consume `self`, the same
+/// reason `apply_slider_options` and `apply_drag_options` do.
+unsafe fn apply_text_edit_options<'a>(
+    mut w: egui::TextEdit<'a>,
+    options: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+    widget: &str,
+) -> PyResult<egui::TextEdit<'a>> {
+    let o = match options {
+        Some(o) => o,
+        None => return Ok(w),
+    };
+
+    if let Some(v) = opt_string(o, "hint_text", used)? {
+        w = w.hint_text(v);
+    }
+    if let Some(v) = opt_bool(o, "password", used)? {
+        w = w.password(v);
+    }
+    if let Some(v) = opt_f32(o, "desired_width", used)? {
+        w = w.desired_width(v);
+    }
+    if let Some(v) = opt_usize(o, "desired_rows", used)? {
+        w = w.desired_rows(v);
+    }
+    if let Some(v) = opt_usize(o, "char_limit", used)? {
+        w = w.char_limit(v);
+    }
+    if let Some(v) = opt_bool(o, "interactive", used)? {
+        w = w.interactive(v);
+    }
+    if let Some(v) = opt_bool(o, "clip_text", used)? {
+        w = w.clip_text(v);
+    }
+    if let Some(v) = opt_bool(o, "lock_focus", used)? {
+        w = w.lock_focus(v);
+    }
+    if let Some(v) = opt_bool(o, "frame", used)? {
+        w = w.frame(v);
+    }
+    if let Some(v) = opt_bool(o, "cursor_at_end", used)? {
+        w = w.cursor_at_end(v);
+    }
+    if let Some(v) = opt_color32(o, "background_color", used)? {
+        w = w.background_color(v);
+    }
+    if let Some(v) = opt_margin(o, "margin", used)? {
+        w = w.margin(v);
+    }
+    if let Some(v) = opt_align(o, "horizontal_align", used)? {
+        w = w.horizontal_align(v);
+    }
+    if let Some(v) = opt_align(o, "vertical_align", used)? {
+        w = w.vertical_align(v);
+    }
+
+    reject_unknown_options(o, used, widget)?;
+
+    Ok(w)
 }
 
 /// Read an optional 2D size or position from `opts` as a 2-sequence of
@@ -4503,9 +4707,23 @@ unsafe fn slider_int_response(
 ///     data = Float(5)
 ///     # inside update_func
 ///     drag_float(data, 0, 50, 1.5)
+///
+/// Keyword parameters: `suffix`, `prefix`. Everything else goes in
+/// **options: `update_while_editing`, `clamp_existing_to_range`,
+/// `fixed_decimals`, `min_decimals`, `max_decimals`, `binary`, `octal`,
+/// `hexadecimal`. An unknown name is an error.
 #[pyfunction]
-unsafe fn drag_float(value: &mut Float, min: f32, max: f32, speed: f32) -> PyResult<()> {
-    drag_float_response(value, min, max, speed)?;
+#[pyo3(signature = (value, min, max, speed, suffix=None, prefix=None, **options))]
+unsafe fn drag_float(
+    value: &mut Float,
+    min: f32,
+    max: f32,
+    speed: f32,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    drag_float_response(value, min, max, speed, suffix, prefix, options)?;
     Ok(())
 }
 
@@ -4516,21 +4734,42 @@ unsafe fn drag_float(value: &mut Float, min: f32, max: f32, speed: f32) -> PyRes
 ///     data = Float(5)
 ///     if drag_float_response(data, 0, 50, 1.5).changed:
 ///       print("now", data.value)
+///
+/// Keyword parameters: `suffix`, `prefix`. Everything else goes in
+/// **options: `update_while_editing`, `clamp_existing_to_range`,
+/// `fixed_decimals`, `min_decimals`, `max_decimals`, `binary`, `octal`,
+/// `hexadecimal`. An unknown name is an error.
 #[pyfunction]
+#[pyo3(signature = (value, min, max, speed, suffix=None, prefix=None, **options))]
 unsafe fn drag_float_response(
     value: &mut Float,
     min: f32,
     max: f32,
     speed: f32,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
+    let mut used = OptNames::new();
+
+    // See `slider_float_response`: the named parameters cannot also appear in
+    // **options (CPython raises TypeError on the duplicate before pyo3 is
+    // reached), so only the tail needs recording in `used`.
+    let mut drag = egui::DragValue::new(&mut value.value)
+        .speed(speed as f64)
+        .range(min as f64..=max as f64);
+
+    if let Some(v) = suffix {
+        drag = drag.suffix(v);
+    }
+    if let Some(v) = prefix {
+        drag = drag.prefix(v);
+    }
+    drag = apply_drag_options(drag, options, &mut used, "drag_float")?;
 
     Ok(Response {
-        inner: ui.add(
-            egui::DragValue::new(&mut value.value)
-                .speed(speed)
-                .range(min..=max),
-        ),
+        inner: ui.add(drag),
     })
 }
 
@@ -4541,9 +4780,23 @@ unsafe fn drag_float_response(
 ///     data = Int(5)
 ///     # inside update_func
 ///     drag_int(data, 0, 50, 1)
+///
+/// Keyword parameters: `suffix`, `prefix`. Everything else goes in
+/// **options: `update_while_editing`, `clamp_existing_to_range`,
+/// `fixed_decimals`, `min_decimals`, `max_decimals`, `binary`, `octal`,
+/// `hexadecimal`. An unknown name is an error.
 #[pyfunction]
-unsafe fn drag_int(value: &mut Int, min: i32, max: i32, speed: i32) -> PyResult<()> {
-    drag_int_response(value, min, max, speed)?;
+#[pyo3(signature = (value, min, max, speed, suffix=None, prefix=None, **options))]
+unsafe fn drag_int(
+    value: &mut Int,
+    min: i32,
+    max: i32,
+    speed: i32,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    drag_int_response(value, min, max, speed, suffix, prefix, options)?;
     Ok(())
 }
 
@@ -4554,21 +4807,42 @@ unsafe fn drag_int(value: &mut Int, min: i32, max: i32, speed: i32) -> PyResult<
 ///     data = Int(5)
 ///     if drag_int_response(data, 0, 50, 1).changed:
 ///       print("now", data.value)
+///
+/// Keyword parameters: `suffix`, `prefix`. Everything else goes in
+/// **options: `update_while_editing`, `clamp_existing_to_range`,
+/// `fixed_decimals`, `min_decimals`, `max_decimals`, `binary`, `octal`,
+/// `hexadecimal`. An unknown name is an error.
 #[pyfunction]
+#[pyo3(signature = (value, min, max, speed, suffix=None, prefix=None, **options))]
 unsafe fn drag_int_response(
     value: &mut Int,
     min: i32,
     max: i32,
     speed: i32,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
+    let mut used = OptNames::new();
+
+    // See `slider_float_response`: the named parameters cannot also appear in
+    // **options (CPython raises TypeError on the duplicate before pyo3 is
+    // reached), so only the tail needs recording in `used`.
+    let mut drag = egui::DragValue::new(&mut value.value)
+        .speed(speed as f64)
+        .range(min as f64..=max as f64);
+
+    if let Some(v) = suffix {
+        drag = drag.suffix(v);
+    }
+    if let Some(v) = prefix {
+        drag = drag.prefix(v);
+    }
+    drag = apply_drag_options(drag, options, &mut used, "drag_int")?;
 
     Ok(Response {
-        inner: ui.add(
-            egui::DragValue::new(&mut value.value)
-                .speed(speed)
-                .range(min..=max),
-        ),
+        inner: ui.add(drag),
     })
 }
 

@@ -251,13 +251,64 @@ a positional label reach the builders.
       `update_while_editing` is `DragValue`'s. It is absent from egui 0.31.1's
       `slider.rs` (verified in the pinned source) and is listed under
       DragValue below as well.
-- [ ] `DragValue`: `prefix`, `suffix`, `custom_formatter`, `custom_parser`,
-      `binary`, `hexadecimal`, `octal`, `fixed_decimals`, `min_decimals`,
-      `max_decimals`, `update_while_editing`, `clamp_existing_to_range`
-- [ ] `TextEdit`: `password`, `desired_width`, `desired_rows`, `char_limit`,
-      `lock_focus`, `font`, `interactive`, `cursor_at_end`,
+- [x] `DragValue`: 10 of the 12 names below now reach the builder, verified
+      against egui 0.31.1's `drag_value.rs`. Keyword parameters: `suffix`,
+      `prefix`. `**options`: `update_while_editing`,
+      `clamp_existing_to_range`, `fixed_decimals`, `min_decimals`,
+      `max_decimals`, `binary`, `octal`, `hexadecimal`. An unknown option
+      name is a `ValueError`.
+
+      - `binary`/`octal`/`hexadecimal` take egui's own tuples --
+        `(min_width, twos_complement)`, plus `upper` for hexadecimal --
+        because egui's setters do, despite the names looking like switches.
+        They also replace the display formatter wholesale, so passing two of
+        them means only the last takes effect.
+      - Not implemented, and deliberately NOT accepted as an option name, so
+        that the unknown-option check reports them: `custom_formatter` and
+        `custom_parser` are Rust closures (`impl 'a + Fn(f64,
+        RangeInclusive<usize>) -> String` and `impl 'a + Fn(&str) ->
+        Option<f64>`). A Python callable cannot be handed to either without a
+        trampoline and a lifetime strategy for the `Py` reference, and the
+        builder is built and consumed inside one call. egui's own
+        `binary`/`octal`/`hexadecimal` are defined in terms of these two, so
+        they are the supported way to change the format.
+
+      Not a DragValue option, verified against the pinned source: `clamping`.
+      It is `Slider`'s, and takes a `SliderClamping` enum. This is the third
+      Slider/DragValue mix-up on these two lines, after `update_while_editing`
+      (DragValue's, on the Slider line) and `binary`.
+- [x] `TextEdit`: 13 of the 17 names below now reach the builder, on both
+      `text_edit_singleline*` and `text_edit_multiline*`, verified against
+      egui 0.31.1's `text_edit/builder.rs`. Keyword parameters: none. Every
+      option goes in `**options`: `password`, `desired_width`, `desired_rows`,
+      `char_limit`, `lock_focus`, `interactive`, `cursor_at_end`,
       `background_color`, `margin`, `horizontal_align`, `vertical_align`,
-      `clip_text`, `frame`, `return_key`, `load_state`, `store_state`
+      `clip_text`, `frame`, plus the pre-existing `hint_text`. An unknown
+      option name is a `ValueError`.
+
+      `hint_text` stays in `**options` rather than becoming a keyword
+      parameter on purpose: it is the option this API already shipped with, and
+      moving it into the signature would change a call that works today.
+
+      - `horizontal_align` and `vertical_align` take egui's own `Align`
+        variants as snake_case words -- `"min"`, `"center"`, `"max"` -- and the
+        error lists them. egui's `Align` also exposes `LEFT`/`TOP` and
+        `RIGHT`/`BOTTOM` as associated consts aliasing `Min`/`Max`; those
+        spellings are deliberately not accepted, because four words for three
+        variants with no way to tell a caller which is which is worse than one
+        canonical spelling per variant.
+      - Not implemented, and deliberately NOT accepted as an option name:
+
+        - `font` takes a `FontSelection`, which needs a `TextStyle` class that
+          does not exist (TODO §4). Deferred rather than half-done. egui's
+          `hint_text_font` has the same blocker and is not on this line either.
+        - `return_key` takes `impl Into<Option<KeyboardShortcut>>`, and a
+          `KeyboardShortcut` is `{ modifiers, logical_key }` with a `Key`
+          enum. Neither has a Python type.
+        - `load_state` / `store_state` are static methods on `TextEdit` taking
+          a `Context` and an `Id`. Both types are outside this binding's
+          widget-call shape (`Id` is TODO §4), and reaching them would mean
+          exposing `Context` and `Id` to Python for no other reason.
 - [ ] `DatePickerButton`: `format`, `start_end_years`, `reverse_years`,
       `show_icon`, `combo_boxes`, `arrows`, `calendar`, `calendar_week`,
       `highlight_weekends`, `year_scroll_to`, `id_salt`
