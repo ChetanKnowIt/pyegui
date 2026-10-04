@@ -23,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "tests"))
 
 import expected_exports as manifest  # noqa: E402
+from check_performance_page import check_performance_page  # noqa: E402
 
 DOCS = {
     "README.md": REPO_ROOT / "README.md",
@@ -180,8 +181,27 @@ def main():
                 f"{what}: TODO.md says {m.group(1)}, the code has {expected}"
             )
 
+    # The performance page is a second, softer tier: warn, never fail. See
+    # tests/check_performance_page.py for why failing here would be wrong.
+    # It must not touch `failures` and must not change the return value --
+    # examples.yml runs this script as `python tests/doc_claims.py
+    # || doc_status=$?`, so a non-zero exit here turns the whole examples job
+    # red over a documentation number that drifted by a rounding step.
+    performance_warnings = []
+    check_performance_page(
+        REPO_ROOT / "bench" / "results" / "combined.json",
+        REPO_ROOT / "docs" / "performance.rst",
+        performance_warnings,
+    )
+
     for failure in failures:
         print(f"FAIL {failure}", file=sys.stderr)
+
+    for warning in performance_warnings:
+        print(f"WARN {warning}", file=sys.stderr)
+        print(f"::warning::{warning}", file=sys.stderr)
+    if performance_warnings:
+        print(f"{len(performance_warnings)} performance page warning(s)")
 
     print(
         f"module exports {total} names ({classes} classes, "

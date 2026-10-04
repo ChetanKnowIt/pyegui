@@ -8,6 +8,7 @@
    :hidden:
 
    guides
+   performance
    examlpes
    gallery
 
