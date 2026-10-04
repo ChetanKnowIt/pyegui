@@ -1690,16 +1690,77 @@ unsafe fn validate_options(opts: &Bound<'_, PyDict>, known: &[&str]) -> PyResult
     Ok(())
 }
 
-/// Read an optional bool from `opts`.
-unsafe fn opt_bool(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<bool>> {
+/// The set of option names a widget has consumed.
+///
+/// The unknown-option check needs to know which keys were read. `opt_*` helpers
+/// deliberately leave the dict untouched -- mutating it would break callers who
+/// reuse one dict across several widgets -- so the record lives here instead.
+type OptNames = std::collections::HashSet<String>;
+
+/// Fail on any option key the widget did not consume.
+///
+/// Decided 2026-10-04: a misspelled option must be an error, not a silent
+/// no-op. Any key in `opts` outside `used` is either a typo or an option this
+/// binding does not expose, and silently doing nothing is the worst possible
+/// answer.
+///
+/// Relies on this contract: every key supplied to a widget is consumed exactly
+/// once by that widget's own option-processing path. A helper that reads
+/// options without threading `used` through will make a supported option look
+/// unknown, so delegated paths must pass it down.
+///
+/// Not called anywhere yet. The existing containers keep reporting unknown
+/// options through `validate_options`, which switches a fixed name list off a
+/// `&[&str]` const; adopting this check for them is a separate change that would
+/// reject option names in code that ships today. The six widget groups that do
+/// call this arrive in the tasks after this one, so `dead_code` fires until
+/// then.
+unsafe fn reject_unknown_options(
+    opts: &Bound<'_, PyDict>,
+    used: &OptNames,
+    widget: &str,
+) -> PyResult<()> {
+    let mut unknown: Vec<String> = opts
+        .keys()
+        .iter()
+        .filter_map(|k| k.extract::<String>().ok())
+        .filter(|k| !used.contains(k))
+        .collect();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    unknown.sort();
+    Err(PyValueError::new_err(format!(
+        "{widget} got unknown option(s): {}. See the documentation for the \
+         options this widget accepts.",
+        unknown.join(", ")
+    )))
+}
+
+/// Read an optional bool from `opts`, recording `name` as consumed.
+///
+/// `used.insert` runs before the read and unconditionally, so a declared but
+/// absent option still counts as known: the check distinguishes names the
+/// widget does not implement from values the caller did not supply.
+unsafe fn opt_bool(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<bool>> {
+    used.insert(name.to_string());
     match opts.get_item(name)? {
         Some(value) => Ok(Some(value.extract()?)),
         None => Ok(None),
     }
 }
 
-/// Read an optional f32 from `opts`.
-unsafe fn opt_f32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<f32>> {
+/// Read an optional f32 from `opts`, recording `name` as consumed.
+unsafe fn opt_f32(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<f32>> {
+    used.insert(name.to_string());
     match opts.get_item(name)? {
         Some(value) => Ok(Some(value.extract()?)),
         None => Ok(None),
@@ -1712,7 +1773,12 @@ unsafe fn opt_f32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<f32>>
 /// egui's geometry types (`Vec2`, `Pos2`) have no Python equivalent yet --
 /// they are TODO §4 -- so tuples are accepted for now and converted here.
 /// When a `Vec2` class lands, these should switch to it.
-unsafe fn opt_vec2(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Vec2>> {
+unsafe fn opt_vec2(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Vec2>> {
+    used.insert(name.to_string());
     let value = match opts.get_item(name)? {
         Some(value) => value,
         None => return Ok(None),
@@ -1780,7 +1846,11 @@ unsafe fn window(
 
     if let Some(opts) = options {
         validate_options(opts, WINDOW_OPTIONS)?;
-        builder = apply_window_options(builder, opts)?;
+        // The tracker exists so `apply_window_options` can record what it
+        // reads. `window` is not a §6 target yet, so nothing checks it here --
+        // `validate_options` still rejects anything outside WINDOW_OPTIONS.
+        let mut used = OptNames::new();
+        builder = apply_window_options(builder, opts, &mut used)?;
     }
 
     // egui's `open` takes `&'open mut bool`. `Bool.value` is an owned field,
@@ -1834,25 +1904,26 @@ const WINDOW_OPTIONS: &[&str] = &[
 unsafe fn apply_window_options(
     mut builder: egui::Window<'static>,
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<egui::Window<'static>> {
-    if let Some(v) = opt_vec2(opts, "default_size")? {
+    if let Some(v) = opt_vec2(opts, "default_size", used)? {
         builder = builder.default_size(v);
     }
-    if let Some(v) = opt_vec2(opts, "fixed_size")? {
+    if let Some(v) = opt_vec2(opts, "fixed_size", used)? {
         builder = builder.fixed_size(v);
     }
-    if let Some(v) = opt_vec2(opts, "min_size")? {
+    if let Some(v) = opt_vec2(opts, "min_size", used)? {
         builder = builder.min_size(v);
     }
-    if let Some(v) = opt_vec2(opts, "max_size")? {
+    if let Some(v) = opt_vec2(opts, "max_size", used)? {
         builder = builder.max_size(v);
     }
     // `default_pos` and `fixed_pos` take a Pos2, which is the same Vec2 with
     // a different name in egui.
-    if let Some(v) = opt_vec2(opts, "default_pos")? {
+    if let Some(v) = opt_vec2(opts, "default_pos", used)? {
         builder = builder.default_pos(egui::Pos2::new(v.x, v.y));
     }
-    if let Some(v) = opt_vec2(opts, "fixed_pos")? {
+    if let Some(v) = opt_vec2(opts, "fixed_pos", used)? {
         builder = builder.fixed_pos(egui::Pos2::new(v.x, v.y));
     }
 
@@ -1864,7 +1935,7 @@ unsafe fn apply_window_options(
         ("max_height", 4),
         ("min_height", 5),
     ] {
-        if let Some(v) = opt_f32(opts, name)? {
+        if let Some(v) = opt_f32(opts, name, used)? {
             builder = match setter {
                 0 => builder.default_width(v),
                 1 => builder.max_width(v),
@@ -1879,7 +1950,7 @@ unsafe fn apply_window_options(
     // egui takes `impl Into<Vec2b>`; a plain bool converts, and true means
     // both axes.
     for name in ["resizable", "scroll"] {
-        if let Some(v) = opt_bool(opts, name)? {
+        if let Some(v) = opt_bool(opts, name, used)? {
             builder = if name == "resizable" {
                 builder.resizable(v)
             } else {
@@ -1900,7 +1971,7 @@ unsafe fn apply_window_options(
         "interactable",
         "constrain",
     ] {
-        if let Some(v) = opt_bool(opts, name)? {
+        if let Some(v) = opt_bool(opts, name, used)? {
             builder = match name {
                 "collapsible" => builder.collapsible(v),
                 "title_bar" => builder.title_bar(v),
@@ -1918,14 +1989,14 @@ unsafe fn apply_window_options(
 
     // egui's `auto_sized` takes no argument -- it is a mode, not a toggle --
     // so passing True enables it and False leaves the window alone.
-    if opt_bool(opts, "auto_sized")?.unwrap_or(false) {
+    if opt_bool(opts, "auto_sized", used)?.unwrap_or(false) {
         builder = builder.auto_sized();
     }
 
     // egui's `order` takes an `egui::Order`, not a number. Map the three
     // words rather than taking an f32 and discarding it -- silently ignoring
     // the value is the failure this whole option parser exists to prevent.
-    if let Some(v) = opt_order(opts)? {
+    if let Some(v) = opt_order(opts, used)? {
         builder = builder.order(v);
     }
 
@@ -1952,7 +2023,12 @@ unsafe fn apply_window_options(
 /// Widgets resolve their `Ui` from an internal stack, so they must be drawn
 /// inside a callback such as this one, never directly in `update_func`.
 /// Read an optional `(min, max)` float range from `opts`, egui's `Rangef`.
-unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Rangef>> {
+unsafe fn opt_range(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Rangef>> {
+    used.insert(name.to_string());
     match opts.get_item(name)? {
         Some(value) => {
             let (min, max): (f32, f32) = value.extract().map_err(|_| {
@@ -1971,7 +2047,12 @@ unsafe fn opt_range(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egu
 /// Accepts either a `Color32` or an `(r, g, b, a)` 4-tuple of ints in 0-255,
 /// since a caller reaching for a fill should not have to construct a class just
 /// to name a colour.
-unsafe fn opt_color32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Color32>> {
+unsafe fn opt_color32(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Color32>> {
+    used.insert(name.to_string());
     let value = match opts.get_item(name)? {
         Some(value) => value,
         None => return Ok(None),
@@ -1994,7 +2075,9 @@ unsafe fn opt_color32(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<e
 unsafe fn opt_corner_radius(
     opts: &Bound<'_, PyDict>,
     name: &str,
+    used: &mut OptNames,
 ) -> PyResult<Option<egui::CornerRadius>> {
+    used.insert(name.to_string());
     let value = match opts.get_item(name)? {
         Some(value) => value,
         None => return Ok(None),
@@ -2034,7 +2117,12 @@ unsafe fn opt_corner_radius(
 ///
 /// egui's margins are `i8`, one per side. A single number sets all four (what
 /// `Margin::same` does); a 2-sequence sets (horizontal, vertical).
-unsafe fn opt_margin(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Margin>> {
+unsafe fn opt_margin(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Margin>> {
+    used.insert(name.to_string());
     let value = match opts.get_item(name)? {
         Some(value) => value,
         None => return Ok(None),
@@ -2071,7 +2159,12 @@ unsafe fn opt_margin(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<eg
 /// color is anything `opt_color32` accepts, or a bare number, which means that
 /// width in the style's current foreground colour -- the common case for a
 /// divider line.
-unsafe fn opt_stroke(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<egui::Stroke>> {
+unsafe fn opt_stroke(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Stroke>> {
+    used.insert(name.to_string());
     let value = match opts.get_item(name)? {
         Some(value) => value,
         None => return Ok(None),
@@ -2145,8 +2238,10 @@ fn color32_from_any(value: &Bound<'_, PyAny>) -> PyResult<egui::Color32> {
 /// Read an optional `egui::Order` from `opts`, under the key "order".
 ///
 /// egui 0.31.1 has five variants. Shared by `window` and `area` so the accepted
-/// words are defined once.
-unsafe fn opt_order(opts: &Bound<'_, PyDict>) -> PyResult<Option<egui::Order>> {
+/// words are defined once. The key is fixed rather than passed in, so the
+/// consumed name is recorded as a literal.
+unsafe fn opt_order(opts: &Bound<'_, PyDict>, used: &mut OptNames) -> PyResult<Option<egui::Order>> {
+    used.insert("order".to_string());
     match opts.get_item("order")? {
         Some(value) => {
             let name: String = value.extract()?;
@@ -2188,29 +2283,30 @@ const FRAME_OPTIONS: &[&str] = &[
 unsafe fn apply_frame_options(
     frame: egui::Frame,
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<egui::Frame> {
     let mut frame = frame;
 
-    if let Some(v) = opt_color32(opts, "fill")? {
+    if let Some(v) = opt_color32(opts, "fill", used)? {
         frame = frame.fill(v);
     }
-    if let Some(v) = opt_stroke(opts, "stroke")? {
+    if let Some(v) = opt_stroke(opts, "stroke", used)? {
         frame = frame.stroke(v);
     }
     // `corner_radius` and `rounding` are egui's own aliases for the same
     // setter, so both are accepted here too.
     for name in ["corner_radius", "rounding"] {
-        if let Some(v) = opt_corner_radius(opts, name)? {
+        if let Some(v) = opt_corner_radius(opts, name, used)? {
             frame = frame.corner_radius(v);
         }
     }
-    if let Some(v) = opt_margin(opts, "inner_margin")? {
+    if let Some(v) = opt_margin(opts, "inner_margin", used)? {
         frame = frame.inner_margin(v);
     }
-    if let Some(v) = opt_margin(opts, "outer_margin")? {
+    if let Some(v) = opt_margin(opts, "outer_margin", used)? {
         frame = frame.outer_margin(v);
     }
-    if let Some(v) = opt_f32(opts, "multiply_with_opacity")? {
+    if let Some(v) = opt_f32(opts, "multiply_with_opacity", used)? {
         frame = frame.multiply_with_opacity(v);
     }
 
@@ -2248,7 +2344,10 @@ unsafe fn frame(contents: Bound<'_, PyAny>, options: Option<&Bound<'_, PyDict>>)
 
     if let Some(opts) = options {
         validate_options(opts, FRAME_OPTIONS)?;
-        built = apply_frame_options(built, opts)?;
+        // Tracker only: `frame` is not a §6 target, and `validate_options`
+        // already rejects anything outside FRAME_OPTIONS.
+        let mut used = OptNames::new();
+        built = apply_frame_options(built, opts, &mut used)?;
     }
 
     built.show(ui, |ui| run_nested_update_func_lossy(ui, contents.clone()));
@@ -2275,7 +2374,9 @@ macro_rules! frame_preset {
 
             if let Some(opts) = options {
                 validate_options(opts, FRAME_OPTIONS)?;
-                built = apply_frame_options(built, opts)?;
+                // Tracker only, as in `frame`.
+                let mut used = OptNames::new();
+                built = apply_frame_options(built, opts, &mut used)?;
             }
 
             built.show(ui, |ui| run_nested_update_func_lossy(ui, contents.clone()));
@@ -2355,23 +2456,24 @@ const TOP_BOTTOM_PANEL_OPTIONS: &[&str] = &[
 unsafe fn apply_side_panel_options(
     mut builder: egui::SidePanel,
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<egui::SidePanel> {
-    if let Some(v) = opt_bool(opts, "resizable")? {
+    if let Some(v) = opt_bool(opts, "resizable", used)? {
         builder = builder.resizable(v);
     }
-    if let Some(v) = opt_bool(opts, "show_separator_line")? {
+    if let Some(v) = opt_bool(opts, "show_separator_line", used)? {
         builder = builder.show_separator_line(v);
     }
-    if let Some(v) = opt_f32(opts, "default_width")? {
+    if let Some(v) = opt_f32(opts, "default_width", used)? {
         builder = builder.default_width(v);
     }
-    if let Some(v) = opt_f32(opts, "min_width")? {
+    if let Some(v) = opt_f32(opts, "min_width", used)? {
         builder = builder.min_width(v);
     }
-    if let Some(v) = opt_f32(opts, "max_width")? {
+    if let Some(v) = opt_f32(opts, "max_width", used)? {
         builder = builder.max_width(v);
     }
-    if let Some(v) = opt_range(opts, "width_range")? {
+    if let Some(v) = opt_range(opts, "width_range", used)? {
         builder = builder.width_range(v);
     }
     Ok(builder)
@@ -2381,23 +2483,24 @@ unsafe fn apply_side_panel_options(
 unsafe fn apply_top_bottom_panel_options(
     mut builder: egui::TopBottomPanel,
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<egui::TopBottomPanel> {
-    if let Some(v) = opt_bool(opts, "resizable")? {
+    if let Some(v) = opt_bool(opts, "resizable", used)? {
         builder = builder.resizable(v);
     }
-    if let Some(v) = opt_bool(opts, "show_separator_line")? {
+    if let Some(v) = opt_bool(opts, "show_separator_line", used)? {
         builder = builder.show_separator_line(v);
     }
-    if let Some(v) = opt_f32(opts, "default_height")? {
+    if let Some(v) = opt_f32(opts, "default_height", used)? {
         builder = builder.default_height(v);
     }
-    if let Some(v) = opt_f32(opts, "min_height")? {
+    if let Some(v) = opt_f32(opts, "min_height", used)? {
         builder = builder.min_height(v);
     }
-    if let Some(v) = opt_f32(opts, "max_height")? {
+    if let Some(v) = opt_f32(opts, "max_height", used)? {
         builder = builder.max_height(v);
     }
-    if let Some(v) = opt_range(opts, "height_range")? {
+    if let Some(v) = opt_range(opts, "height_range", used)? {
         builder = builder.height_range(v);
     }
     Ok(builder)
@@ -2432,7 +2535,10 @@ unsafe fn side_panel_left(
     let builder = match options {
         Some(opts) => {
             validate_options(opts, SIDE_PANEL_OPTIONS)?;
-            apply_side_panel_options(egui::SidePanel::left(id), opts)?
+            // Tracker only: the panels are not §6 targets, and
+            // `validate_options` already rejects anything unrecognised.
+            let mut used = OptNames::new();
+            apply_side_panel_options(egui::SidePanel::left(id), opts, &mut used)?
         }
         None => egui::SidePanel::left(id),
     };
@@ -2461,7 +2567,9 @@ unsafe fn side_panel_right(
     let builder = match options {
         Some(opts) => {
             validate_options(opts, SIDE_PANEL_OPTIONS)?;
-            apply_side_panel_options(egui::SidePanel::right(id), opts)?
+            // Tracker only, as in `side_panel_left`.
+            let mut used = OptNames::new();
+            apply_side_panel_options(egui::SidePanel::right(id), opts, &mut used)?
         }
         None => egui::SidePanel::right(id),
     };
@@ -2487,7 +2595,9 @@ unsafe fn top_panel(
     let builder = match options {
         Some(opts) => {
             validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
-            apply_top_bottom_panel_options(egui::TopBottomPanel::top(id), opts)?
+            // Tracker only, as in `side_panel_left`.
+            let mut used = OptNames::new();
+            apply_top_bottom_panel_options(egui::TopBottomPanel::top(id), opts, &mut used)?
         }
         None => egui::TopBottomPanel::top(id),
     };
@@ -2513,7 +2623,9 @@ unsafe fn bottom_panel(
     let builder = match options {
         Some(opts) => {
             validate_options(opts, TOP_BOTTOM_PANEL_OPTIONS)?;
-            apply_top_bottom_panel_options(egui::TopBottomPanel::bottom(id), opts)?
+            // Tracker only, as in `side_panel_left`.
+            let mut used = OptNames::new();
+            apply_top_bottom_panel_options(egui::TopBottomPanel::bottom(id), opts, &mut used)?
         }
         None => egui::TopBottomPanel::bottom(id),
     };
@@ -2563,10 +2675,13 @@ unsafe fn modal(
         // egui exposes the modal's size through its Area.
         let mut area =
             std::mem::replace(&mut builder, egui::Modal::new(egui::Id::new(""))).area;
-        if let Some(v) = opt_f32(opts, "default_width")? {
+        // Tracker only: `modal` is not a §6 target, and `validate_options`
+        // already rejects anything outside MODAL_OPTIONS.
+        let mut used = OptNames::new();
+        if let Some(v) = opt_f32(opts, "default_width", &mut used)? {
             area = area.default_width(v);
         }
-        if let Some(v) = opt_f32(opts, "default_height")? {
+        if let Some(v) = opt_f32(opts, "default_height", &mut used)? {
             area = area.default_height(v);
         }
         builder = egui::Modal::new(egui::Id::new("")).area(area);
@@ -2623,43 +2738,46 @@ unsafe fn resize(
 
     if let Some(opts) = options {
         validate_options(opts, RESIZE_OPTIONS)?;
-        if let Some(v) = opt_f32(opts, "default_width")? {
+        // Tracker only: `resize` is not a §6 target, and `validate_options`
+        // already rejects anything outside RESIZE_OPTIONS.
+        let mut used = OptNames::new();
+        if let Some(v) = opt_f32(opts, "default_width", &mut used)? {
             builder = builder.default_width(v);
         }
-        if let Some(v) = opt_f32(opts, "default_height")? {
+        if let Some(v) = opt_f32(opts, "default_height", &mut used)? {
             builder = builder.default_height(v);
         }
-        if let Some(v) = opt_vec2(opts, "default_size")? {
+        if let Some(v) = opt_vec2(opts, "default_size", &mut used)? {
             builder = builder.default_size(v);
         }
-        if let Some(v) = opt_vec2(opts, "min_size")? {
+        if let Some(v) = opt_vec2(opts, "min_size", &mut used)? {
             builder = builder.min_size(v);
         }
-        if let Some(v) = opt_f32(opts, "min_width")? {
+        if let Some(v) = opt_f32(opts, "min_width", &mut used)? {
             builder = builder.min_width(v);
         }
-        if let Some(v) = opt_f32(opts, "min_height")? {
+        if let Some(v) = opt_f32(opts, "min_height", &mut used)? {
             builder = builder.min_height(v);
         }
-        if let Some(v) = opt_vec2(opts, "max_size")? {
+        if let Some(v) = opt_vec2(opts, "max_size", &mut used)? {
             builder = builder.max_size(v);
         }
-        if let Some(v) = opt_f32(opts, "max_width")? {
+        if let Some(v) = opt_f32(opts, "max_width", &mut used)? {
             builder = builder.max_width(v);
         }
-        if let Some(v) = opt_f32(opts, "max_height")? {
+        if let Some(v) = opt_f32(opts, "max_height", &mut used)? {
             builder = builder.max_height(v);
         }
-        if let Some(v) = opt_bool(opts, "resizable")? {
+        if let Some(v) = opt_bool(opts, "resizable", &mut used)? {
             // egui 0.31.1's Vec2b has `new(x, y)` and no `splat`.
             builder = builder.resizable(egui::Vec2b::new(v, v));
         }
-        if let Some(v) = opt_bool(opts, "auto_sized")? {
+        if let Some(v) = opt_bool(opts, "auto_sized", &mut used)? {
             if v {
                 builder = builder.auto_sized();
             }
         }
-        if let Some(v) = opt_vec2(opts, "fixed_size")? {
+        if let Some(v) = opt_vec2(opts, "fixed_size", &mut used)? {
             builder = builder.fixed_size(v);
         }
     }
@@ -2710,39 +2828,42 @@ unsafe fn area(
 
     if let Some(opts) = options {
         validate_options(opts, AREA_OPTIONS)?;
-        if let Some(v) = opt_bool(opts, "enabled")? {
+        // Tracker only: `area` is not a §6 target, and `validate_options`
+        // already rejects anything outside AREA_OPTIONS.
+        let mut used = OptNames::new();
+        if let Some(v) = opt_bool(opts, "enabled", &mut used)? {
             builder = builder.enabled(v);
         }
-        if let Some(v) = opt_bool(opts, "movable")? {
+        if let Some(v) = opt_bool(opts, "movable", &mut used)? {
             builder = builder.movable(v);
         }
-        if let Some(v) = opt_bool(opts, "interactable")? {
+        if let Some(v) = opt_bool(opts, "interactable", &mut used)? {
             builder = builder.interactable(v);
         }
-        if let Some(v) = opt_order(opts)? {
+        if let Some(v) = opt_order(opts, &mut used)? {
             builder = builder.order(v);
         }
-        if let Some(v) = opt_vec2(opts, "default_pos")? {
+        if let Some(v) = opt_vec2(opts, "default_pos", &mut used)? {
             // `Pos2` is not `From<Vec2>`; window converts the same way.
             builder = builder.default_pos(egui::Pos2::new(v.x, v.y));
         }
-        if let Some(v) = opt_vec2(opts, "default_size")? {
+        if let Some(v) = opt_vec2(opts, "default_size", &mut used)? {
             builder = builder.default_size(v);
         }
-        if let Some(v) = opt_f32(opts, "default_width")? {
+        if let Some(v) = opt_f32(opts, "default_width", &mut used)? {
             builder = builder.default_width(v);
         }
-        if let Some(v) = opt_f32(opts, "default_height")? {
+        if let Some(v) = opt_f32(opts, "default_height", &mut used)? {
             builder = builder.default_height(v);
         }
-        if let Some(v) = opt_vec2(opts, "fixed_pos")? {
+        if let Some(v) = opt_vec2(opts, "fixed_pos", &mut used)? {
             // `Pos2` is not `From<Vec2>`; window converts the same way.
             builder = builder.fixed_pos(egui::Pos2::new(v.x, v.y));
         }
-        if let Some(v) = opt_bool(opts, "constrain")? {
+        if let Some(v) = opt_bool(opts, "constrain", &mut used)? {
             builder = builder.constrain(v);
         }
-        if let Some(v) = opt_bool(opts, "fade_in")? {
+        if let Some(v) = opt_bool(opts, "fade_in", &mut used)? {
             builder = builder.fade_in(v);
         }
     }
@@ -2888,13 +3009,17 @@ unsafe fn collapsing_response(
 
     if let Some(opts) = options {
         validate_options(opts, COLLAPSING_OPTIONS)?;
-        if let Some(v) = opt_bool(opts, "default_open")? {
+        // Tracker only: `collapsing` is not a §6 target, and
+        // `validate_options` already rejects anything outside
+        // COLLAPSING_OPTIONS.
+        let mut used = OptNames::new();
+        if let Some(v) = opt_bool(opts, "default_open", &mut used)? {
             builder = builder.default_open(v);
         }
-        if let Some(v) = opt_bool(opts, "enabled")? {
+        if let Some(v) = opt_bool(opts, "enabled", &mut used)? {
             builder = builder.enabled(v);
         }
-        if let Some(v) = opt_bool(opts, "show_background")? {
+        if let Some(v) = opt_bool(opts, "show_background", &mut used)? {
             builder = builder.show_background(v);
         }
         // egui's own alias pair; both hash a str directly.
@@ -3220,10 +3345,13 @@ unsafe fn scene(
 
     if let Some(opts) = options {
         validate_options(opts, SCENE_OPTIONS)?;
-        if let Some(v) = opt_range(opts, "zoom_range")? {
+        // Tracker only: `scene` is not a §6 target, and `validate_options`
+        // already rejects anything outside SCENE_OPTIONS.
+        let mut used = OptNames::new();
+        if let Some(v) = opt_range(opts, "zoom_range", &mut used)? {
             builder = builder.zoom_range(v);
         }
-        if let Some(v) = opt_vec2(opts, "max_inner_size")? {
+        if let Some(v) = opt_vec2(opts, "max_inner_size", &mut used)? {
             builder = builder.max_inner_size(v);
         }
     }
@@ -3632,9 +3760,11 @@ const SCROLL_AREA_OPTIONS: &[&str] = &[
 /// `egui::ScrollBarVisibility` does not compile.
 unsafe fn opt_scroll_bar_visibility(
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<Option<egui::containers::scroll_area::ScrollBarVisibility>> {
     use egui::containers::scroll_area::ScrollBarVisibility;
 
+    used.insert("scroll_bar_visibility".to_string());
     match opts.get_item("scroll_bar_visibility")? {
         Some(value) => {
             let name: String = value.extract()?;
@@ -3667,11 +3797,12 @@ unsafe fn opt_scroll_bar_visibility(
 unsafe fn apply_scroll_area_options(
     area: egui::ScrollArea,
     opts: &Bound<'_, PyDict>,
+    used: &mut OptNames,
 ) -> PyResult<egui::ScrollArea> {
     let mut area = area;
 
     for name in ["max_width", "max_height", "min_scrolled_width", "min_scrolled_height"] {
-        if let Some(v) = opt_f32(opts, name)? {
+        if let Some(v) = opt_f32(opts, name, used)? {
             area = match name {
                 "max_width" => area.max_width(v),
                 "max_height" => area.max_height(v),
@@ -3681,18 +3812,18 @@ unsafe fn apply_scroll_area_options(
         }
     }
 
-    if let Some(v) = opt_scroll_bar_visibility(opts)? {
+    if let Some(v) = opt_scroll_bar_visibility(opts, used)? {
         area = area.scroll_bar_visibility(v);
     }
 
     // egui takes `impl Into<Vec2b>` here; a plain bool converts and means both
     // axes, which is what "shrink both ways" means.
-    if let Some(v) = opt_bool(opts, "auto_shrink")? {
+    if let Some(v) = opt_bool(opts, "auto_shrink", used)? {
         area = area.auto_shrink(v);
     }
 
     for name in ["animated", "drag_to_scroll", "stick_to_right", "stick_to_bottom"] {
-        if let Some(v) = opt_bool(opts, name)? {
+        if let Some(v) = opt_bool(opts, name, used)? {
             area = match name {
                 "animated" => area.animated(v),
                 "drag_to_scroll" => area.drag_to_scroll(v),
@@ -3787,7 +3918,11 @@ unsafe fn scroll_area(
     let mut builder = builder;
     if let Some(opts) = options {
         validate_options(opts, SCROLL_AREA_OPTIONS)?;
-        builder = apply_scroll_area_options(builder, opts)?;
+        // Tracker only: the scroll areas are not §6 targets, and
+        // `validate_options` already rejects anything outside
+        // SCROLL_AREA_OPTIONS.
+        let mut used = OptNames::new();
+        builder = apply_scroll_area_options(builder, opts, &mut used)?;
     }
 
     builder
