@@ -337,18 +337,101 @@ a positional label reach the builders.
       `today.year() - 100 .. today.year() + 10`
       (crates/egui_extras/src/datepicker/popup.rs:87) and the popup struct's
       fields are `pub(crate)`, so there is no builder hook to expose.
-- [ ] `run_native` viewport kwargs — currently size, fullscreen, maximized,
-      resizable, transparent, `icon_path`. Missing: `position`, `decorations`,
-      `title`, `always_on_top`, `visible`, `app_id`, `monitor`, `window_level`,
-      `taskbar`, `window_type`, `minimize_button`, `maximize_button`,
-      `close_button`, `titlebar_shown`, `movable_by_background`,
-      `mouse_passthrough`, `clamp_size_to_monitor_size`, `has_shadow`
-- [ ] `eframe::NativeOptions`: renderer choice, `multisampling`,
-      `depth_buffer`, `stencil_buffer`, `dithering`, `centered`,
-      `persist_window`, `persistence_path`, `glow_options`, `wgpu_options`,
-      `run_and_return`
+- [x] `run_native` viewport kwargs -- every name the pinned
+      `egui::ViewportBuilder` has is now forwarded, and an unknown name is a
+      `ValueError` rather than a silent no-op. Verified against
+      `crates/egui/src/viewport.rs` at tag 0.31.1.
+
+      The eleven names that shipped before this task keep their exact
+      spellings -- `inner_width`, `inner_height`, `min_inner_width`,
+      `min_inner_height`, `max_inner_width`, `max_inner_height`, `fullscreen`,
+      `maximized`, `resizable`, `transparent`, `icon_path` -- because
+      `examples/`, `guides/` and `README.md` all pass some of them and a rename
+      would be a silent breaking change. In particular `inner_width` is NOT
+      renamed to `width`.
+
+      Added: `title`, `app_id`, `position`, `visible`, `active`, `decorations`,
+      `always_on_top`, `window_level`, `taskbar`, `window_type`,
+      `minimize_button`, `maximize_button`, `close_button`, `title_shown`,
+      `titlebar_shown`, `titlebar_buttons_shown`, `fullsize_content_view`,
+      `drag_and_drop`, `mouse_passthrough`, `clamp_size_to_monitor_size`.
+
+      Two of these do not take the value the spelling suggests, and one of
+      them is only partly observable:
+
+      - `always_on_top` is egui's `with_always_on_top()`, which takes NO
+        argument -- it is a switch, not a bool
+        (crates/egui/src/viewport.rs). It is read with `opt_bool` so the call
+        reads like its neighbours, and only `True` does anything, because
+        that is all egui can express. `window_level` is the spelling that can
+        also say `AlwaysOnBottom`.
+      - `window_level` and `window_type` are egui enums with no Python type, so
+        they take the variant name as a string and the error lists the accepted
+        values. The variants are PascalCase (`AlwaysOnTop`), unlike egui's
+        `Align`, whose words are snake_case.
+      - `visible` has no readout. `egui::ViewportInfo` has `visible` as a
+        `ViewportCommand` only, so there is nothing in `InputState` to check a
+        `visible=False` against and it is not observable from Python.
+        `Context.viewport_inner_size`, `Context.viewport_inner_rect`,
+        `Context.viewport_title`, `Context.is_maximized`,
+        `Context.is_fullscreen` and `Context.is_minimized` were added so that
+        the size, title and window-state options ARE.
+
+      Not implemented, and deliberately NOT accepted as an option name, so
+      that the unknown-option check reports them:
+
+      - `movable_by_background` does not exist in 0.31.1 -- there is no such
+        field on `ViewportBuilder` and no setter. What the §6 list appears to
+        mean is `drag_and_drop`, which is Windows-only and IS implemented.
+      - `monitor` does not exist as an option either. The viewport has no
+        per-monitor placement setter in 0.31.1;
+        `clamp_size_to_monitor_size` is the nearest real thing and is
+        implemented.
+- [x] `eframe::NativeOptions`: 4 of the 11 now reach the struct --
+      `persistence_path`, `persist_window`, `centered`, `multisampling` --
+      read against `crates/eframe/src/epi.rs` at tag 0.31.1. An unknown name
+      is a `ValueError`.
+
+      Still not implemented, deliberately, with reasons:
+
+      - `glow_options`: DEFERRED. A large nested configuration struct, and half of
+        it is irrelevant depending on which renderer (`NativeOptions.renderer`)
+        is in use. Rejected as an unknown name rather than accepted and
+        dropped, because a stub that takes the name and ignores it is worse
+        than an honest refusal.
+      - `wgpu_options`: DEFERRED, for the same reason as `glow_options`.
+        `egui_wgpu::WgpuConfiguration` alone carries power preference, device
+        limits, backends and a trace path.
+      - `depth_buffer`: not implemented. A plain integer and cheap to add;
+        deferred with the renderer question, since it only matters for
+        embedded 3D.
+      - `stencil_buffer`: not implemented, for the same reason as
+        `depth_buffer`.
+      - `dithering`: not implemented. A plain bool and cheap to add; deferred
+        with the renderer question.
+      - `renderer`: not implemented. It is a single enum, but picking a
+        renderer is a decision the caller of this binding should make, not one
+        to make silently by adding a name.
+      - `hardware_acceleration`: not implemented, for the same reason as
+        `renderer`.
+      - `shader_version`: not implemented, for the same reason as `renderer`.
+      - `event_loop_builder` and `window_builder`: not implemented. These are
+        `Option<Box<dyn FnMut>>` hooks; a Python callable would need a
+        trampoline and a lifetime strategy, the same blocker as
+        `custom_formatter`/`custom_parser` on the sliders.
+      - `run_and_return`: not an option at all. `run_native` always returns
+        after the window closes, so the field has nothing to choose.
+
+      `persistence_path` is wired but INERT today: it only takes effect when
+      eframe's `persistence` feature is on, and `Cargo.toml` does not enable
+      it (`eframe = "=0.31.1"` with default features, which exclude
+      `persistence`). It is wired anyway because the field exists on
+      `NativeOptions` whatever the feature set, so enabling the feature must
+      not require a second API change. Note that it names the `.ron` FILE, not
+      a directory -- eframe hands it straight to `create_storage_with_file`.
 - [ ] Persistence: `App::save` / `Storage` is unreachable, so no state is
-      saved between runs
+      saved between runs. `persist_window` and `persistence_path` above only
+      matter once eframe's `persistence` feature is enabled.
 
 ## 7. egui_extras
 

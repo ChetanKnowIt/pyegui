@@ -150,6 +150,78 @@ impl Context {
     fn request_repaint(&self) {
         self.0.request_repaint();
     }
+
+    /// The current window's inner size as `(width, height)`, in egui points.
+    ///
+    /// This is egui's own `InputState::viewport().inner_rect` -- the size the
+    /// window manager gave the window -- so it is where a `run_native`
+    /// viewport option such as `inner_width`/`inner_height` becomes
+    /// observable. Asserting on it is how a test can tell the option reached
+    /// `ViewportBuilder` from the value having been accepted and dropped.
+    ///
+    /// It is not available on the first frame: the window manager has not
+    /// reported a rect yet, so this returns `None`. Read it from the second
+    /// frame onwards.
+    ///
+    /// Example::
+    ///
+    ///   def update_func(ctx):
+    ///     size = ctx.viewport_inner_size()
+    ///     if size is not None:
+    ///         print("window is", size)
+    fn viewport_inner_size(&self) -> Option<(f32, f32)> {
+        self.0.input(|i| {
+            i.viewport()
+                .inner_rect
+                .map(|rect| (rect.width(), rect.height()))
+        })
+    }
+
+    /// The current window's inner rectangle, as `Rect`, or `None` before the
+    /// window manager has reported one.
+    ///
+    /// egui's `InputState::viewport().inner_rect`. `viewport_inner_size` is
+    /// the form most callers want; this is the form that carries the position
+    /// as well, so a `run_native(position=...)` can be checked against it.
+    fn viewport_inner_rect(&self) -> Option<Rect> {
+        self.0
+            .input(|i| i.viewport().inner_rect.map(|rect| Rect::from(&rect)))
+    }
+
+    /// The window's title as the window manager reports it, or `None`.
+    ///
+    /// `run_native`'s `title` option reaches egui as
+    /// `ViewportBuilder::title`, and eframe uses it as the native window
+    /// title, so this is how a `title=` option is observed from Python.
+    /// `None` until the first frame has been reported, and `None` on
+    /// platforms where the title is not reported back.
+    fn viewport_title(&self) -> Option<String> {
+        self.0.input(|i| i.viewport().title.clone())
+    }
+
+    /// True when the window manager reports the window as maximized, fullscreen
+    /// or visible; `None` where it does not report them.
+    ///
+    /// Each is egui's `InputState::viewport().maximized` / `.fullscreen` /
+    /// `.minimized`, so these observe the effect of `run_native`'s `maximized`
+    /// and `fullscreen` options rather than the request for them.
+    /// `visible` is not in this group: egui's `ViewportInfo` has no `visible`
+    /// field, it is a `ViewportCommand` only, so a `visible=False` option has
+    /// no readout to check against and is not observable from Python.
+    #[getter]
+    fn is_maximized(&self) -> Option<bool> {
+        self.0.input(|i| i.viewport().maximized)
+    }
+
+    #[getter]
+    fn is_fullscreen(&self) -> Option<bool> {
+        self.0.input(|i| i.viewport().fullscreen)
+    }
+
+    #[getter]
+    fn is_minimized(&self) -> Option<bool> {
+        self.0.input(|i| i.viewport().minimized)
+    }
 }
 
 /// Str stores string value that can be referenced
@@ -1115,6 +1187,49 @@ impl eframe::App for PyeguiApp<'_> {
 ///
 ///     icon_path (str): path to icon in rgba format
 ///
+/// **Builder options.** The eleven names above keep their exact spellings --
+/// `inner_width` is not renamed to `width` -- and every option below is
+/// egui's own `ViewportBuilder` or `eframe::NativeOptions` name:
+///
+///     title (str): the native window's title, overriding app_name
+///
+///     app_id (str): Wayland application id; also picks eframe's
+///         persistence location
+///
+///     position ((x, y)): the window's outer position
+///
+///     visible, active, decorations (bool): whether the window is shown,
+///         focused, and bordered
+///
+///     always_on_top (bool): only `True` does anything -- egui's own setter
+///         is a switch. `window_level` can also say "AlwaysOnBottom"
+///
+///     window_level (str): "Normal", "AlwaysOnBottom" or "AlwaysOnTop"
+///
+///     window_type (str): an X11 window type, e.g. "Normal", "Utility",
+///         "Dialog". Ignored on other platforms
+///
+///     taskbar, minimize_button, maximize_button, close_button,
+///     title_shown, titlebar_shown, titlebar_buttons_shown,
+///     fullsize_content_view, drag_and_drop, mouse_passthrough,
+///     clamp_size_to_monitor_size (bool): the remaining builder switches
+///
+///     centered (bool): open the window centred
+///
+///     multisampling (int): MSAA sample count, a power of two, 0 to off
+///
+///     persist_window (bool): remember the window's position and size
+///
+///     persistence_path (str): path to the `.ron` file eframe saves app state
+///         in. Inert unless eframe's `persistence` feature is enabled, which
+///         this build does not enable
+///
+/// An option name this function does not know raises `ValueError` naming it,
+/// rather than being ignored.
+///
+/// The size options need BOTH halves: `inner_width` on its own is ignored, as
+/// it always has been.
+///
 /// Examples::
 ///
 ///     name = Str("")
@@ -1145,69 +1260,16 @@ unsafe fn run_native(
     let mut ui_stack = Vec::with_capacity(32);
     UI = &raw mut *&mut ui_stack;
     // parse kwargs
-    let mut viewport = egui::viewport::ViewportBuilder::default();
+    let mut used = OptNames::new();
+    let viewport = apply_viewport_options(
+        egui::viewport::ViewportBuilder::default(),
+        kwargs,
+        &mut used,
+    )?;
+    let native = apply_native_options(kwargs, &mut used)?;
+    reject_unknown_options(kwargs, &used, "run_native")?;
 
-    if let Some(kwargs) = kwargs {
-        if let (Some(height), Some(width)) = (
-            kwargs.get_item("inner_height")?,
-            kwargs.get_item("inner_width")?,
-        ) {
-            viewport = viewport.with_inner_size([
-                width.downcast::<PyInt>()?.extract()?,
-                height.downcast::<PyInt>()?.extract()?,
-            ]);
-        }
-
-        if let (Some(height), Some(width)) = (
-            kwargs.get_item("min_inner_height")?,
-            kwargs.get_item("min_inner_width")?,
-        ) {
-            viewport = viewport.with_min_inner_size([
-                width.downcast::<PyInt>()?.extract()?,
-                height.downcast::<PyInt>()?.extract()?,
-            ]);
-        }
-
-        if let (Some(height), Some(width)) = (
-            kwargs.get_item("max_inner_height")?,
-            kwargs.get_item("max_inner_width")?,
-        ) {
-            viewport = viewport.with_max_inner_size([
-                width.downcast::<PyInt>()?.extract()?,
-                height.downcast::<PyInt>()?.extract()?,
-            ]);
-        }
-
-        if let Some(fullscreen) = kwargs.get_item("fullscreen")? {
-            viewport = viewport.with_fullscreen(fullscreen.downcast::<PyBool>()?.extract()?);
-        }
-
-        if let Some(maximized) = kwargs.get_item("maximized")? {
-            viewport = viewport.with_maximized(maximized.downcast::<PyBool>()?.extract()?);
-        }
-
-        if let Some(resizable) = kwargs.get_item("resizable")? {
-            viewport = viewport.with_resizable(resizable.downcast::<PyBool>()?.extract()?);
-        }
-
-        if let Some(transparent) = kwargs.get_item("transparent")? {
-            viewport = viewport.with_transparent(transparent.downcast::<PyBool>()?.extract()?);
-        }
-
-        if let Some(icon_path) = kwargs.get_item("icon_path")? {
-            let path = icon_path.downcast::<PyString>()?.extract::<String>()?;
-            let buf = fs::read(path)?;
-
-            let icon_data = eframe::icon_data::from_png_bytes(&buf)
-                .map_err(|e| PyOSError::new_err(format!("Failed to decode png file: {}", e)))?;
-            viewport = viewport.with_icon(icon_data);
-        }
-    }
-
-    let options = eframe::NativeOptions {
-        viewport,
-        ..eframe::NativeOptions::default()
-    };
+    let options = native.apply(viewport);
     debug!("Creating a window");
     // create a window
     let result = eframe::run_native(
@@ -1233,6 +1295,301 @@ unsafe fn run_native(
 }
 
 // helpers
+
+/// The words `egui::WindowLevel` accepts, for `run_native`'s `window_level`
+/// option.
+///
+/// `egui` derives `Default` on the enum but does not derive anything that names
+/// the variants for Python, so the list is written out here and
+/// `enum_word` checks a caller's word against it. The names are the Rust
+/// variant names, spelled exactly: egui's own convention is PascalCase here
+/// (`AlwaysOnTop`), unlike `Align`'s snake_case, so the accepted set differs
+/// between the two option families.
+const WINDOW_LEVEL_WORDS: &[&str] = &["Normal", "AlwaysOnBottom", "AlwaysOnTop"];
+
+/// The words `egui::X11WindowType` accepts, for `run_native`'s `window_type`
+/// option.
+///
+/// X11 only -- the value maps onto `_NET_WM_WINDOW_TYPE` and is ignored on
+/// every other platform. The full list is exposed anyway so a caller on macOS
+/// or Windows is not rejected for spelling a variant the enum does have.
+const X11_WINDOW_TYPE_WORDS: &[&str] = &[
+    "Normal",
+    "Desktop",
+    "Dock",
+    "Toolbar",
+    "Menu",
+    "Utility",
+    "Splash",
+    "Dialog",
+    "DropdownMenu",
+    "PopupMenu",
+    "Tooltip",
+    "Notification",
+    "Combo",
+    "Dnd",
+];
+
+/// Apply the viewport options read from `kwargs` to a `ViewportBuilder`.
+///
+/// Every option is recorded in `used` whether or not the caller supplied it, so
+/// the unknown-option check in `run_native` distinguishes a name pyegui does
+/// not implement from a value the caller did not pass.
+///
+/// The eleven names that shipped before this task -- `inner_width`,
+/// `inner_height`, `min_inner_width`, `min_inner_height`, `max_inner_width`,
+/// `max_inner_height`, `fullscreen`, `maximized`, `resizable`, `transparent`
+/// and `icon_path` -- keep their exact spellings and their exact reads. In
+/// particular the three size pairs still apply only when BOTH halves arrive:
+/// `run_native(inner_width=800)` alone has always been ignored, and changing
+/// that would be a behaviour change, not an option addition.
+///
+/// Read against `crates/egui/src/viewport.rs` at tag 0.31.1. Three §6 names do
+/// not hold up against it and are recorded in TODO.md rather than implemented:
+///   - `always_on_top` is a SWITCH (`with_always_on_top()`, no argument), not a
+///     bool, so it is spelled `always_on_top=True` in Python to say "yes" and
+///     any value at all means on-top. `window_level` is the bool-free
+///     spelling that can also say AlwaysOnBottom.
+///   - `movable_by_background` does not exist. What §6 named is
+///     `drag_and_drop` (Windows only).
+///   - `monitor` does not exist as a setter; the viewport has no per-monitor
+///     placement option in 0.31.1.
+unsafe fn apply_viewport_options(
+    viewport: egui::viewport::ViewportBuilder,
+    kwargs: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+) -> PyResult<egui::viewport::ViewportBuilder> {
+    let mut viewport = viewport;
+    let kwargs = match kwargs {
+        Some(kwargs) => kwargs,
+        None => return Ok(viewport),
+    };
+
+    // -- the eleven names that shipped before this task --------------------
+    if let Some(v) = opt_size_pair(kwargs, "inner_width", "inner_height", used)? {
+        viewport = viewport.with_inner_size(v);
+    }
+    if let Some(v) = opt_size_pair(kwargs, "min_inner_width", "min_inner_height", used)? {
+        viewport = viewport.with_min_inner_size(v);
+    }
+    if let Some(v) = opt_size_pair(kwargs, "max_inner_width", "max_inner_height", used)? {
+        viewport = viewport.with_max_inner_size(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "fullscreen", used)? {
+        viewport = viewport.with_fullscreen(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "maximized", used)? {
+        viewport = viewport.with_maximized(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "resizable", used)? {
+        viewport = viewport.with_resizable(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "transparent", used)? {
+        viewport = viewport.with_transparent(v);
+    }
+    if let Some(icon_path) = opt_string(kwargs, "icon_path", used)? {
+        let buf = fs::read(&icon_path)?;
+
+        let icon_data = eframe::icon_data::from_png_bytes(&buf)
+            .map_err(|e| PyOSError::new_err(format!("Failed to decode png file: {}", e)))?;
+        viewport = viewport.with_icon(icon_data);
+    }
+
+    // -- the viewport options added here -----------------------------------
+    if let Some(v) = opt_string(kwargs, "title", used)? {
+        viewport = viewport.with_title(v);
+    }
+    if let Some(v) = opt_string(kwargs, "app_id", used)? {
+        viewport = viewport.with_app_id(v);
+    }
+    // egui takes a `Pos2`; Python has no Pos2 class yet (TODO §4), so a
+    // 2-sequence of numbers is the shape, same as every other geometry option
+    // in the binding.
+    if let Some(v) = opt_vec2(kwargs, "position", used)? {
+        viewport = viewport.with_position(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "visible", used)? {
+        viewport = viewport.with_visible(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "active", used)? {
+        viewport = viewport.with_active(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "decorations", used)? {
+        viewport = viewport.with_decorations(v);
+    }
+    // egui's own setter is a SWITCH (`with_always_on_top()`, no argument), so
+    // there is no bool to forward and no value that means "not on top". The
+    // option is accepted as a bool so the call reads like its neighbours, and
+    // only `True` turns it on: `always_on_top=False` is accepted and does
+    // nothing, which is exactly what egui can express. `window_level` is the
+    // spelling that can also say AlwaysOnBottom.
+    if let Some(on_top) = opt_bool(kwargs, "always_on_top", used)? {
+        if on_top {
+            viewport = viewport.with_always_on_top();
+        }
+    }
+    if let Some(word) = opt_enum_word(kwargs, "window_level", used, WINDOW_LEVEL_WORDS)? {
+        viewport = viewport.with_window_level(match word.as_str() {
+            "Normal" => egui::WindowLevel::Normal,
+            "AlwaysOnBottom" => egui::WindowLevel::AlwaysOnBottom,
+            "AlwaysOnTop" => egui::WindowLevel::AlwaysOnTop,
+            // `opt_enum_word` has already checked the word against
+            // WINDOW_LEVEL_WORDS, so this arm is unreachable.
+            _ => egui::WindowLevel::Normal,
+        });
+    }
+    if let Some(v) = opt_bool(kwargs, "taskbar", used)? {
+        viewport = viewport.with_taskbar(v);
+    }
+    if let Some(word) = opt_enum_word(kwargs, "window_type", used, X11_WINDOW_TYPE_WORDS)? {
+        viewport = viewport.with_window_type(match word.as_str() {
+            "Normal" => egui::X11WindowType::Normal,
+            "Desktop" => egui::X11WindowType::Desktop,
+            "Dock" => egui::X11WindowType::Dock,
+            "Toolbar" => egui::X11WindowType::Toolbar,
+            "Menu" => egui::X11WindowType::Menu,
+            "Utility" => egui::X11WindowType::Utility,
+            "Splash" => egui::X11WindowType::Splash,
+            "Dialog" => egui::X11WindowType::Dialog,
+            "DropdownMenu" => egui::X11WindowType::DropdownMenu,
+            "PopupMenu" => egui::X11WindowType::PopupMenu,
+            "Tooltip" => egui::X11WindowType::Tooltip,
+            "Notification" => egui::X11WindowType::Notification,
+            "Combo" => egui::X11WindowType::Combo,
+            "Dnd" => egui::X11WindowType::Dnd,
+            _ => egui::X11WindowType::Normal,
+        });
+    }
+    if let Some(v) = opt_bool(kwargs, "minimize_button", used)? {
+        viewport = viewport.with_minimize_button(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "maximize_button", used)? {
+        viewport = viewport.with_maximize_button(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "close_button", used)? {
+        viewport = viewport.with_close_button(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "title_shown", used)? {
+        viewport = viewport.with_title_shown(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "titlebar_shown", used)? {
+        viewport = viewport.with_titlebar_shown(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "titlebar_buttons_shown", used)? {
+        viewport = viewport.with_titlebar_buttons_shown(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "fullsize_content_view", used)? {
+        viewport = viewport.with_fullsize_content_view(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "drag_and_drop", used)? {
+        viewport = viewport.with_drag_and_drop(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "mouse_passthrough", used)? {
+        viewport = viewport.with_mouse_passthrough(v);
+    }
+    if let Some(v) = opt_bool(kwargs, "clamp_size_to_monitor_size", used)? {
+        viewport = viewport.with_clamp_size_to_monitor_size(v);
+    }
+
+    Ok(viewport)
+}
+
+/// The four `eframe::NativeOptions` fields `run_native` can reach from Python.
+///
+/// `NativeOptions` is a flat struct, not a `ViewportBuilder`, so these cannot
+/// ride along with the viewport the way the `opt_*` calls do; they are
+/// collected here and applied at the one `eframe::NativeOptions { .. }`
+/// literal in `run_native`.
+///
+/// `glow_options` and `wgpu_options` are NOT here, and are recorded in TODO.md
+/// with the reason: each is a large nested configuration struct
+/// (`egui_wgpu::WgpuConfiguration` alone carries power preference, device
+/// limits, backends and a trace path), and half of each is irrelevant
+/// depending on which renderer `NativeOptions` ends up using. A stub that
+/// accepted the name and dropped it would be worse than absence, so
+/// `run_native` rejects those two names as unknown.
+///
+/// Read against `crates/eframe/src/epi.rs` at tag 0.31.1.
+struct NativeOpts {
+    multisampling: Option<u16>,
+    centered: Option<bool>,
+    persist_window: Option<bool>,
+    persistence_path: Option<std::path::PathBuf>,
+}
+
+impl NativeOpts {
+    /// Overlay these onto an `eframe::NativeOptions`, leaving every field this
+    /// binding does not expose at eframe's own default.
+    fn apply(self, viewport: egui::viewport::ViewportBuilder) -> eframe::NativeOptions {
+        let mut options = eframe::NativeOptions {
+            viewport,
+            ..eframe::NativeOptions::default()
+        };
+
+        if let Some(v) = self.multisampling {
+            options.multisampling = v;
+        }
+        if let Some(v) = self.centered {
+            options.centered = v;
+        }
+        if let Some(v) = self.persist_window {
+            options.persist_window = v;
+        }
+        if let Some(v) = self.persistence_path {
+            options.persistence_path = Some(v);
+        }
+
+        options
+    }
+}
+
+/// Read the four reachable `eframe::NativeOptions` fields from `kwargs`.
+///
+/// `persistence_path` needs a note: it only takes effect when eframe's
+/// `persistence` feature is on, and `Cargo.toml` does not enable it, so
+/// setting it today changes nothing observable. It is still wired, because the
+/// field exists on `NativeOptions` whatever the feature set, and turning the
+/// feature on must not require a second API change. `persistence_path` is a
+/// FILE path -- eframe hands it to `create_storage_with_file`, so it names the
+/// `.ron` file itself, not a directory. The name is preserved because it is
+/// eframe's.
+unsafe fn apply_native_options(
+    kwargs: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+) -> PyResult<NativeOpts> {
+    let kwargs = match kwargs {
+        Some(kwargs) => kwargs,
+        None => {
+            return Ok(NativeOpts {
+                multisampling: None,
+                centered: None,
+                persist_window: None,
+                persistence_path: None,
+            })
+        }
+    };
+
+    let multisampling = match opt_usize(kwargs, "multisampling", used)? {
+        Some(v) => {
+            // egui types this `u16`, and egui requires a power-of-two. The
+            // range check is here rather than in `opt_usize` because it is this
+            // option's own constraint, not the helper's.
+            u16::try_from(v).map(Some).map_err(|_| {
+                PyValueError::new_err(format!(
+                    "multisampling must fit in 16 bits (and be a power of two), got {v}"
+                ))
+            })?
+        }
+        None => None,
+    };
+
+    Ok(NativeOpts {
+        multisampling,
+        centered: opt_bool(kwargs, "centered", used)?,
+        persist_window: opt_bool(kwargs, "persist_window", used)?,
+        persistence_path: opt_string(kwargs, "persistence_path", used)?.map(Into::into),
+    })
+}
 
 unsafe fn ui_stack(ui: &*mut Vec<*mut egui::Ui>) -> PyResult<&mut Vec<*mut egui::Ui>> {
     ui.as_mut()
@@ -1884,7 +2241,58 @@ fn enum_word_py(
     Ok(word)
 }
 
-/// Read a radix-format option (`binary`, `octal`, `hexadecimal`) from `opts`,
+/// Read a size or a position pair the way `run_native` always has.
+///
+/// Returns `None` unless BOTH halves are present, which is the pre-existing
+/// behaviour of `run_native`: it read `inner_height` and `inner_width` as a
+/// tuple and applied `with_inner_size` only if both arrived. Preserved
+/// verbatim here -- see the note on `run_native` about it.
+unsafe fn opt_size_pair(
+    opts: &Bound<'_, PyDict>,
+    width_name: &str,
+    height_name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Vec2>> {
+    used.insert(width_name.to_string());
+    used.insert(height_name.to_string());
+
+    let width = match opts.get_item(width_name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let height = match opts.get_item(height_name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    Ok(Some(egui::vec2(
+        width.downcast::<PyInt>()?.extract()?,
+        height.downcast::<PyInt>()?.extract()?,
+    )))
+}
+
+/// Read an optional enum-valued option from `opts`, recording `name` as
+/// consumed.
+///
+/// egui's viewport takes two enums with no Python type -- `WindowLevel` and
+/// (X11 only) `X11WindowType` -- so the word is validated by `enum_word` and
+/// mapped at the call site. The dict-reading counterpart of `enum_word_py`,
+/// which only had a caller from Task 3.
+unsafe fn opt_enum_word(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+    accepted: &[&str],
+) -> PyResult<Option<String>> {
+    used.insert(name.to_string());
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    Ok(Some(enum_word_py(value, name, accepted)?))
+}
+
+/// Read an optional radix-format option (`binary`, `octal`, `hexadecimal`) from `opts`,
 /// recording `name` as consumed and returning `(min_width, twos_complement,
 /// upper)`.
 ///
