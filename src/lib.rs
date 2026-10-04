@@ -8,7 +8,7 @@ use log::debug;
 use pyo3::prelude::*;
 use pyo3::{
     exceptions::{PyOSError, PyRuntimeError, PyValueError},
-    types::{PyAny, PyBool, PyDict, PyInt, PyString},
+    types::{PyAny, PyDict, PyInt},
 };
 use std::sync::{Arc, Mutex};
 use std::{fs, ptr};
@@ -1267,7 +1267,11 @@ unsafe fn run_native(
         &mut used,
     )?;
     let native = apply_native_options(kwargs, &mut used)?;
-    reject_unknown_options(kwargs, &used, "run_native")?;
+    // Only when kwargs is Some: with no dict there is nothing to reject, and
+    // an empty dict would pass anyway.
+    if let Some(kwargs) = kwargs {
+        reject_unknown_options(kwargs, &used, "run_native")?;
+    }
 
     let options = native.apply(viewport);
     debug!("Creating a window");
@@ -1404,9 +1408,13 @@ unsafe fn apply_viewport_options(
     }
     // egui takes a `Pos2`; Python has no Pos2 class yet (TODO §4), so a
     // 2-sequence of numbers is the shape, same as every other geometry option
-    // in the binding.
+    // in the binding. `opt_vec2` reads it -- its error message names the
+    // option and shows the expected form -- and the pair is unpacked into a
+    // `Pos2` here, because `with_position` takes `impl Into<Pos2>` and
+    // `Pos2` does not implement `From<Vec2>` (emath-0.31.1/src/pos2.rs:34
+    // lists only the array and tuple conversions).
     if let Some(v) = opt_vec2(kwargs, "position", used)? {
-        viewport = viewport.with_position(v);
+        viewport = viewport.with_position(egui::Pos2::new(v.x, v.y));
     }
     if let Some(v) = opt_bool(kwargs, "visible", used)? {
         viewport = viewport.with_visible(v);
@@ -2289,7 +2297,7 @@ unsafe fn opt_enum_word(
         Some(value) => value,
         None => return Ok(None),
     };
-    Ok(Some(enum_word_py(value, name, accepted)?))
+    Ok(Some(enum_word_py(&value, name, accepted)?))
 }
 
 /// Read an optional radix-format option (`binary`, `octal`, `hexadecimal`) from `opts`,
