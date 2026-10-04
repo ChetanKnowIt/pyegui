@@ -45,8 +45,11 @@ fn widgets_per_frame() -> usize {
 /// which is the failure the combine step's parity guard exists to catch.
 ///
 /// The names are duplicated from `bench/bench.py` rather than shared, because
-/// a Rust binary cannot read the Python module at runtime. `tests/doc_claims.py`
-/// asserts the two lists agree, since drift here is silent otherwise.
+/// a Rust binary cannot read the Python module at runtime.
+/// `tests/test_scenario_names_agree.py` asserts those two lists agree, since
+/// drift here is silent otherwise; the shell `VALID_SCENARIOS` list in
+/// `.github/workflows/benchmark.yml` and the copy in `tests/bench_names.py`
+/// are further copies that no test currently ties together.
 fn scenario() -> Result<&'static str, String> {
     let raw = std::env::var("SCENARIO").unwrap_or_else(|_| "label".to_string());
     match raw.as_str() {

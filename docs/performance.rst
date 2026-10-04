@@ -4,18 +4,33 @@ Performance
 .. |import_ms| replace:: 10.265ms
 .. |ratio_label| replace:: 1.37x
 .. |ratio_label_range| replace:: 1.36x-1.37x
+.. |extra_us_label| replace:: 0.183us
 .. |ratio_text_edit_plain| replace:: 1.31x
 .. |ratio_text_edit_plain_range| replace:: 1.28x-1.34x
+.. |extra_us_text_edit_plain| replace:: 0.275us
 .. |ratio_text_edit_hint| replace:: 1.5x
 .. |ratio_text_edit_hint_range| replace:: 1.45x-1.51x
+.. |extra_us_text_edit_hint| replace:: 0.449us
 .. |frame_ms_python_side| replace:: 0.636
+.. |per_widget_us_python_side| replace:: 0.318us
 .. |last_verified_run| replace:: 37196277892
 .. |last_verified_commit| replace:: e766e6b
 
-Every number on this page is an RST substitution defined above, and every one
-of them is checked against ``bench/results/combined.json`` by
-``tests/check_performance_page.py``. The numbers below come from run
-|last_verified_run|, committed at |last_verified_commit|.
+Every figure this page quotes *from the current snapshot* is an RST
+substitution defined above, and every one of those is checked against
+``bench/results/combined.json`` by ``tests/check_performance_page.py``:
+the import time, each scenario's median ratio and across-trial range, each
+scenario's per-widget overhead, and ``python_side``'s frame time and
+per-widget cost. The snapshot behind them is run |last_verified_run|,
+committed at |last_verified_commit|.
+
+The figures that are *not* substitutions are quoted in prose, and are not
+machine-checked, because the snapshot does not carry them: the per-widget
+costs from the README's earlier run (1.32-1.33x, run 37106337662), the
+between-run spread (1.30x-1.55x), and the arithmetic on the option's own
+cost, which is the difference between two checked numbers rather than a
+number of its own. They are checked by eye against the run they name, and
+no gate can do better than that.
 
 That commit is the whole provenance. Committing the snapshot fires no workflow,
 so nothing will prompt anyone to re-run the benchmark when the code moves on.
@@ -26,7 +41,7 @@ What the binding costs
 
 For a bare ``label``, pyegui costs |ratio_label| what native egui costs at 2000
 widgets per frame (|ratio_label_range| across trials). In absolute terms the
-binding adds about 0.183us per widget on top of the label itself.
+binding adds |extra_us_label| per widget on top of the label itself.
 
 The README's Performance section has the full table across widget counts. It
 quotes 1.32-1.33x, from an earlier run (37106337662) on a different hosted
@@ -47,16 +62,31 @@ Adding options is not free, and the cost is not a constant. At 2000 widgets per
 frame:
 
 * a bare ``TextEdit`` costs |ratio_text_edit_plain| what native egui costs
-  (|ratio_text_edit_plain_range|), about 0.275us per widget of overhead;
+  (|ratio_text_edit_plain_range|), and adds |extra_us_text_edit_plain| per
+  widget of overhead;
 * the same ``TextEdit`` with one extra option, ``hint_text``, costs
-  |ratio_text_edit_hint| (|ratio_text_edit_hint_range|), about 0.449us per
-  widget.
+  |ratio_text_edit_hint| (|ratio_text_edit_hint_range|), and adds
+  |extra_us_text_edit_hint| per widget.
 
 So one option moves the ratio from 1.31x to 1.50x, and adds roughly 0.17us per
-widget -- on top of a widget that already costs about twice what a label does.
+widget -- on top of a widget that already costs about 1.7x what a label does.
 A UI with twenty configured widgets is not paying twenty times one widget's
 price; the marginal option costs less than the widget, but it is not zero, and
 across a frame full of configured widgets it adds up.
+
+**What the option itself costs, with no options passed.** The scenario was
+built to answer one question: if the plain and configured widgets both sit
+near the same ratio, does the ``**kwargs`` path cost anything measurable per
+call? It does, and the ratio hides it. A bare ``TextEdit`` is *cheaper* than
+a ``label`` in ratio terms -- |ratio_text_edit_plain| against
+|ratio_label|, and |extra_us_text_edit_plain| of per-widget overhead against
+|extra_us_label|. Both of those calls pass no options at all; the signature
+takes ``**kwargs`` whether or not the caller supplies anything. The roughly
+0.09us the overhead difference represents is the cost of that path itself, so
+the honest reading of "the ratio barely moved" is not "the kwargs path is
+free" but "the binding's own overhead grew a little while the native baseline
+underneath it grew a lot" -- which is the subject of the next paragraph's
+caveat made concrete.
 
 The bounds on that claim are worth as much as the claim. This is **one option**
 on **one widget**, measured on **one hosted runner**. It is not a per-option
@@ -74,10 +104,10 @@ not the binding's bill.
 
 The ``python_side`` scenario measures that separately: 2000 widgets in a frame,
 built and torn down in Python rather than in Rust, takes |frame_ms_python_side|
-ms in the median, about 0.318us per widget. There is no ``comparison`` block
-for it and there should not be one -- it has no Rust twin, so there is no ratio
-to report. Any number of the form "pyegui is Nx slower" derived from this
-scenario would be fabricated.
+ms in the median, |per_widget_us_python_side| per widget. There is no
+``comparison`` block for it and there should not be one -- it has no Rust twin,
+so there is no ratio to report. Any number of the form "pyegui is Nx slower"
+derived from this scenario would be fabricated.
 
 What is not claimed
 -------------------
@@ -85,16 +115,22 @@ What is not claimed
 * **Launch time.** Not measured. Importing pyegui costs |import_ms| in the
   snapshot's measurement, but that is the import, not the process start, not
   the window, and not the first frame.
-* **First frame.** The snapshot records a first-frame figure, but it is a single
-  observation per run on a shared runner and is too noisy to publish as a
+* **First frame.** The snapshot records a first-frame figure, five trials of
+  it per run, but on a shared runner it is still too noisy to publish as a
   figure of merit. Only steady-state per-frame numbers appear here.
 * **A blended score.** There is no single number summarising "what pyegui
   costs". It depends on which widgets you use, how you configure them and how
   many you draw. The README's table and the scenarios above are the honest
   forms; a headline ratio would be a number nobody could act on.
 * **That ``label`` is the cheapest widget.** It is the simplest one to compare,
-  which is why it is the scenario, and it may flatter the binding. Widgets with
-  more parameters show a larger ratio, not a smaller one.
+  which is why it is the scenario, and it may flatter the binding -- but not in
+  the way a reader would assume. A heavier widget costs the binding *more* per
+  widget than a label does (|extra_us_text_edit_plain| against
+  |extra_us_label| for a plain ``TextEdit``), and still shows a *lower* ratio
+  at |ratio_text_edit_plain| against |ratio_label|, because the native widget
+  it wraps grew by more than the binding overhead did. Per-widget binding
+  overhead and the ratio are two different numbers, and only the first one
+  tells you what the binding charges.
 * **That these numbers transfer.** They were measured on one hosted runner. The
   shape of the result should carry over; the digits should not be quoted as
   properties of the library.

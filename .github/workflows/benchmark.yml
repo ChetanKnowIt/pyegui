@@ -657,19 +657,71 @@ jobs:
           # spelled out rather than inferred from the checkout.
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add bench/results/combined.json
 
-          # Nothing to do when the numbers came out identical. An empty commit
-          # on every run would be indistinguishable from a real change, which is
-          # the opposite of what this step is for.
-          if git diff --cached --quiet; then
-            echo "combined.json is unchanged; not committing"
-            exit 0
+          # Retried with a rebase inside the attempt, because this step has
+          # already failed that way: run 37195830618 concluded `failure` here
+          # when a human push landed during the ~7-minute benchmark run. The
+          # snapshot commit is a push onto a branch other people commit to,
+          # so "the remote moved while I was measuring" is a routine race, not
+          # an exceptional one -- it must be absorbed by rebasing onto the new
+          # tip rather than failing the run and throwing away seven minutes of
+          # measurement.
+          #
+          # The commit is made inside the loop rather than before it: a commit
+          # made outside it would be rebased with a stale index, and the file
+          # it carries is the very file the remote may also have moved.
+          #
+          # The measurement is copied out of the worktree first, because each
+          # retry resets the worktree to the remote's tip. Without the copy,
+          # a reset would discard the snapshot this run just produced and the
+          # retry would discover "nothing to commit" and give up silently --
+          # turning a push race into a run that reports success having recorded
+          # nothing. `mktemp` is used rather than a fixed name because a
+          # leftover file from a previous run on the same runner would
+          # silently become this run's snapshot.
+          snapshot_copy="$(mktemp)"
+          trap 'rm -f "${snapshot_copy}"' EXIT
+          cp bench/results/combined.json "${snapshot_copy}"
+
+          committed=0
+          for attempt in 1 2 3; do
+            # Restore the measured snapshot: a previous attempt may have reset
+            # or rebased it away.
+            cp "${snapshot_copy}" bench/results/combined.json
+            git add bench/results/combined.json
+
+            # Nothing to do when the numbers came out identical. An empty
+            # commit on every run would be indistinguishable from a real
+            # change, which is the opposite of what this step is for.
+            if git diff --cached --quiet; then
+              echo "combined.json is unchanged; not committing"
+              exit 0
+            fi
+
+            if git commit -m "Record benchmark result: ${GITHUB_RUN_ID}"; then
+              # FETCH_HEAD is what the pull just refreshed, and it exists even
+              # under the shallow, detached checkout this step may get.
+              if git pull --rebase origin "${REF}"; then
+                # Not a plain `git push`: that publishes to whatever HEAD
+                # points at, which under a detached or shallow checkout is
+                # not the branch that was dispatched.
+                if git push origin "HEAD:${REF}"; then
+                  committed=1
+                  break
+                fi
+              fi
+            fi
+
+            echo "attempt ${attempt} failed; retrying"
+            # Drop any half-finished rebase and any commit this step already
+            # made, so the next attempt starts from the remote's tip instead of
+            # trying to replay them.
+            git rebase --abort 2>/dev/null || true
+            git reset --hard FETCH_HEAD || true
+            sleep $((attempt * 10))
+          done
+
+          if [ "${committed}" -ne 1 ]; then
+            echo "::error::could not commit the benchmark snapshot to ${REF}"
+            exit 1
           fi
-
-          git commit -m "Record benchmark result: ${GITHUB_RUN_ID}"
-          # Not a plain `git push`: that publishes to whatever HEAD points at,
-          # which under a detached or shallow checkout is not the branch that
-          # was dispatched. The remote is ahead by nothing at this point, but
-          # a ref that moves between dispatch and push must not clobber it.
-          git push origin "HEAD:${REF}"

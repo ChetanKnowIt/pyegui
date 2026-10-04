@@ -17,12 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from check_performance_page import WIDGET_COUNT, check_performance_page  # noqa: E402
 
 
-def _comparison(ratio_median, ratio_min, ratio_max):
+def _comparison(ratio_median, ratio_min, ratio_max, extra_us_median):
     return {
         "comparison": {
             "ratio_median": ratio_median,
             "ratio_min": ratio_min,
             "ratio_max": ratio_max,
+            "extra_us_median": extra_us_median,
         }
     }
 
@@ -33,17 +34,22 @@ SNAPSHOT = {
     "import": {"import_pyegui_ms": 7.277},
     "by_scenario": {
         "label": {
-            "50": _comparison(1.46, 1.43, 1.51),
-            "2000": _comparison(1.37, 1.36, 1.37),
+            "50": _comparison(1.46, 1.43, 1.51, 0.285),
+            "2000": _comparison(1.37, 1.36, 1.37, 0.183),
         },
         "text_edit_plain": {
-            "2000": _comparison(1.31, 1.28, 1.34),
+            "2000": _comparison(1.31, 1.28, 1.34, 0.275),
         },
         "text_edit_hint": {
-            "2000": _comparison(1.5, 1.45, 1.51),
+            "2000": _comparison(1.5, 1.45, 1.51, 0.449),
         },
         "python_side": {
-            "2000": {"python_only": {"pyegui_frame_ms_median": 0.636}},
+            "2000": {
+                "python_only": {
+                    "pyegui_frame_ms_median": 0.636,
+                    "pyegui_per_widget_us_median": 0.318,
+                }
+            },
         },
     },
 }
@@ -52,11 +58,15 @@ MATCHING_PAGE = (
     ".. |import_ms| replace:: 7.277ms\n"
     ".. |ratio_label| replace:: 1.37x\n"
     ".. |ratio_label_range| replace:: 1.36x-1.37x\n"
+    ".. |extra_us_label| replace:: 0.183us\n"
     ".. |ratio_text_edit_plain| replace:: 1.31x\n"
     ".. |ratio_text_edit_plain_range| replace:: 1.28x-1.34x\n"
+    ".. |extra_us_text_edit_plain| replace:: 0.275us\n"
     ".. |ratio_text_edit_hint| replace:: 1.5x\n"
     ".. |ratio_text_edit_hint_range| replace:: 1.45x-1.51x\n"
+    ".. |extra_us_text_edit_hint| replace:: 0.449us\n"
     ".. |frame_ms_python_side| replace:: 0.636\n"
+    ".. |per_widget_us_python_side| replace:: 0.318us\n"
     # Presence-checked only: no machine-checkable value exists for these.
     ".. |last_verified_run| replace:: 37196277892\n"
     ".. |last_verified_commit| replace:: e766e6b\n"
@@ -154,6 +164,85 @@ def test_import_and_python_side_numbers_are_checked(tmp_path):
     check_performance_page(sp, pp, warnings)
     assert any("99.0ms" in w and "7.277" in w for w in warnings), warnings
     assert any("0.500" in w and "0.636" in w for w in warnings), warnings
+
+
+NEW_SUBSTITUTIONS = (
+    "extra_us_label",
+    "extra_us_text_edit_plain",
+    "extra_us_text_edit_hint",
+    "per_widget_us_python_side",
+)
+
+
+def test_each_per_widget_number_is_individually_checked(tmp_path):
+    """Every new substitution must actually be compared, not merely defined.
+
+    Asserted one at a time because a check that silently stopped covering one
+    of them would still pass a single "the gate warns" test, and the page would
+    go on quoting a number nothing checked.
+    """
+    snapshot = json.loads(json.dumps(SNAPSHOT))
+    bumps = {
+        "extra_us_label": ("label", "extra_us_median"),
+        "extra_us_text_edit_plain": ("text_edit_plain", "extra_us_median"),
+        "extra_us_text_edit_hint": ("text_edit_hint", "extra_us_median"),
+    }
+    for name in NEW_SUBSTITUTIONS:
+        page = "\n".join(
+            line for line in MATCHING_PAGE.splitlines()
+            if not line.startswith(f".. |{name}|")
+        ) + "\n"
+        sp, pp = write(tmp_path, snapshot, page)
+        warnings = []
+        check_performance_page(sp, pp, warnings)
+        assert any(name in w and "never defined" in w for w in warnings), (
+            f"|{name}| is not covered by the gate: dropping it warned nothing"
+        )
+
+    # And the positive direction: a wrong value must warn with both numbers.
+    for name, (scenario, key) in bumps.items():
+        snapshot2 = json.loads(json.dumps(SNAPSHOT))
+        snapshot2["by_scenario"][scenario]["2000"]["comparison"][key] = 9.99
+        sp, pp = write(tmp_path, snapshot2, MATCHING_PAGE)
+        warnings = []
+        check_performance_page(sp, pp, warnings)
+        assert any(name in w and "9.99" in w for w in warnings), (
+            f"|{name}| drifted from the snapshot but the gate said nothing"
+        )
+
+    # python_side's per-widget figure, the same two directions.
+    snapshot3 = json.loads(json.dumps(SNAPSHOT))
+    snapshot3["by_scenario"]["python_side"]["2000"]["python_only"][
+        "pyegui_per_widget_us_median"] = 9.99
+    sp, pp = write(tmp_path, snapshot3, MATCHING_PAGE)
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    assert any("per_widget_us_python_side" in w and "9.99" in w
+               for w in warnings), warnings
+
+
+def test_every_substitution_the_page_declares_is_checked():
+    """No declared substitution may sit outside the gate's reach.
+
+    The page claims, in prose, exactly which of its numbers are checked. This
+    asserts the mechanical half of that claim: the set of names the gate
+    compares is the set of names the page declares, plus the two provenance
+    tokens, which carry no machine-checkable value and are presence-checked.
+    """
+    from check_performance_page import REQUIRED, SUBSTITUTIONS
+
+    checked = {name for names in SUBSTITUTIONS.values() for name in names}
+    checked |= {"import_ms", "frame_ms_python_side", "per_widget_us_python_side"}
+    page = (Path(__file__).resolve().parent.parent / "docs" / "performance.rst").read_text(
+        encoding="utf-8"
+    )
+    declared = set(re.findall(r"^\.\. \|(\w+)\| replace:: ", page, re.M))
+    assert declared == checked | REQUIRED, (
+        "the page declares substitutions the gate does not check, or names the "
+        "gate checks that the page does not define",
+        sorted(declared - checked - REQUIRED),
+        sorted(checked - declared),
+    )
 
 
 def test_no_comparison_key_is_not_invented_into_a_ratio(tmp_path):

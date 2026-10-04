@@ -34,9 +34,21 @@ WIDGET_COUNT = "2000"
 # scenario that carries the number. Ordered so the rendered page reads in the
 # same order as the scenario table.
 SUBSTITUTIONS = {
-    "label": ("ratio_label", "ratio_label_range"),
-    "text_edit_plain": ("ratio_text_edit_plain", "ratio_text_edit_plain_range"),
-    "text_edit_hint": ("ratio_text_edit_hint", "ratio_text_edit_hint_range"),
+    "label": (
+        "ratio_label",
+        "ratio_label_range",
+        "extra_us_label",
+    ),
+    "text_edit_plain": (
+        "ratio_text_edit_plain",
+        "ratio_text_edit_plain_range",
+        "extra_us_text_edit_plain",
+    ),
+    "text_edit_hint": (
+        "ratio_text_edit_hint",
+        "ratio_text_edit_hint_range",
+        "extra_us_text_edit_hint",
+    ),
 }
 
 # Substitutions the page must define for the gate to have anything to check.
@@ -66,6 +78,10 @@ def _fmt_range(low, high):
 
 def _ms(value):
     return f"{value}ms"
+
+
+def _fmt_us(value):
+    return f"{value}us"
 
 
 def _warn(warnings, message):
@@ -203,19 +219,36 @@ def check_performance_page(snapshot_path, page_path, warnings):
         )
     else:
         entry = _as_dict(python_side.get(WIDGET_COUNT))
-        frame_ms = _as_dict(entry.get("python_only")).get("pyegui_frame_ms_median")
-        if frame_ms is None:
-            _warn(
-                warnings,
-                "docs/performance.rst: python_side at "
-                f"{WIDGET_COUNT} widgets has no python_only.pyegui_frame_ms_median, "
-                "so |frame_ms_python_side| cannot be checked. Re-run `benchmark`.",
-            )
-        else:
-            _compare(
-                warnings, declared, "frame_ms_python_side", str(frame_ms),
-                f"python_side at {WIDGET_COUNT} widgets/frame",
-            )
+        python_only = _as_dict(entry.get("python_only"))
+        where = f"python_side at {WIDGET_COUNT} widgets/frame"
+        expected = {}
+        for key, name, fmt in (
+            ("pyegui_frame_ms_median", "frame_ms_python_side", str),
+            ("pyegui_per_widget_us_median", "per_widget_us_python_side", _fmt_us),
+        ):
+            # Presence is checked as well as value. `_compare` deliberately
+            # stays silent when a name is undeclared (the "never defined"
+            # warning is the caller's job), so without this an undeclared
+            # python_side figure would produce no warning at all -- the page
+            # could drop the number and nothing would notice.
+            if name not in declared:
+                _warn(
+                    warnings,
+                    f"docs/performance.rst: |{name}| is never defined, so the "
+                    f"page has no number for python_side.",
+                )
+            value = python_only.get(key)
+            if value is None:
+                _warn(
+                    warnings,
+                    f"docs/performance.rst: python_side at {WIDGET_COUNT} "
+                    f"widgets has no python_only.{key}, so |{name}| cannot be "
+                    "checked. Re-run `benchmark`.",
+                )
+                continue
+            expected[name] = fmt(value)
+        for name, value in expected.items():
+            _compare(warnings, declared, name, value, where)
 
     for name in sorted(REQUIRED):
         if name not in declared:
@@ -242,18 +275,26 @@ def check_performance_page(snapshot_path, page_path, warnings):
                 "checked. Re-run `benchmark`.",
             )
             continue
-        for missing in ("ratio_median", "ratio_min", "ratio_max"):
+        # The per-widget overhead the page quotes is the third substitution
+        # for each scenario. It lives in the same `comparison` block, and it is
+        # the number that says what the binding charges rather than what the
+        # ratio came out at -- so it is checked like the other two.
+        for missing in ("ratio_median", "ratio_min", "ratio_max", "extra_us_median"):
             if missing not in comparison:
                 _warn(
                     warnings,
                     f"docs/performance.rst: scenario '{scenario}' comparison at "
                     f"{WIDGET_COUNT} widgets has no {missing}.",
                 )
-        if not all(k in comparison for k in ("ratio_median", "ratio_min", "ratio_max")):
+        if not all(
+            k in comparison
+            for k in ("ratio_median", "ratio_min", "ratio_max", "extra_us_median")
+        ):
             continue
         expected = {
             names[0]: _fmt_ratio(comparison["ratio_median"]),
             names[1]: _fmt_range(comparison["ratio_min"], comparison["ratio_max"]),
+            names[2]: _fmt_us(comparison["extra_us_median"]),
         }
         for name, value in expected.items():
             _compare(

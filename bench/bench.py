@@ -104,8 +104,13 @@ def make_update(first_frame):
         elif SCENARIO == "python_side":
             for i in range(WIDGETS_PER_FRAME):
                 # Author-side work, not binding work: an f-string, an
-                # attribute read and arithmetic, accumulating into a value
-                # that is read back so nothing is optimised away.
+                # attribute read, arithmetic and a store into `name.value`.
+                # `python_side_sink` is a local of this closure that nothing
+                # ever reads back, so the store into it is what keeps the
+                # f-string on the measured path -- the slice and the `or` are
+                # the loop body this scenario is measuring, not bookkeeping,
+                # and the `[:0]` makes the assigned value always the empty
+                # string, so `name.value` ends up holding `str(i)`.
                 python_side_sink = f"{name.value}-{i}" + str(i)
                 name.value = python_side_sink[:0] or str(i)
         else:  # pragma: no cover - SCENARIO is rejected at import
