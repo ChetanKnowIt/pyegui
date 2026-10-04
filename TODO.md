@@ -265,6 +265,9 @@ Median of 5 trials, all measured in one run so the rows are comparable:
 | 500 | 0.487 | 0.365 | 1.33x | 1.33x-1.34x | 0.8% | 0.121 |
 | 2000 | 0.484 | 0.365 | 1.32x | 1.31x-1.34x | 2.3% | 0.117 |
 
+The README quotes this table, and `doc_claims.py` gates the name/feature
+counts beside it — the benchmark figures themselves are prose, not a gate.
+
 `import pyegui` is 7.277 ms.
 
 **Two findings, and the second is the one that was nearly missed.**
@@ -281,7 +284,7 @@ was variation between runs, i.e. between different hosted machines. That is a
 much better problem to have, and it means the ratio itself is a real and stable
 property while the absolute microseconds are not portable.
 
-A 2000-widget frame is 1.03 ms through pyegui against 0.78 ms in Rust, about
+A 2000-widget frame is 0.97 ms through pyegui against 0.73 ms in Rust, about
 6% of egui's 16.7 ms budget at 60 fps. Where the overhead would start to matter
 is the tens of thousands of widgets, not the thousands measured here.
 
@@ -293,9 +296,8 @@ is the tens of thousands of widgets, not the thousands measured here.
       anything about the binding
 - [ ] Measure a heavier widget (image, text edit, drag) — `label` is the
       cheapest path through the binding and may flatter it
-- [ ] Say in the README that the absolute microseconds are runner-specific and
-      the ratio is the portable part. The current text implies the microseconds
-      transfer between machines, which the between-run spread shows they do not.
+- [x] Say in the README that the absolute microseconds are runner-specific and
+      the ratio is the portable part
 
 Trials are the outer loop and widget counts the inner, deliberately: the
 reverse order measures 50 widgets on a cool machine and 2000 on a warm one, and

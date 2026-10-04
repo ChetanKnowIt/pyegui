@@ -12,7 +12,7 @@ Latest runs, all green: `check` 37104300409, `examples` 37104300424,
 **174 exported names** — 18 classes, 156 functions (110 plain + 46
 `*_response`), clippy at 0 diagnostics.
 
-TODO totals: **34 open, 7 partial, 40 done.** §3 (containers) is closed.
+TODO totals: **33 open, 7 partial, 41 done.** §3 (containers) is closed.
 
 | Section | open | partial | done |
 | --- | ---: | ---: | ---: |
@@ -23,7 +23,7 @@ TODO totals: **34 open, 7 partial, 40 done.** §3 (containers) is closed.
 | §5 Context API | 9 | 2 | 0 |
 | §6 Builder options on existing widgets | 7 | 0 | 0 |
 | §7 egui_extras | 4 | 1 | 0 |
-| §7 Benchmarks | 5 | 0 | 11 |
+| §7 Benchmarks | 4 | 0 | 12 |
 
 Shipped since the previous handoff:
 
@@ -39,6 +39,7 @@ Shipped since the previous handoff:
 | `2a67f6f` | README renamed to Markdown. |
 | `95cea3c` | Handoff doc and TODO §3 brought up to date. |
 | `b0918e7` | Benchmark measures 5 trials per count and reports median + spread. |
+| `README` rewrite | Performance section now quotes the 5-trial table: median ratios 1.33x/1.33x/1.32x, per-trial ranges, the within-run spread vs the between-run spread, and the note that the microseconds are runner-specific. |
 
 ## Constraints
 
@@ -281,10 +282,6 @@ easy to undo by accident:
 Files are `pyegui-<count>-t<trial>.json`, and the combine step re-reads the
 count from the payload to check it against the filename.
 
-**Still to do:** the README's Performance section still quotes 1.30x from the
-first single-trial run and does not say that the absolute microseconds are
-runner-specific. It should be rewritten against the table above.
-
 ## Settled decisions
 
 These were open at `e0beb36` and decided on 2026-10-02. Do not re-open them
@@ -313,24 +310,20 @@ without new information.
 
 ## Next up, in order
 
-1. **Rewrite the README's Performance section** against the 5-trial table. It
-   still quotes 1.30x from the first single-trial run, and it does not say that
-   the absolute microseconds are runner-specific while the ratio is the portable
-   part. That is the last known-wrong number in the documentation.
-2. **Builder options (§6)** — the largest single block: `Slider` 23 options,
+1. **Builder options (§6)** — the largest single block: `Slider` 23 options,
    `TextEdit` 18, `DragValue` 13, `DatePickerButton` 12, `run_native` viewport
    kwargs 20, `NativeOptions` 11, plus `App::save` / `Storage`.
-3. **Context API (§5)** — 9 open, largely greenfield. `Context` reaches 10 of
+2. **Context API (§5)** — 9 open, largely greenfield. `Context` reaches 10 of
    egui's 148 public methods.
 4. **egui_extras (§7)** — `Table` / `TableBuilder`, `StripBuilder`, `Sizing`,
    and `code_view_ui`, which needs the `syntect` feature and therefore the
    lockfile workflow.
-5. **`colored_label`** (§2) — needs a `RichText` wrapper.
-6. **§4 remainder** — `with_layout` / `wrap_mode` (needs a whole
+4. **`colored_label`** (§2) — needs a `RichText` wrapper.
+5. **§4 remainder** — `with_layout` / `wrap_mode` (needs a whole
    `egui::Layout`, which the existing `Layout` / `LayoutType` classes do not
    cover), `UiBuilder` / `scope_builder` / `new_child`, `interact`, and
    `painter` access for custom drawing.
-7. **Benchmark, one heavier widget** — `label` is the cheapest path through the
+6. **Benchmark, one heavier widget** — `label` is the cheapest path through the
    binding and may flatter it. Lower priority now that the ratio is known to be
    stable, since the question it answers is whether the cost scales with widget
    complexity rather than count.

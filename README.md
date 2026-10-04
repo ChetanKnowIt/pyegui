@@ -182,18 +182,19 @@ one frame — read it in the same frame the widget was shown.
 pyegui is a binding, not a faster egui. Rendering is egui's work and identical
 either way, so the only honest question is what the binding adds on top. Both
 sides do the same work -- N labels per frame, 61 frames, timed around building
-the frame -- and both were measured in a single run of the `benchmark`
-workflow, on one runner, so the rows are comparable with each other.
+the frame -- and both were measured in one run of the `benchmark` workflow, on
+one runner, over 5 trials each, so the rows are comparable with each other.
+Figures are the median of the 5 trials; the range is every trial's ratio.
 
-==================================  =========  ===========  ======  ========
-widgets per frame                      pyegui  egui (Rust)   ratio     extra
-==================================  =========  ===========  ======  ========
-50                                   0.633 us     0.477 us   1.33x  0.156 us
-500                                  0.507 us     0.391 us   1.30x  0.116 us
-2000                                 0.516 us     0.389 us   1.33x  0.127 us
-==================================  =========  ===========  ======  ========
+==================================  ========  ===========  =====  ===========  ========
+widgets per frame                      pyegui  egui (Rust)  ratio  ratio range     extra
+==================================  ========  ===========  =====  ===========  ========
+50                                     0.600 us     0.453 us  1.33x    1.31x-1.34x  0.151 us
+500                                    0.487 us     0.365 us  1.33x    1.33x-1.34x  0.121 us
+2000                                   0.484 us     0.365 us  1.32x    1.31x-1.34x  0.117 us
+==================================  ========  ===========  =====  ===========  ========
 
-`import pyegui` is 7.7 ms -- that is `dlopen` of an 8 MB extension, and it is
+`import pyegui` is 7.3 ms -- that is `dlopen` of an 8 MB extension, and it is
 the only startup cost the binding introduces.
 
 **Read that as roughly 1.3x per widget, not "almost nothing".** A widget call
@@ -203,30 +204,32 @@ Rust.
 The interesting part is that the ratio does not move. It was expected to: the
 binding's cost is a fixed toll per call, so a frame with more widgets should
 amortise it over more of egui's own work and the ratio should fall. Measured,
-it sits at 1.30-1.33x at 50, 500 and 2000 widgets, which is inside run-to-run
-noise. Two things follow, and the first is the more useful one.
+it sits at 1.32-1.33x at 50, 500 and 2000 widgets, and every one of the 15
+trials landed between 1.31x and 1.34x. The binding is not a per-call tax that
+widget density dilutes.
 
-A 2000-widget frame takes 1.03 ms through pyegui and 0.78 ms in Rust. egui's
+A 2000-widget frame takes 0.97 ms through pyegui and 0.73 ms in Rust. egui's
 budget for 60 fps is 16.7 ms, so that frame uses about 6% of the budget
-through pyegui and 5% in Rust -- both dominated by egui's own layout and paint.
+through pyegui and 4% in Rust -- both dominated by egui's own layout and paint.
 The binding is not what a profiler would point at in a typical app. The
 difference only becomes arguable somewhere in the tens of thousands of widgets,
 not the thousands the table reaches.
 
-The second is a caveat on the numbers themselves: 50 widgets/frame measured
-0.633 us per widget against 0.507 us at 500. Fewer widgets means a smaller
-frame, which means less work for egui to amortise against and a higher
-proportion of per-call overhead. It is the count where the binding is
-proportionally most expensive, and the table is reported rather than smoothed
-so that is visible instead of being averaged away.
+Within a run the measurement is tight -- a spread of 0.8% to 2.3% on the
+ratio. Between runs it is not: three earlier single-trial runs gave 1.30x,
+1.52x and 1.38x-1.55x. That spread is variation between hosted machines, not
+something about the binding, and it is why the trials exist.
 
 The comparison is reproducible -- dispatch the `benchmark` workflow with
-`widgets=50,500,2000` and read `bench/results/combined.json`. The step
-refuses to compute a ratio unless both sides report the same widget count and
-the same number of frames, since the two halves have drifted apart before and
-a ratio between different workloads looks exactly like a real one. It is
-deliberately not a pass/fail gate, since a benchmark that gates a build is a
-benchmark people learn to ignore.
+`widgets=50,500,2000` and `trials=5` and read `bench/results/combined.json`.
+Trials are the outer loop and widget counts the inner, deliberately: the
+reverse order measures 50 widgets on a cool machine and 2000 on a warm one,
+and that gradient is indistinguishable from a real effect of widget count.
+The combine step refuses to compute a ratio unless both sides report the same
+widget count and the same number of frames, since the two halves have drifted
+apart before and a ratio between different workloads looks exactly like a real
+one. It is deliberately not a pass/fail gate, since a benchmark that gates a
+build is a benchmark people learn to ignore.
 
 **What is not claimed.** There is no "time to launch" figure: launch is
 dominated by `dlopen` plus eframe's window creation, neither of which the
@@ -237,10 +240,12 @@ constant across the range and one figure would hide that.
 > **Note**
 >
 > Measured on a GitHub-hosted runner, which is slower than a typical
-> development machine. The ratios are the portable part; the absolute
-> microseconds are not. Earlier revisions of this section quoted 1.84x from a
-> run measuring a single count; this table supersedes that, and
-> `git log` on this file has the change.
+> development machine. The ratio is the portable part; the absolute
+> microseconds are not, and do not transfer between machines — the
+> between-run spread above is what shows that. Earlier revisions of this
+> section quoted 1.84x from a run measuring a single count, then 1.30x from
+> another single-count run; this table supersedes both, and `git log` on this
+> file has the change.
 
 ##### The ergonomics comparison
 
