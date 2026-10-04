@@ -32,35 +32,7 @@ real rather than "it exited 0".
 lands.
 """
 
-import subprocess
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Prepended to every snippet: close the window after a fixed number of frames,
-# so a snippet is a bounded app rather than something that hangs on a typo.
-BOUNDED_RUNNER = '''
-import pyegui as _pyegui
-import time as _time
-
-_frames = [0]
-_deadline = _time.monotonic() + 1.0
-_original_run_native = _pyegui.run_native
-
-
-def _bounded(app_name, update_func, **kwargs):
-    def update(ctx):
-        update_func(ctx)
-        _frames[0] += 1
-        ctx.request_repaint()
-        if _time.monotonic() >= _deadline:
-            ctx.close()
-    return _original_run_native(app_name, update, **kwargs)
-
-
-_pyegui.run_native = _bounded
-'''
+from bounded_app import run_snippet
 
 # Every option the sliders accept, at values egui accepts. A run that completes
 # proves each name was read and forwarded rather than rejected as unknown.
@@ -112,39 +84,6 @@ def update(ctx):
 
 pyegui.run_native("all options", update)
 '''
-
-
-def run_snippet(source, timeout=180):
-    """Execute `source` as a self-closing app; return (ok, detail).
-
-    **Why this does not use `tests/smoke.py`.** `smoke.py --run-source`
-    screenshots the window and fails if fewer than four distinct colours were
-    captured. That is the right check for "did this example draw anything" and
-    the wrong check here: these snippets draw one label, and proving *what* they
-    drew is not what any assertion in this file asks. Worse, the capture path
-    needs ImageMagick and an X server that can export the root window, so a
-    machine without `xvfb` + `imagemagick` turns every one of these tests into
-    a failure that says nothing about the code under test.
-
-    The bound here is the part that matters and is kept: the snippet closes its
-    own window after a fixed number of frames, and the subprocess has a
-    wall-clock timeout. An app that never closes is a hang, and a hang is a
-    failure -- which is the whole reason the snippets catch their own errors
-    instead of letting them escape into `PyeguiApp::update`.
-
-    `detail` drops the xkbcommon warnings that land on stderr in every run of
-    every test file in this repo, so a failure names the offending option.
-    """
-    runner = BOUNDED_RUNNER + source
-    proc = subprocess.run(
-        [sys.executable, "-c", runner],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    lines_out = (proc.stdout + "\n" + proc.stderr).strip().splitlines()
-    interesting = [ln for ln in lines_out if not ln.startswith("xkbcommon:")]
-    return proc.returncode == 0, "\n".join(interesting[-12:]) or "no output"
 
 
 def test_every_slider_option_is_accepted():

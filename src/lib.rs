@@ -5775,16 +5775,78 @@ unsafe fn set_opacity(opacity: f32) -> PyResult<()> {
     Ok(())
 }
 
+/// Read the **options tail of a DatePickerButton and return the rebuilt builder.
+///
+/// Takes and returns the builder by value, the same reason
+/// `apply_slider_options` and `apply_text_edit_options` do: egui's setters
+/// consume `self` and return a new builder, so assigning through `&mut` would
+/// move out of a borrow.
+///
+/// `format`, `show_icon`, `highlight_weekends` and `id_salt` are keyword
+/// parameters on the pyfunctions rather than dict entries, so only the four
+/// popup switches arrive here.
+///
+/// All four are plain `bool` setters. TODO §6 described `calendar` and `arrows`
+/// as enums taking strings; egui_extras 0.31.1 has no enum behind either name
+/// (crates/egui_extras/src/datepicker/button.rs:57-82), so they are read with
+/// `opt_bool` and the plan's enum treatment was not built.
+unsafe fn apply_date_picker_options<'a>(
+    mut button: egui_extras::DatePickerButton<'a>,
+    options: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+    widget: &str,
+) -> PyResult<egui_extras::DatePickerButton<'a>> {
+    let o = match options {
+        Some(o) => o,
+        None => return Ok(button),
+    };
+
+    if let Some(v) = opt_bool(o, "combo_boxes", used)? {
+        button = button.combo_boxes(v);
+    }
+    if let Some(v) = opt_bool(o, "arrows", used)? {
+        button = button.arrows(v);
+    }
+    if let Some(v) = opt_bool(o, "calendar", used)? {
+        button = button.calendar(v);
+    }
+    if let Some(v) = opt_bool(o, "calendar_week", used)? {
+        button = button.calendar_week(v);
+    }
+
+    reject_unknown_options(o, used, widget)?;
+
+    Ok(button)
+}
+
 /// Shows a date, and will open a date picker popup when clicked.
 ///
 /// Example::
 ///
 ///     date = Date(datetime.datetime.now())
 ///     # inside update_func
-///     date_picker_button(date)
+///     date_picker_button(date, format="%d/%m/%Y")
+///
+/// Builder options go in **options: `combo_boxes`, `arrows`, `calendar`,
+/// `calendar_week`. An unknown name is an error.
 #[pyfunction]
-unsafe fn date_picker_button(selection: &mut Date) -> PyResult<()> {
-    date_picker_button_response(selection)?;
+#[pyo3(signature = (selection, format=None, show_icon=None, highlight_weekends=None, id_salt=None, **options))]
+unsafe fn date_picker_button(
+    selection: &mut Date,
+    format: Option<&str>,
+    show_icon: Option<bool>,
+    highlight_weekends: Option<bool>,
+    id_salt: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    date_picker_button_response(
+        selection,
+        format,
+        show_icon,
+        highlight_weekends,
+        id_salt,
+        options,
+    )?;
     Ok(())
 }
 
@@ -5796,12 +5858,42 @@ unsafe fn date_picker_button(selection: &mut Date) -> PyResult<()> {
 ///     date = Date(datetime.datetime.now())
 ///     if date_picker_button_response(date).changed:
 ///       print("picked", date.value)
+///
+/// Builder options go in **options: `combo_boxes`, `arrows`, `calendar`,
+/// `calendar_week`. An unknown name is an error.
 #[pyfunction]
-unsafe fn date_picker_button_response(selection: &mut Date) -> PyResult<Response> {
+#[pyo3(signature = (selection, format=None, show_icon=None, highlight_weekends=None, id_salt=None, **options))]
+unsafe fn date_picker_button_response(
+    selection: &mut Date,
+    format: Option<&str>,
+    show_icon: Option<bool>,
+    highlight_weekends: Option<bool>,
+    id_salt: Option<&str>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
+    let mut used = OptNames::new();
+
+    // Keyword parameters are applied here rather than in the shared helper so
+    // the two pyfunctions cannot drift, and so the helper's `**options` list
+    // stays exactly the four names that arrive in the dict.
+    let mut button = egui_extras::DatePickerButton::new(&mut selection.value);
+    if let Some(v) = format {
+        button = button.format(v);
+    }
+    if let Some(v) = show_icon {
+        button = button.show_icon(v);
+    }
+    if let Some(v) = highlight_weekends {
+        button = button.highlight_weekends(v);
+    }
+    if let Some(v) = id_salt {
+        button = button.id_salt(v);
+    }
+    let button = apply_date_picker_options(button, options, &mut used, "date_picker_button_response")?;
 
     Ok(Response {
-        inner: ui.add(egui_extras::DatePickerButton::new(&mut selection.value)),
+        inner: ui.add(button),
     })
 }
 

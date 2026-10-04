@@ -39,56 +39,7 @@ The plan's prose list in TODO §6 disagrees with that source in several places.
 future edit to either list fails loudly rather than drifting silently.
 """
 
-import subprocess
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
-
-# Prepended to every snippet: close the window after a fixed number of frames,
-# so a snippet is a bounded app rather than something that hangs on a typo.
-BOUNDED_RUNNER = '''
-import pyegui as _pyegui
-import time as _time
-
-_frames = [0]
-_deadline = _time.monotonic() + 1.0
-_original_run_native = _pyegui.run_native
-
-
-def _bounded(app_name, update_func, **kwargs):
-    def update(ctx):
-        update_func(ctx)
-        _frames[0] += 1
-        ctx.request_repaint()
-        if _time.monotonic() >= _deadline:
-            ctx.close()
-    return _original_run_native(app_name, update, **kwargs)
-
-
-_pyegui.run_native = _bounded
-'''
-
-
-def run_snippet(source, timeout=180):
-    """Execute `source` as a self-closing app; return (ok, detail).
-
-    Same contract, and same reasoning, as `test_slider_options.py::run_snippet`:
-    not `tests/smoke.py`, because smoke screenshots the window and needs an X
-    server that can export the root window. The bound is kept -- the snippet
-    closes its own window, and an app that never closes is a hang, which is a
-    failure.
-    """
-    runner = BOUNDED_RUNNER + source
-    proc = subprocess.run(
-        [sys.executable, "-c", runner],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-    lines_out = (proc.stdout + "\n" + proc.stderr).strip().splitlines()
-    interesting = [ln for ln in lines_out if not ln.startswith("xkbcommon:")]
-    return proc.returncode == 0, "\n".join(interesting[-14:]) or "no output"
+from bounded_app import run_snippet
 
 
 # --------------------------------------------------------------------------

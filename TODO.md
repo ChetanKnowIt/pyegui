@@ -309,9 +309,34 @@ a positional label reach the builders.
           a `Context` and an `Id`. Both types are outside this binding's
           widget-call shape (`Id` is TODO §4), and reaching them would mean
           exposing `Context` and `Id` to Python for no other reason.
-- [ ] `DatePickerButton`: `format`, `start_end_years`, `reverse_years`,
-      `show_icon`, `combo_boxes`, `arrows`, `calendar`, `calendar_week`,
-      `highlight_weekends`, `year_scroll_to`, `id_salt`
+- [x] `DatePickerButton`: 8 of the 11 names below now reach the builder, on
+      both `date_picker_button` and `date_picker_button_response`, verified
+      against egui_extras 0.31.1's `datepicker/button.rs` (there is no
+      `datepicker.rs`; the module is a directory in this version). Keyword
+      parameters: `format`, `show_icon`, `highlight_weekends`, `id_salt`.
+      `**options`: `combo_boxes`, `arrows`, `calendar`, `calendar_week`. An
+      unknown option name is a `ValueError`.
+
+      Two of these do not take the value the list's spelling suggests:
+
+      - `calendar` and `arrows` are bool switches, not enum words. The plan
+        described them as enums taking strings; egui_extras 0.31.1 has no enum
+        behind either name -- `pub fn calendar(mut self, calendar: bool)` and
+        `pub fn arrows(mut self, arrows: bool)`
+        (crates/egui_extras/src/datepicker/button.rs:64-75) -- so they are
+        read with `opt_bool`. No second enum mechanism was built for them.
+
+      Not implemented, and deliberately NOT accepted as an option name, so
+      that the unknown-option check reports them: `start_end_years`,
+      `reverse_years`, `year_scroll_to`. These are NOT `DatePickerButton`
+      options at any version of egui_extras 0.31.1. `DatePickerButton` has
+      eight setters plus a deprecated `id_source` alias for `id_salt`, and
+      none of these three is among them
+      (crates/egui_extras/src/datepicker/button.rs:24-104). The year range is
+      hardcoded inside the popup's own `DatePickerPopup::draw` as
+      `today.year() - 100 .. today.year() + 10`
+      (crates/egui_extras/src/datepicker/popup.rs:87) and the popup struct's
+      fields are `pub(crate)`, so there is no builder hook to expose.
 - [ ] `run_native` viewport kwargs — currently size, fullscreen, maximized,
       resizable, transparent, `icon_path`. Missing: `position`, `decorations`,
       `title`, `always_on_top`, `visible`, `app_id`, `monitor`, `window_level`,
