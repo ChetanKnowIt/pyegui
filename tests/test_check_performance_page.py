@@ -32,23 +32,26 @@ def _comparison(ratio_median, ratio_min, ratio_max, extra_us_median):
 # Values taken from the committed snapshot at 2000 widgets/frame, so the
 # fixture is a shape the real file actually has rather than a convenient one.
 SNAPSHOT = {
-    "import": {"import_pyegui_ms": 7.277},
+    "import": {"import_pyegui_ms": 9.652},
     "by_scenario": {
         "label": {
-            "50": _comparison(1.46, 1.43, 1.51, 0.285),
-            "2000": _comparison(1.37, 1.36, 1.37, 0.183),
+            "50": _comparison(1.44, 1.39, 1.47, 0.23),
+            "2000": _comparison(1.33, 1.14, 1.36, 0.131),
         },
         "text_edit_plain": {
-            "2000": _comparison(1.31, 1.28, 1.34, 0.275),
+            "2000": _comparison(1.26, 1.19, 1.27, 0.182),
         },
         "text_edit_hint": {
-            "2000": _comparison(1.5, 1.45, 1.51, 0.449),
+            "2000": _comparison(3.26, 3.11, 3.32, 1.65),
+        },
+        "slider_many_options": {
+            "2000": _comparison(2.66, 2.61, 2.96, 4.181),
         },
         "python_side": {
             "2000": {
                 "python_only": {
-                    "pyegui_frame_ms_median": 0.636,
-                    "pyegui_per_widget_us_median": 0.318,
+                    "pyegui_frame_ms_median": 0.5263,
+                    "pyegui_per_widget_us_median": 0.263,
                 }
             },
         },
@@ -56,18 +59,21 @@ SNAPSHOT = {
 }
 
 MATCHING_PAGE = (
-    ".. |import_ms| replace:: 7.277ms\n"
-    ".. |ratio_label| replace:: 1.37x\n"
-    ".. |ratio_label_range| replace:: 1.36x-1.37x\n"
-    ".. |extra_us_label| replace:: 0.183us\n"
-    ".. |ratio_text_edit_plain| replace:: 1.31x\n"
-    ".. |ratio_text_edit_plain_range| replace:: 1.28x-1.34x\n"
-    ".. |extra_us_text_edit_plain| replace:: 0.275us\n"
-    ".. |ratio_text_edit_hint| replace:: 1.5x\n"
-    ".. |ratio_text_edit_hint_range| replace:: 1.45x-1.51x\n"
-    ".. |extra_us_text_edit_hint| replace:: 0.449us\n"
-    ".. |frame_ms_python_side| replace:: 0.636\n"
-    ".. |per_widget_us_python_side| replace:: 0.318us\n"
+    ".. |import_ms| replace:: 9.652ms\n"
+    ".. |ratio_label| replace:: 1.33x\n"
+    ".. |ratio_label_range| replace:: 1.14x-1.36x\n"
+    ".. |extra_us_label| replace:: 0.131us\n"
+    ".. |ratio_text_edit_plain| replace:: 1.26x\n"
+    ".. |ratio_text_edit_plain_range| replace:: 1.19x-1.27x\n"
+    ".. |extra_us_text_edit_plain| replace:: 0.182us\n"
+    ".. |ratio_text_edit_hint| replace:: 3.26x\n"
+    ".. |ratio_text_edit_hint_range| replace:: 3.11x-3.32x\n"
+    ".. |extra_us_text_edit_hint| replace:: 1.65us\n"
+    ".. |ratio_slider_many_options| replace:: 2.66x\n"
+    ".. |ratio_slider_many_options_range| replace:: 2.61x-2.96x\n"
+    ".. |extra_us_slider_many_options| replace:: 4.181us\n"
+    ".. |frame_ms_python_side| replace:: 0.5263\n"
+    ".. |per_widget_us_python_side| replace:: 0.263us\n"
     # Presence-checked only: no machine-checkable value exists for these.
     ".. |last_verified_run| replace:: 37196277892\n"
     ".. |last_verified_commit| replace:: e766e6b\n"
@@ -107,12 +113,12 @@ def test_matching_page_warns_about_nothing(tmp_path):
 
 
 def test_drifted_page_warns_with_both_values(tmp_path):
-    page = MATCHING_PAGE.replace("|ratio_label| replace:: 1.37x",
+    page = MATCHING_PAGE.replace("|ratio_label| replace:: 1.33x",
                                   "|ratio_label| replace:: 9.99x")
     sp, pp = write(tmp_path, SNAPSHOT, page)
     warnings = []
     check_performance_page(sp, pp, warnings)
-    assert any("9.99x" in w and "1.37" in w for w in warnings), warnings
+    assert any("9.99x" in w and "1.33" in w for w in warnings), warnings
 
 
 def test_snapshot_without_by_scenario_warns_and_does_not_raise(tmp_path):
@@ -156,21 +162,22 @@ def test_missing_scenario_warns(tmp_path):
 
 
 def test_import_and_python_side_numbers_are_checked(tmp_path):
-    page = MATCHING_PAGE.replace("|import_ms| replace:: 7.277ms",
+    page = MATCHING_PAGE.replace("|import_ms| replace:: 9.652ms",
                                  "|import_ms| replace:: 99.0ms")
-    page = page.replace("|frame_ms_python_side| replace:: 0.636",
+    page = page.replace("|frame_ms_python_side| replace:: 0.5263",
                         "|frame_ms_python_side| replace:: 0.500")
     sp, pp = write(tmp_path, SNAPSHOT, page)
     warnings = []
     check_performance_page(sp, pp, warnings)
-    assert any("99.0ms" in w and "7.277" in w for w in warnings), warnings
-    assert any("0.500" in w and "0.636" in w for w in warnings), warnings
+    assert any("99.0ms" in w and "9.652" in w for w in warnings), warnings
+    assert any("0.500" in w and "0.5263" in w for w in warnings), warnings
 
 
 NEW_SUBSTITUTIONS = (
     "extra_us_label",
     "extra_us_text_edit_plain",
     "extra_us_text_edit_hint",
+    "extra_us_slider_many_options",
     "per_widget_us_python_side",
 )
 
@@ -187,6 +194,7 @@ def test_each_per_widget_number_is_individually_checked(tmp_path):
         "extra_us_label": ("label", "extra_us_median"),
         "extra_us_text_edit_plain": ("text_edit_plain", "extra_us_median"),
         "extra_us_text_edit_hint": ("text_edit_hint", "extra_us_median"),
+        "extra_us_slider_many_options": ("slider_many_options", "extra_us_median"),
     }
     for name in NEW_SUBSTITUTIONS:
         page = "\n".join(
@@ -413,11 +421,11 @@ def test_every_structural_message_is_non_drift_and_drift_still_matches():
     # ordinary benchmark variation this tolerance exists to absorb.
     assert _is_drift(
         "docs/performance.rst: |ratio_label| says 1.99x, the snapshot says "
-        "1.37x (scenario 'label', 2000 widgets/frame)."
+        "1.33x (scenario 'label', 2000 widgets/frame)."
     ), "_DRIFT no longer matches the drift shape it exists to tolerate"
     assert not _is_drift(
         "docs/performance.rst: |ratio_label| says 1.99x, the snapshot says "
-        "1.37x"
+        "1.33x"
     ), (
         "_DRIFT matches an unanchored number mismatch -- a truncated message "
         "would be tolerated as drift"
@@ -541,7 +549,7 @@ def _malformed_shapes():
         "scenario is a string": {"by_scenario": {"label": "x", "python_side": {}}},
         "widget entry is a string": {"by_scenario": {"python_side": {"2000": "x"}}},
         "comparison is a string": {
-            "by_scenario": {"label": {"2000": {"comparison": "1.37x"}}}
+            "by_scenario": {"label": {"2000": {"comparison": "1.33x"}}}
         },
     }
 

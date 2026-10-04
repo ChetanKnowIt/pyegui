@@ -1,20 +1,23 @@
 Performance
 ===========
 
-.. |import_ms| replace:: 10.265ms
-.. |ratio_label| replace:: 1.37x
-.. |ratio_label_range| replace:: 1.36x-1.37x
-.. |extra_us_label| replace:: 0.183us
-.. |ratio_text_edit_plain| replace:: 1.31x
-.. |ratio_text_edit_plain_range| replace:: 1.28x-1.34x
-.. |extra_us_text_edit_plain| replace:: 0.275us
-.. |ratio_text_edit_hint| replace:: 1.5x
-.. |ratio_text_edit_hint_range| replace:: 1.45x-1.51x
-.. |extra_us_text_edit_hint| replace:: 0.449us
-.. |frame_ms_python_side| replace:: 0.636
-.. |per_widget_us_python_side| replace:: 0.318us
-.. |last_verified_run| replace:: 37196277892
-.. |last_verified_commit| replace:: e766e6b
+.. |import_ms| replace:: 9.652ms
+.. |ratio_label| replace:: 1.33x
+.. |ratio_label_range| replace:: 1.14x-1.36x
+.. |extra_us_label| replace:: 0.131us
+.. |ratio_text_edit_plain| replace:: 1.26x
+.. |ratio_text_edit_plain_range| replace:: 1.19x-1.27x
+.. |extra_us_text_edit_plain| replace:: 0.182us
+.. |ratio_text_edit_hint| replace:: 3.26x
+.. |ratio_text_edit_hint_range| replace:: 3.11x-3.32x
+.. |extra_us_text_edit_hint| replace:: 1.65us
+.. |ratio_slider_many_options| replace:: 2.66x
+.. |ratio_slider_many_options_range| replace:: 2.61x-2.96x
+.. |extra_us_slider_many_options| replace:: 4.181us
+.. |frame_ms_python_side| replace:: 0.5263
+.. |per_widget_us_python_side| replace:: 0.263us
+.. |last_verified_run| replace:: 37231335459
+.. |last_verified_commit| replace:: 271997f
 
 Every figure this page quotes *from the current snapshot* is an RST
 substitution defined above, and every one of those is checked against
@@ -66,13 +69,39 @@ frame:
   widget of overhead;
 * the same ``TextEdit`` with one extra option, ``hint_text``, costs
   |ratio_text_edit_hint| (|ratio_text_edit_hint_range|), and adds
-  |extra_us_text_edit_hint| per widget.
+  |extra_us_text_edit_hint| per widget;
+* a ``Slider`` configured with every one of the nineteen options it accepts
+  costs |ratio_slider_many_options| (|ratio_slider_many_options_range|), and
+  adds |extra_us_slider_many_options| per widget.
 
-So one option moves the ratio from 1.31x to 1.50x, and adds roughly 0.17us per
-widget -- on top of a widget that already costs about 1.7x what a label does.
-A UI with twenty configured widgets is not paying twenty times one widget's
-price; the marginal option costs less than the widget, but it is not zero, and
-across a frame full of configured widgets it adds up.
+**Read that last number, because it is the one that matters.** The
+``slider_many_options`` scenario exists because one option measured
+extrapolated to nineteen is a guess, and the guess would have been wrong by a
+wide margin. |extra_us_text_edit_hint| buys a widget with *one* option;
+|extra_us_slider_many_options| buys a widget with *nineteen*, which is about
+|extra_us_slider_many_options| against |extra_us_label| for the bare widget --
+roughly thirty times the per-widget overhead of an unconfigured label, on a
+widget that only costs 6.7 us to call at all. And this is the *cheap*
+direction of the shape: the slider scenario **passes all nineteen**, and the
+binding looks up nineteen names whether or not the caller supplies any of
+them, so a caller who configures one option on a slider pays the same toll as
+one who configures all of them. That is the cost of the ``**options`` design,
+stated as a measurement rather than as a worry.
+
+The ratio moves the same way, and for the same reason. A bare ``TextEdit``
+is *cheaper* than a ``label`` in ratio terms and a configured slider is
+*three times* one, and neither number is about egui getting slower: it is the
+binding's fixed per-option toll standing against a native baseline that
+happens to be small. Per-widget binding overhead and the ratio are two
+different numbers, and only the first one tells you what the binding charges.
+
+Two honest limits on all of this. It is **nineteen options on one widget**,
+measured on **one hosted runner** in **one run**, and it is not a per-option
+constant -- the options are not uniform, because reading a `handle_shape`
+word and validating an enum costs more than reading a bool. And the spread on
+this scenario is the widest on the page (13.3%), which is what a measurement
+this size looks like when the runner is shared; read the ratio as "somewhere
+around 2.7x", not to two digits.
 
 **What the option itself costs, with no options passed.** The scenario was
 built to answer one question: if the plain and configured widgets both sit
@@ -82,18 +111,17 @@ a ``label`` in ratio terms -- |ratio_text_edit_plain| against
 |ratio_label|, and |extra_us_text_edit_plain| of per-widget overhead against
 |extra_us_label|. Both of those calls pass no options at all; the signature
 takes ``**kwargs`` whether or not the caller supplies anything. The roughly
-0.09us the overhead difference represents is the cost of that path itself, so
+0.05us the overhead difference represents is the cost of that path itself, so
 the honest reading of "the ratio barely moved" is not "the kwargs path is
 free" but "the binding's own overhead grew a little while the native baseline
-underneath it grew a lot" -- which is the subject of the next paragraph's
-caveat made concrete.
+underneath it grew a lot."
 
 The bounds on that claim are worth as much as the claim. This is **one option**
 on **one widget**, measured on **one hosted runner**. It is not a per-option
-constant, it is not a statement about other widgets, and it is not a projection
-for the twenty-plus options that are still to be implemented on ``Slider`` and
-``TextEdit``. Treat it as a before-measurement: a baseline to be compared
-against once those options exist, not a forecast of what they will cost.
+constant and it is not a statement about other widgets -- and the many-options
+figure above is the reason it could not be extended into one. Treat it as a
+before-measurement, and the slider as the after-measurement it was built to
+be.
 
 What your own Python costs
 ---------------------------

@@ -49,6 +49,11 @@ SUBSTITUTIONS = {
         "ratio_text_edit_hint_range",
         "extra_us_text_edit_hint",
     ),
+    "slider_many_options": (
+        "ratio_slider_many_options",
+        "ratio_slider_many_options_range",
+        "extra_us_slider_many_options",
+    ),
 }
 
 # Substitutions the page must define for the gate to have anything to check.
