@@ -109,8 +109,18 @@ meaningless for it, and saying so in the page is part of the point.
 ### Snapshot and page rendering
 
 `bench/results/combined.json` gains a `by_scenario` key alongside the existing
-`by_widget_count`, and is committed by a git bot at the end of a successful
-run.
+`by_widget_count`, and is committed at the end of a successful run.
+
+The commit uses the workflow's own `GITHUB_TOKEN`, which needs no PAT: the
+workflow runs in the fork, so the token is scoped to the repository it pushes
+to. The only obstacle was the workflow's own `permissions: contents: read` at
+line 31, which is changed to `contents: write`.
+
+A `GITHUB_TOKEN` commit does not trigger further workflow runs — GitHub's
+recursion guard, so a bot cannot loop. The snapshot commit therefore does not
+fire `check`, which is convenient here: the gate's job is to catch a *human*
+editing the page's numbers without dispatching a run, which is exactly the
+drift it warns about.
 
 The page renders its table by substitution rather than by transcription:
 
@@ -153,11 +163,11 @@ the measurement work.
 
 Three commits, one push each, so every workflow reads the same commit.
 
-1. **Plumbing.** De-duplicate `benchmark.yml`; add the bot commit of
-   `combined.json`; add `docs/performance.rst` to the toctree with the
-   substitution machinery and the gate reading it. No new scenarios — the
-   page renders an empty table and the gate warns. Expected to show a new
-   annotation in `check`; that is the gate working.
+1. **Plumbing.** De-duplicate `benchmark.yml`; change `contents: read` to
+   `contents: write`; add the snapshot commit; add `docs/performance.rst` to
+   the toctree with the substitution machinery and the gate reading it. No new
+   scenarios — the page renders an empty table and the gate warns on the human
+   push that lands it.
 2. **Scenarios.** `bench/src/main.rs` and `bench/bench.py` gain the
    `text_edit_*` and `python_side` scenarios with Rust twins. Dispatch
    `benchmark` with `--ref feature/egui-0.31-coverage`.
@@ -195,12 +205,15 @@ figures and needs no twin.
 
 ## Risks
 
-**The bot needs push permission on `fork`.** If `GITHUB_TOKEN` is not
-permitted to push on this repository, the step needs a PAT stored as a
-secret. That is the user's call to make; the design assumes it works.
+**The bot needs write permission in its own workflow.** The token is
+`GITHUB_TOKEN` and no PAT is involved — the workflow runs in the fork, so the
+token can push there. The change required is the workflow's
+`permissions: contents: read` becoming `contents: write`. Verified against the
+file rather than assumed.
 
-**The bot's commit fires `check`.** Expected, and handled: the gate warns
-rather than fails, so the build stays green on the snapshot commit.
+**The bot's commit does not fire `check`.** GitHub does not trigger workflow
+runs for commits made with `GITHUB_TOKEN`, so there is no recursion and no
+self-inflicted red build. The gate therefore only ever fires on human pushes.
 
 **§6 changes what the kwargs numbers mean.** Once `Slider` and `TextEdit`
 carry 20+ options, the per-call tax grows. The page states the measurement's
