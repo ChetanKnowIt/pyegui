@@ -19,7 +19,7 @@
 - **`bench/**` is now in `examples.yml`'s path filters** (commit `c2cdae2`), so a `bench/` change runs pytest too.
 - **No new exported names.** §6 changes signatures, not the export list. `tests/expected_exports.py` must be verified unchanged, not assumed unchanged.
 - **Never mutate the caller's options dict.** `get_item` only. The `remove_item` approach was rejected; see the spec.
-- **All 14 currently-accepted option names keep working, spelled exactly as today.** `text_edit_*`: `hint_text`, `editable`. `image`: `max_width`, `max_height`. `run_native`: `inner_width`, `inner_height`, `min_inner_width`, `min_inner_height`, `max_inner_width`, `max_inner_height`, `fullscreen`, `maximized`, `resizable`, `transparent`, `icon_path`.
+- **All 13 currently-accepted option names keep working, spelled exactly as today.** `text_edit_*`: `hint_text` (only). `image`: `max_width`, `max_height`. There is no `editable` option — an earlier revision of this plan claimed one; review found it does not exist. `run_native`: `inner_width`, `inner_height`, `min_inner_width`, `min_inner_height`, `max_inner_width`, `max_inner_height`, `fullscreen`, `maximized`, `resizable`, `transparent`, `icon_path`.
 - **egui's option names are the names.** `step_by` not `step`, `fixed_decimals` not `decimals`, `drag_value_speed` not `speed`. A rename is a silent breaking change.
 - **Positional order is frozen.** `slider_float(value, min, max, text)` and `drag_float(value, min, max, speed)` are existing usage; new parameters go after them.
 - **The option inventory is pinned to egui 0.31.1.** Every option list below must be checked against that tag's sources during implementation, not trusted because it appears in the spec.
@@ -344,14 +344,15 @@ A macro is the right shape here because four options across two widgets need ide
 
 For each enum-valued option: every accepted spelling succeeds; `"horizontal"`, `"Horizontal "` and `""` are rejected; and the error message contains at least one valid variant name so the caller can self-correct.
 
-- [ ] **Step 6: Verify `hint_text` and `editable` still work**
+- [ ] **Step 6: Verify `hint_text` still works**
 
 ```python
 text_edit_singleline(t, hint_text="name")
-text_edit_singleline(t, editable=False)
+text_edit_multiline(t, hint_text="name")
 ```
 
-Both are pre-existing public names. This is the preservation test for this group, and it must be behavioural where possible — `hint_text` is visible in the rendered frame.
+`hint_text` is the only pre-existing option on these — verified by reading every
+`get_item` key in both functions. There is no `editable` option; do not test one. This is the preservation test for this group, and it must be behavioural where possible — `hint_text` is visible in the rendered frame.
 
 - [ ] **Step 7: Verify both jobs, then commit**
 

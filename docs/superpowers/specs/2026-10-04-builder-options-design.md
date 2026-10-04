@@ -96,7 +96,7 @@ not trusted because they appear in a document.
 **Every option name pyegui accepts today must keep working, spelled exactly as
 it is spelled.** These are public API, in released versions:
 
-- `text_edit_*`: `hint_text`, `editable`
+- `text_edit_*`: `hint_text`
 - `image`: `max_width`, `max_height`
 - `run_native`: `inner_width`, `inner_height`, `min_inner_width`,
   `min_inner_height`, `max_inner_width`, `max_inner_height`, `fullscreen`,
@@ -112,7 +112,14 @@ and `guides/`:
 | `max_width`, `max_height` | `examples/widget_gallery.py`, `examples/gallery.py` |
 | `inner_width`, `inner_height` | `examples/gallery.py`, `examples/widget_gallery.py` |
 | `resizable` | `examples/gallery.py` |
-| `editable`, `fullscreen`, `maximized`, `transparent`, `icon_path`, all four `min_*`/`max_*` sizes | **not used anywhere in the repo** |
+| `fullscreen`, `maximized`, `transparent`, `icon_path`, all four `min_*`/`max_*` sizes | **not used anywhere in the repo** |
+
+**Correction (2026-10-04, found by review).** An earlier revision of this spec
+listed `editable` as a pre-existing `text_edit_*` option that must keep working.
+It is not one. `grep editable src/lib.rs` matches only four doc-comment examples
+of the *string* `text = Str("editable")`; the sole option key either text-edit
+function reads is `hint_text`. The protected set is therefore thirteen names, not
+fourteen, and Task 3 must not test an `editable` option — it does not exist.
 
 So the `examples` job covers six of the fourteen incidentally. The other eight —
 including every `min_*`/`max_*` size name and `icon_path` — are public API with
