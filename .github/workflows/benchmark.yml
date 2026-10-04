@@ -250,6 +250,7 @@ jobs:
           import pathlib
           import re
           import statistics
+          import sys
 
           results = pathlib.Path("bench/results")
           imp = json.loads((results / "import.json").read_text())
@@ -313,20 +314,34 @@ jobs:
                   per_trial = []
                   for trial in sorted(trials[scenario][count]):
                       pyegui = trials[scenario][count][trial]
-                      if pyegui.get("scenario") != scenario:
+                      # A payload written before scenarios existed carries no
+                      # `scenario` key at all, and the legacy branch above has
+                      # already decided from the filename that such a run was
+                      # `label`. So a missing key means the filename is the only
+                      # claim there is, not that the claim is wrong. Compared
+                      # with the same default on both sides, so a legacy payload
+                      # and a modern one are checked by the same rule.
+                      recorded = pyegui.get("scenario", scenario)
+                      if recorded != scenario:
                           raise SystemExit(
-                              f"{pyegui.get('scenario')!r} recorded in a file "
+                              f"{recorded!r} recorded in a file "
                               f"named for scenario {scenario!r}"
                           )
-                      if pyegui.get("has_rust_twin", True) is twinless:
-                          # Not a crash on the payload flag alone: whether a
-                          # scenario has a twin is a property of the scenario,
-                          # and the flag is what says which one was measured.
+                      # `bool(...)` rather than `is`: the value comes out of JSON
+                      # and could be anything, and `0`/`1`/`"false"` would
+                      # compare false against both `True` and `False` under an
+                      # identity check, silently skipping the guard.
+                      has_twin = bool(pyegui.get("has_rust_twin", True))
+                      if has_twin is twinless:
+                          # The payload's own claim contradicts the scenario it
+                          # was written under, so the file is either misnamed or
+                          # the scenario list changed. Either way the snapshot
+                          # would carry a comparison nobody measured, or drop a
+                          # twin that was measured, so fail here instead.
                           raise SystemExit(
-                              f"has_rust_twin is {pyegui['has_rust_twin']!r} for "
-                              f"{scenario!r}, which is "
-                              f"{'expected to have' if twinless else 'expected not to have'} "
-                              "a Rust twin"
+                              f"has_rust_twin is {has_twin!r} for {scenario!r}, "
+                              f"but {scenario!r} is expected to "
+                              f"{'not have' if twinless else 'have'} a Rust twin"
                           )
                       if twinless:
                           per_trial.append(
@@ -369,12 +384,19 @@ jobs:
                               f"{pyegui['widgets_per_frame']} widgets recorded in a "
                               f"file named for {count}"
                           )
-                      if pyegui["scenario"] != egui["scenario"]:
+                      # `.get`, not `[]`: this branch is reachable for a legacy
+                      # pair, whose payloads predate the key entirely. The
+                      # fallback is the scenario the filenames were resolved to
+                      # above, so a missing key is accepted and a *present but
+                      # different* one is still rejected.
+                      py_scenario = pyegui.get("scenario", scenario)
+                      rs_scenario = egui.get("scenario", scenario)
+                      if py_scenario != rs_scenario:
                           raise SystemExit(
                               f"scenario mismatch at {count} widgets, trial "
                               f"{trial}: pyegui measured "
-                              f"{pyegui['scenario']}, egui measured "
-                              f"{egui['scenario']} -- the ratio would be "
+                              f"{py_scenario}, egui measured "
+                              f"{rs_scenario} -- the ratio would be "
                               "comparing two different workloads"
                           )
 
@@ -472,6 +494,24 @@ jobs:
 
           combined = {"import": imp, "by_scenario": by_scenario,
                       "by_widget_count": by_count}
+
+          # `by_widget_count` is the `label` comparison and nothing else, so a
+          # scenario-scoped dispatch (`-f scenario='python_side'`) produces a
+          # snapshot with an empty one. The run is still valid data and is
+          # still committed -- measuring one scenario cheaply is a legitimate
+          # thing to want -- but a committed snapshot whose `by_widget_count` is
+          # `{}` silently deletes the source the README's table is transcribed
+          # from, and nothing downstream would notice. So it is said out loud,
+          # on stderr, where it lands in the run log even though the step exits 0.
+          if not by_count:
+              print(
+                  "WARNING: by_widget_count is empty. The committed snapshot will "
+                  "not contain by_widget_count, so the README table has no source. "
+                  "Re-run with the default scenario list "
+                  "(label,text_edit_plain,text_edit_hint,python_side) to restore it.",
+                  file=sys.stderr,
+              )
+
           (results / "combined.json").write_text(json.dumps(combined, indent=2))
           PY
 

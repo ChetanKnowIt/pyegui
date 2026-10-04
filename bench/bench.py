@@ -61,6 +61,15 @@ VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
 # python_side reads `.value`, so one binding is shared across every frame and
 # reused by every `text_edit_*` iteration -- the same as the single `String`
 # the Rust half mutates across frames.
+#
+# Worth being explicit about what this scenario does and does not measure: all
+# WIDGETS_PER_FRAME `text_edit_*` calls share this one `Str`/`String`, and egui
+# derives a widget's `Id` from the id source plus the label, so they collapse
+# onto one widget `Id` rather than N distinct ones. The scenario is faithful to
+# itself -- both halves share a single string the same way, so the ratio is a
+# like-for-like comparison -- but it is not representative of N distinct text
+# edits and should not be read as "what N text edits cost". The Rust half's
+# `name: String` has the same property, deliberately, for the same reason.
 name = pyegui.Str("")
 
 if SCENARIO not in VALID_SCENARIOS:
