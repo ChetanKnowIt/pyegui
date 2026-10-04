@@ -1549,7 +1549,17 @@ unsafe fn text_edit_singleline_response(
 
     let mut w = egui::TextEdit::singleline(&mut text.value);
 
+    // Tracker only: no call to `reject_unknown_options` yet. `unused_mut`
+    // does not fire because `insert` needs the `&mut`.
+    let mut used = OptNames::new();
+
     if let Some(kwargs) = kwargs {
+        // `hint_text` is the only option either text_edit_* reads today, and
+        // both are explicit §6 targets. Recorded even though the check is not
+        // wired in yet: `reject_unknown_options` would otherwise read this
+        // untouched `get_item` as an unknown option and falsely reject a
+        // supported one.
+        used.insert("hint_text".to_string());
         if let Some(hint_text) = kwargs.get_item("hint_text")? {
             w = w.hint_text(hint_text.downcast::<PyString>()?.extract::<String>()?);
         }
@@ -1592,7 +1602,15 @@ unsafe fn text_edit_multiline_response(
 
     let mut w = egui::TextEdit::multiline(&mut text.value);
 
+    // Tracker only: no call to `reject_unknown_options` here yet. `unused_mut`
+    // does not fire because `insert` needs the `&mut`.
+    let mut used = OptNames::new();
+
     if let Some(kwargs) = kwargs {
+        // Recorded for the same reason as in `text_edit_singleline_response`:
+        // both text_edit_* functions are explicit §6 targets, so a check that
+        // did not see this insert would falsely reject `hint_text`.
+        used.insert("hint_text".to_string());
         if let Some(hint_text) = kwargs.get_item("hint_text")? {
             w = w.hint_text(hint_text.downcast::<PyString>()?.extract::<String>()?);
         }
@@ -1720,12 +1738,16 @@ unsafe fn reject_unknown_options(
     used: &OptNames,
     widget: &str,
 ) -> PyResult<()> {
-    let mut unknown: Vec<String> = opts
-        .keys()
-        .iter()
-        .filter_map(|k| k.extract::<String>().ok())
-        .filter(|k| !used.contains(k))
-        .collect();
+    // Same shape as `validate_options` above: a key that is not a string is a
+    // real error, propagated rather than dropped. A `filter_map` here would
+    // silently succeed on a non-string key that `validate_options` rejects.
+    let mut unknown: Vec<String> = Vec::new();
+    for key in opts.keys().iter() {
+        let name: String = key.extract()?;
+        if !used.contains(&name) {
+            unknown.push(name);
+        }
+    }
     if unknown.is_empty() {
         return Ok(());
     }
@@ -3022,8 +3044,11 @@ unsafe fn collapsing_response(
         if let Some(v) = opt_bool(opts, "show_background", &mut used)? {
             builder = builder.show_background(v);
         }
-        // egui's own alias pair; both hash a str directly.
+        // egui's own alias pair; both hash a str directly. Recorded by hand:
+        // `reject_unknown_options` would read the untouched `get_item` as an
+        // unknown option, so this insert is required by that check.
         for name in ["id_salt", "id_source"] {
+            used.insert(name.to_string());
             if let Some(value) = opts.get_item(name)? {
                 let salt: String = value
                     .extract()
@@ -3835,8 +3860,12 @@ unsafe fn apply_scroll_area_options(
 
     // `id_source` and `id_salt` are egui's own aliases for the same setter.
     // Both take `impl Hash`; a Python str hashes, so it is passed through
-    // unchanged rather than converted.
+    // unchanged rather than converted. Recorded by hand, like the equivalent
+    // loop in `collapsing_response`: `reject_unknown_options` would read the
+    // untouched `get_item` as an unknown option, so this insert is required
+    // by that check.
     for name in ["id_source", "id_salt"] {
+        used.insert(name.to_string());
         if let Some(value) = opts.get_item(name)? {
             let salt: String = value.extract().map_err(|_| {
                 PyValueError::new_err(format!("{name} must be a string"))
@@ -4887,10 +4916,19 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
 
     let mut img = egui::Image::new(source);
 
+    // Tracker only: `image` is not a §6 group, but the records are made anyway
+    // so the `get_item` audit below stays complete.
+    let mut used = OptNames::new();
+
     if let Some(kwargs) = kwargs {
+        // Recorded by hand: `reject_unknown_options` would read the untouched
+        // `get_item` as an unknown option, so this insert is required by that
+        // check.
+        used.insert("max_height".to_string());
         if let Some(height) = kwargs.get_item("max_height")? {
             img = img.max_height(height.downcast::<PyInt>()?.extract()?);
         }
+        used.insert("max_width".to_string());
         if let Some(width) = kwargs.get_item("max_width")? {
             img = img.max_width(width.downcast::<PyInt>()?.extract()?);
         }
