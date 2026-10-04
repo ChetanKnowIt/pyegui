@@ -1789,6 +1789,157 @@ unsafe fn opt_f32(
     }
 }
 
+/// Read an optional usize from `opts`, recording `name` as consumed.
+unsafe fn opt_usize(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<usize>> {
+    used.insert(name.to_string());
+    match opts.get_item(name)? {
+        Some(value) => {
+            // A negative count is a caller's mistake, and `usize` extraction
+            // reports it as an OverflowError that names neither the option nor
+            // the value. Say so here instead.
+            let value: i64 = value.extract()?;
+            if value < 0 {
+                return Err(PyValueError::new_err(format!(
+                    "{name} must be a non-negative integer, got {value}"
+                )));
+            }
+            Ok(Some(value as usize))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Read an optional f64 from `opts`, recording `name` as consumed.
+///
+/// Separate from `opt_f32` because egui's `Slider::step_by` and
+/// `drag_value_speed` take `f64`; a float slider's range is still `f32` in
+/// Python, but routing a 64-bit builder argument through f32 would round.
+unsafe fn opt_f64(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<f64>> {
+    used.insert(name.to_string());
+    match opts.get_item(name)? {
+        Some(value) => Ok(Some(value.extract()?)),
+        None => Ok(None),
+    }
+}
+
+/// Check a word against the ones an egui enum accepts.
+///
+/// egui's `Slider` has enum-valued options that Python has no type for --
+/// `HandleShape` and `SliderClamping` -- so the word is validated here and
+/// mapped to a variant at the call site. The error lists the accepted words,
+/// because "unknown variant" on its own tells a caller nothing about what to
+/// type instead.
+///
+/// Returns `PyResult<()>` rather than the word: with three `&str` parameters
+/// Rust's lifetime elision cannot pick which one a returned `&str` would
+/// borrow, so returning the word would need an explicit lifetime for no gain.
+///
+/// Deliberately a plain function rather than a macro: the brief asked for one
+/// call site, and Task 3 generalises this if the pattern repeats.
+fn enum_word(word: &str, name: &str, accepted: &[&str]) -> PyResult<()> {
+    if !accepted.contains(&word) {
+        return Err(PyValueError::new_err(format!(
+            "unknown {name} {word:?}; expected one of {}",
+            accepted
+                .iter()
+                .map(|w| format!("{w:?}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
+    }
+    Ok(())
+}
+
+/// Extract a Python value as a string, then check it with [`enum_word`].
+///
+/// This is the dict-free form. A reading-from-dict variant was written first
+/// (`opt_enum_str`, mirroring `opt_bool`) and then deleted: `handle_shape` is
+/// the only enum-valued option in this group, and its value may be a
+/// `(word, aspect_ratio)` pair that a string extractor rejects outright, so
+/// the dict read has to happen in `handle_shape_opt` regardless. A helper
+/// nothing calls would only be a `dead_code` warning. Task 3, which reaches
+/// options that are plain words only, is where a reading variant belongs.
+fn enum_word_py(
+    value: &Bound<'_, PyAny>,
+    name: &str,
+    accepted: &[&str],
+) -> PyResult<String> {
+    let word: String = value.extract()?;
+    enum_word(&word, name, accepted)?;
+    Ok(word)
+}
+
+/// Read a radix-format option (`binary`, `octal`, `hexadecimal`) from `opts`,
+/// recording `name` as consumed and returning `(min_width, twos_complement,
+/// upper)`.
+///
+/// egui spells these `(min_width, twos_complement)`, plus a third `upper` for
+/// hexadecimal, so the Python value is a sequence:
+/// `binary=(8, False)`, `hexadecimal=(16, False, True)`. `upper` is defaulted
+/// to False so `hexadecimal=(16,)` still works.
+///
+/// Values extract as `i64` because Python `bool` is an `int` subclass, so
+/// `binary=(8, True)` is the documented way to ask for two's complement and
+/// must not have to be spelled `1`.
+unsafe fn opt_radix(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<Vec<i64>>> {
+    used.insert(name.to_string());
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+
+    // egui's three radix builders all take `(min_width, twos_complement)`;
+    // hexadecimal takes a third `upper`. `upper` is optional, so
+    // `hexadecimal=(16, False)` is accepted and defaults to False.
+    let parts: Vec<i64> = value.extract().map_err(|_| {
+        PyValueError::new_err(format!(
+            "{name} must be a sequence like {name}=(8, False) -- egui's \
+             binary/octal/hexadecimal take a minimum digit width and a \
+             twos_complement flag"
+        ))
+    })?;
+    validate_radix(&parts, name)?;
+    Ok(Some(parts))
+}
+
+/// Check a radix option's arity and minimum width.
+///
+/// egui `assert!`s on a zero width, and inside a pyo3 function an `assert!` is
+/// a panic across the FFI boundary rather than a Python exception, so the check
+/// has to happen on this side.
+fn validate_radix(parts: &[i64], name: &str) -> PyResult<()> {
+    let required = if name == "hexadecimal" { 3 } else { 2 };
+    let optional_upper = name == "hexadecimal";
+    let widest = required + usize::from(optional_upper);
+    if parts.len() < required || parts.len() > widest {
+        return Err(PyValueError::new_err(format!(
+            "{name} takes {required} values (minimum width, twos_complement{}) \
+             but got {}",
+            if optional_upper { ", upper" } else { "" },
+            parts.len()
+        )));
+    }
+    if parts[0] <= 0 {
+        return Err(PyValueError::new_err(format!(
+            "{name} minimum width must be greater than 0, got {}",
+            parts[0]
+        )));
+    }
+    Ok(())
+}
+
 /// Read an optional 2D size or position from `opts` as a 2-sequence of
 /// numbers, e.g. `default_size=(400.0, 300.0)`.
 ///
@@ -3989,9 +4140,39 @@ unsafe fn scope(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
 ///     data = Float(5)
 ///     # inside update_func
 ///     slider_float(data, 0, 50, "slide me")
+///
+/// Builder options go in **options: `drag_value_speed`, `vertical`,
+/// `show_value`, `trailing_fill`, `text_color`, `fixed_decimals`,
+/// `min_decimals`, `max_decimals`, `smallest_positive`, `largest_finite`,
+/// `octal`, `hexadecimal`, `handle_shape`. An unknown name is an error.
 #[pyfunction]
-unsafe fn slider_float(value: &mut Float, min: f32, max: f32, text: &str) -> PyResult<()> {
-    slider_float_response(value, min, max, text)?;
+#[pyo3(signature = (value, min, max, text, suffix=None, prefix=None, step_by=None, logarithmic=None, clamping=None, binary=None, **options))]
+unsafe fn slider_float(
+    value: &mut Float,
+    min: f32,
+    max: f32,
+    text: &str,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    step_by: Option<f32>,
+    logarithmic: Option<bool>,
+    clamping: Option<&Bound<'_, PyAny>>,
+    binary: Option<&Bound<'_, PyAny>>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    slider_float_response(
+        value,
+        min,
+        max,
+        text,
+        suffix,
+        prefix,
+        step_by,
+        logarithmic,
+        clamping,
+        binary,
+        options,
+    )?;
     Ok(())
 }
 
@@ -4003,18 +4184,217 @@ unsafe fn slider_float(value: &mut Float, min: f32, max: f32, text: &str) -> PyR
 ///     data = Float(5)
 ///     if slider_float_response(data, 0, 50, "slide me").changed:
 ///       print("now", data.value)
+///
+/// Builder options go in **options: `drag_value_speed`, `vertical`,
+/// `show_value`, `trailing_fill`, `text_color`, `fixed_decimals`,
+/// `min_decimals`, `max_decimals`, `smallest_positive`, `largest_finite`,
+/// `octal`, `hexadecimal`, `handle_shape`. An unknown name is an error.
 #[pyfunction]
+#[pyo3(signature = (value, min, max, text, suffix=None, prefix=None, step_by=None, logarithmic=None, clamping=None, binary=None, **options))]
 unsafe fn slider_float_response(
     value: &mut Float,
     min: f32,
     max: f32,
     text: &str,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    step_by: Option<f32>,
+    logarithmic: Option<bool>,
+    clamping: Option<&Bound<'_, PyAny>>,
+    binary: Option<&Bound<'_, PyAny>>,
+    options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
+    let mut used = OptNames::new();
+
+    // The named parameters are deliberately NOT recorded in `used`. A name
+    // cannot arrive both as a named parameter and inside **options: Python
+    // raises TypeError on the duplicate before pyo3 is reached, which is what
+    // makes `slider_float(d, 0, 1, "x", suffix="ms", **{"suffix": "s"})` an
+    // error rather than a silent pick-one. So `used` only ever holds tail
+    // names, and there is nothing here for `reject_unknown_options` to
+    // misjudge.
+    let mut slider = egui::Slider::new(&mut value.value, min..=max).text(text);
+
+    if let Some(v) = suffix {
+        slider = slider.suffix(v);
+    }
+    if let Some(v) = prefix {
+        slider = slider.prefix(v);
+    }
+    if let Some(v) = step_by {
+        slider = slider.step_by(v as f64);
+    }
+    if let Some(v) = logarithmic {
+        slider = slider.logarithmic(v);
+    }
+    if let Some(v) = clamping {
+        let word = enum_word_py(v, "clamping", CLAMPING_WORDS)?;
+        slider = slider.clamping(slider_clamping(&word));
+    }
+    if let Some(v) = binary {
+        // `binary` arrives as a named parameter rather than through **options,
+        // so it skips `opt_radix` and needs the same validation by hand.
+        let parts: Vec<i64> = v.extract().map_err(|_| {
+            PyValueError::new_err(
+                "binary must be a sequence like binary=(8, False) -- egui's \
+                 binary takes a minimum digit width and a twos_complement flag",
+            )
+        })?;
+        validate_radix(&parts, "binary")?;
+        slider = slider.binary(parts[0] as usize, parts[1] != 0);
+    }
+    slider = apply_slider_options(slider, options, &mut used, "slider_float")?;
 
     Ok(Response {
-        inner: ui.add(egui::Slider::new(&mut value.value, min..=max).text(text)),
+        inner: ui.add(slider),
     })
+}
+
+/// Map the `clamping` word onto egui's `SliderClamping`.
+///
+/// egui's `clamping()` takes a `SliderClamping`, not a bool, so this cannot be
+/// routed through `opt_bool`. The three words are egui's own variant names in
+/// snake_case.
+fn slider_clamping(word: &str) -> egui::SliderClamping {
+    match word {
+        "never" => egui::SliderClamping::Never,
+        "edits" => egui::SliderClamping::Edits,
+        _ => egui::SliderClamping::Always,
+    }
+}
+
+/// The words `clamping` accepts, in egui's own order.
+const CLAMPING_WORDS: &[&str] = &["never", "edits", "always"];
+
+/// Map the `handle_shape` word onto egui's `HandleShape`.
+///
+/// `rect` carries an aspect ratio, so the Python value is either the bare
+/// word or a `(word, aspect_ratio)` pair.
+///
+/// `egui::HandleShape` is not re-exported at the crate root in 0.31.1 -- only
+/// `egui::Slider`, `egui::SliderClamping` and `egui::SliderOrientation` are
+/// (egui-0.31.1/src/widgets/mod.rs) -- so this goes through the full path.
+fn handle_shape(value: &Bound<'_, PyAny>) -> PyResult<egui::style::HandleShape> {
+    // A pair carries the `aspect_ratio` that egui's `HandleShape::Rect` has.
+    // Tried first because a bare word cannot extract as a pair.
+    if let Ok((word, aspect_ratio)) = value.extract::<(String, f32)>() {
+        enum_word(&word, "handle_shape", HANDLE_SHAPE_WORDS)?;
+        return match word.as_str() {
+            "rect" => Ok(egui::style::HandleShape::Rect { aspect_ratio }),
+            // `enum_word` already rejected anything else.
+            _ => unreachable!(),
+        };
+    }
+    let word = enum_word_py(value, "handle_shape", HANDLE_SHAPE_WORDS)?;
+    match word.as_str() {
+        "circle" => Ok(egui::style::HandleShape::Circle),
+        _ => Ok(egui::style::HandleShape::Rect { aspect_ratio: 1.0 }),
+    }
+}
+
+/// The words `handle_shape` accepts, in egui's own order.
+const HANDLE_SHAPE_WORDS: &[&str] = &["circle", "rect"];
+
+/// Read the **options tail of a slider and return the rebuilt builder.
+///
+/// Takes and returns the builder by value rather than mutating through
+/// `&mut`: egui's setters consume `self` and return a new `Slider`, so
+/// `*slider = slider.suffix(v)` through a reference would move out of a
+/// borrow. `Slider<'a>` borrows the value it edits, which is why the lifetime
+/// is explicit.
+///
+/// Separate from the pyfunctions because `slider_float_response` and
+/// `slider_int_response` both delegate here, and a helper that reads options
+/// without threading `used` through makes a genuine option look unknown to
+/// `reject_unknown_options`.
+///
+/// `unsafe` because the `opt_*` helpers are, and the `opt_*` family is unsafe
+/// for the same reason `apply_window_options` is.
+unsafe fn apply_slider_options<'a>(
+    mut slider: egui::Slider<'a>,
+    options: Option<&Bound<'_, PyDict>>,
+    used: &mut OptNames,
+    widget: &str,
+) -> PyResult<egui::Slider<'a>> {
+    let o = match options {
+        Some(o) => o,
+        None => return Ok(slider),
+    };
+
+    if let Some(v) = opt_f64(o, "drag_value_speed", used)? {
+        slider = slider.drag_value_speed(v);
+    }
+    if let Some(v) = opt_bool(o, "vertical", used)? {
+        // egui's `vertical()` takes no argument: it is a switch, not a
+        // setter. `vertical=False` therefore means "leave it horizontal",
+        // which is also the default, so only True reaches the builder.
+        if v {
+            slider = slider.vertical();
+        }
+    }
+    if let Some(v) = opt_bool(o, "show_value", used)? {
+        slider = slider.show_value(v);
+    }
+    if let Some(v) = opt_bool(o, "trailing_fill", used)? {
+        slider = slider.trailing_fill(v);
+    }
+    if let Some(v) = opt_color32(o, "text_color", used)? {
+        slider = slider.text_color(v);
+    }
+    if let Some(v) = opt_usize(o, "fixed_decimals", used)? {
+        slider = slider.fixed_decimals(v);
+    }
+    if let Some(v) = opt_usize(o, "min_decimals", used)? {
+        slider = slider.min_decimals(v);
+    }
+    if let Some(v) = opt_usize(o, "max_decimals", used)? {
+        slider = slider.max_decimals(v);
+    }
+    if let Some(v) = opt_f64(o, "smallest_positive", used)? {
+        slider = slider.smallest_positive(v);
+    }
+    if let Some(v) = opt_f64(o, "largest_finite", used)? {
+        slider = slider.largest_finite(v);
+    }
+    // egui's radix builders take `(min_width, twos_complement)`, and
+    // hexadecimal a third `upper`. `binary` is a named parameter on the float
+    // slider so it is applied before this call; `octal`/`hexadecimal` are read
+    // here. Order follows the read order, so the last setter the caller
+    // supplied wins, matching egui's own behaviour. Note that each of these
+    // replaces egui's custom formatter wholesale, so passing two of them means
+    // only the last takes effect.
+    if let Some(v) = opt_radix(o, "octal", used)? {
+        slider = slider.octal(v[0] as usize, v[1] != 0);
+    }
+    if let Some(v) = opt_radix(o, "hexadecimal", used)? {
+        let upper = v.get(2).copied().unwrap_or(0) != 0;
+        slider = slider.hexadecimal(v[0] as usize, v[1] != 0, upper);
+    }
+    if let Some(v) = handle_shape_opt(o, used)? {
+        slider = slider.handle_shape(v);
+    }
+
+    reject_unknown_options(o, used, widget)?;
+
+    Ok(slider)
+}
+
+/// Read `handle_shape`, which may be a bare word or a `(word, ratio)` pair.
+///
+/// The pair form exists because egui's `HandleShape::Rect` carries an
+/// `aspect_ratio`; a plain-string extractor would reject `("rect", 0.5)`
+/// before any word could be checked. The name is inserted before the read, so
+/// a declared-but-absent `handle_shape` still counts as known.
+fn handle_shape_opt(
+    o: &Bound<'_, PyDict>,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::style::HandleShape>> {
+    used.insert("handle_shape".to_string());
+    match o.get_item("handle_shape")? {
+        Some(value) => Ok(Some(handle_shape(&value)?)),
+        None => Ok(None),
+    }
 }
 
 /// Control int with a slider.
@@ -4024,9 +4404,37 @@ unsafe fn slider_float_response(
 ///     data = Int(5)
 ///     # inside update_func
 ///     slider_int(data, 0, 50, "slide me")
+///
+/// Builder options go in **options: `drag_value_speed`, `vertical`,
+/// `show_value`, `trailing_fill`, `text_color`, `fixed_decimals`,
+/// `min_decimals`, `max_decimals`, `smallest_positive`, `largest_finite`,
+/// `octal`, `hexadecimal`, `handle_shape`. An unknown name is an error.
 #[pyfunction]
-unsafe fn slider_int(value: &mut Int, min: i32, max: i32, text: &str) -> PyResult<()> {
-    slider_int_response(value, min, max, text)?;
+#[pyo3(signature = (value, min, max, text, suffix=None, prefix=None, step_by=None, logarithmic=None, clamping=None, **options))]
+unsafe fn slider_int(
+    value: &mut Int,
+    min: i32,
+    max: i32,
+    text: &str,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    step_by: Option<i32>,
+    logarithmic: Option<bool>,
+    clamping: Option<&Bound<'_, PyAny>>,
+    options: Option<&Bound<'_, PyDict>>,
+) -> PyResult<()> {
+    slider_int_response(
+        value,
+        min,
+        max,
+        text,
+        suffix,
+        prefix,
+        step_by,
+        logarithmic,
+        clamping,
+        options,
+    )?;
     Ok(())
 }
 
@@ -4037,21 +4445,54 @@ unsafe fn slider_int(value: &mut Int, min: i32, max: i32, text: &str) -> PyResul
 ///     data = Int(5)
 ///     if slider_int_response(data, 0, 50, "slide me").changed:
 ///       print("now", data.value)
+///
+/// Builder options go in **options: `drag_value_speed`, `vertical`,
+/// `show_value`, `trailing_fill`, `text_color`, `fixed_decimals`,
+/// `min_decimals`, `max_decimals`, `smallest_positive`, `largest_finite`,
+/// `octal`, `hexadecimal`, `handle_shape`. An unknown name is an error.
 #[pyfunction]
+#[pyo3(signature = (value, min, max, text, suffix=None, prefix=None, step_by=None, logarithmic=None, clamping=None, **options))]
 unsafe fn slider_int_response(
     value: &mut Int,
     min: i32,
     max: i32,
     text: &str,
+    suffix: Option<&str>,
+    prefix: Option<&str>,
+    step_by: Option<i32>,
+    logarithmic: Option<bool>,
+    clamping: Option<&Bound<'_, PyAny>>,
+    options: Option<&Bound<'_, PyDict>>,
 ) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
+    let mut used = OptNames::new();
+
+    // See `slider_float_response`: the named parameters cannot also appear in
+    // **options, so only the tail needs recording.
+    let mut slider = egui::Slider::new(&mut value.value, min..=max)
+        .text(text)
+        .integer();
+
+    if let Some(v) = suffix {
+        slider = slider.suffix(v);
+    }
+    if let Some(v) = prefix {
+        slider = slider.prefix(v);
+    }
+    if let Some(v) = step_by {
+        slider = slider.step_by(v as f64);
+    }
+    if let Some(v) = logarithmic {
+        slider = slider.logarithmic(v);
+    }
+    if let Some(v) = clamping {
+        let word = enum_word_py(v, "clamping", CLAMPING_WORDS)?;
+        slider = slider.clamping(slider_clamping(&word));
+    }
+    slider = apply_slider_options(slider, options, &mut used, "slider_int")?;
 
     Ok(Response {
-        inner: ui.add(
-            egui::Slider::new(&mut value.value, min..=max)
-                .text(text)
-                .integer(),
-        ),
+        inner: ui.add(slider),
     })
 }
 

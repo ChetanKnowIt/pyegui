@@ -212,12 +212,45 @@ the coverage work so far — this is the next large gap after containers.
 Currently only `hint_text` (text edits), `max_width`/`max_height` (image) and
 a positional label reach the builders.
 
-- [ ] `Slider`: `logarithmic`, `step_by`, `binary`, `hexadecimal`, `octal`,
-      `prefix`, `suffix`, `custom_formatter`, `custom_parser`, `vertical`,
-      `clamping`, `text_color`, `handle_shape`, `fixed_decimals`,
+- [x] `Slider`: 19 of the 22 names below now reach the builder, verified against
+      egui 0.31.1's `slider.rs`. Keyword parameters: `logarithmic`, `step_by`,
+      `prefix`, `suffix`, `clamping`, `binary`. `**options`: `hexadecimal`,
+      `octal`, `vertical`, `text_color`, `handle_shape`, `fixed_decimals`,
       `min_decimals`, `max_decimals`, `show_value`, `trailing_fill`,
-      `drag_value_speed`, `update_while_editing`, `largest_finite`,
-      `smallest_positive`
+      `drag_value_speed`, `largest_finite`, `smallest_positive`. An unknown
+      option name is a `ValueError`.
+
+      Three of these do not take the value the list's spelling suggests, which
+      is why they are spelled the way they are:
+
+      - `clamping` is an enum word (`"never"` / `"edits"` / `"always"`), because
+        egui's setter takes a `SliderClamping`, not a bool.
+      - `vertical` is a bool switch, because egui's `vertical()` takes no
+        argument at all. `vertical=False` leaves the slider horizontal.
+      - `binary`/`octal`/`hexadecimal` take egui's own tuples --
+        `(min_width, twos_complement)`, plus `upper` for hexadecimal -- because
+        egui's setters do. They also replace the display formatter wholesale,
+        so passing two of them means only the last takes effect.
+
+      Not implemented, and deliberately NOT accepted as an option name, so
+      that the unknown-option check reports them:
+
+      - `custom_formatter` and `custom_parser` are Rust closures
+        (`impl Fn(&str) -> Option<f64>` and
+        `impl Fn(f64, &str) -> String`) with no Python equivalent in this
+        binding. Stubbing them would be the exact silent no-op the check
+        exists to prevent. egui's own `binary`/`octal`/`hexadecimal` are
+        defined in terms of these two, so they are the supported way to change
+        the format. Supporting arbitrary ones needs a callback marshalling
+        design -- out of scope for a builder-options pass.
+      - `binary` on the int slider: `.integer()` already pins step 1 and 0
+        decimals, and a radix display format on a value the user cannot type
+        back into is a knob unrelated to its name.
+
+      Not a Slider option at all, despite being on this line:
+      `update_while_editing` is `DragValue`'s. It is absent from egui 0.31.1's
+      `slider.rs` (verified in the pinned source) and is listed under
+      DragValue below as well.
 - [ ] `DragValue`: `prefix`, `suffix`, `custom_formatter`, `custom_parser`,
       `binary`, `hexadecimal`, `octal`, `fixed_decimals`, `min_decimals`,
       `max_decimals`, `update_while_editing`, `clamp_existing_to_range`
