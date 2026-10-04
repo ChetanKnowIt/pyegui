@@ -403,3 +403,41 @@ jobs:
         with:
           name: benchmark-results
           path: bench/results
+
+      # The artifact expires; a benchmark quoted in the README has to be
+      # re-readable later without paying for another 25-minute run. The
+      # combined file is committed, not the per-trial files: it is the one the
+      # guide transcribes, and committing the rest would bury that under noise
+      # on every run.
+      #
+      # GITHUB_TOKEN, deliberately. A PAT here would let this push trigger
+      # further workflow runs, and the benchmark is manual and slow enough that
+      # a run per run is a bill someone has to explain. The token's own push
+      # is also the one push GitHub refuses to start workflows from, so
+      # committing a snapshot cannot re-enter CI.
+      - name: Commit the combined result
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # The dispatch may leave HEAD detached or shallow, so the ref is
+          # spelled out rather than inferred from the checkout.
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bench/results/combined.json
+
+          # Nothing to do when the numbers came out identical. An empty commit
+          # on every run would be indistinguishable from a real change, which is
+          # the opposite of what this step is for.
+          if git diff --cached --quiet; then
+            echo "combined.json is unchanged; not committing"
+            exit 0
+          fi
+
+          git commit -m "Record benchmark result: ${GITHUB_RUN_ID}"
+          # Not a plain `git push`: that publishes to whatever HEAD points at,
+          # which under a detached or shallow checkout is not the branch that
+          # was dispatched. The remote is ahead by nothing at this point, but
+          # a ref that moves between dispatch and push must not clobber it.
+          git push origin "HEAD:${REF}"
