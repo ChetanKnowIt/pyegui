@@ -100,13 +100,18 @@ impl eframe::App for Bench {
                     }
                 }
                 "text_edit_plain" => {
+                    // `Ui::text_edit_singleline` is the shorthand that returns a
+                    // `Response`, so there is no widget left to configure. The
+                    // builder form is what the hint scenario needs, and using it
+                    // for both keeps the only difference between the two arms
+                    // the option itself.
                     for _ in 0..self.widgets {
-                        ui.text_edit_singleline(name);
+                        ui.add(egui::TextEdit::singleline(name));
                     }
                 }
                 "text_edit_hint" => {
                     for _ in 0..self.widgets {
-                        ui.text_edit_singleline(name).hint_text("name");
+                        ui.add(egui::TextEdit::singleline(name).hint_text("name"));
                     }
                 }
                 _ => {}
