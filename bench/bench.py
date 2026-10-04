@@ -55,12 +55,23 @@ STEADY_FRAMES = 60
 # An unknown value is rejected rather than defaulted -- a silent fallback to
 # `label` would produce a mismatched pair whose ratio looks like a real one.
 SCENARIO = os.environ.get("SCENARIO", "label")
-VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
+VALID_SCENARIOS = [
+    "label",
+    "text_edit_plain",
+    "text_edit_hint",
+    "slider_many_options",
+    "python_side",
+]
 
 # `text_edit_singleline_*` takes a `Str` rather than a plain string, and
 # python_side reads `.value`, so one binding is shared across every frame and
 # reused by every `text_edit_*` iteration -- the same as the single `String`
 # the Rust half mutates across frames.
+#
+# `slider_many_options` needs the same treatment for the same reason: every
+# iteration edits one shared `Float` and carries the same label, so egui gives
+# them all one widget `Id`. See the note on the scenario below for what that
+# does and does not mean.
 #
 # Worth being explicit about what this scenario does and does not measure: all
 # WIDGETS_PER_FRAME `text_edit_*` calls share this one `Str`/`String`, and egui
@@ -71,6 +82,38 @@ VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
 # edits and should not be read as "what N text edits cost". The Rust half's
 # `name: String` has the same property, deliberately, for the same reason.
 name = pyegui.Str("")
+
+# The slider scenario's own state holder. One `Float`, shared across every
+# iteration, for the same reason `name` above is.
+slider_value = pyegui.Float(50.0)
+
+# The thirteen options `slider_float_response` accepts in `**options`, held in
+# one dict so the scenario body reads as a list of what it configures rather
+# than as a wall of keywords. Splatting a module-level dict costs the same as
+# writing the keywords out: pyo3 0.24's `handle_varkeyword` builds its own dict
+# from the keyword arguments either way, so nothing is being moved off the
+# measured path by doing it this way.
+#
+# `vertical=False` is deliberate and is NOT an oversight. The lookup for
+# `vertical` is paid whether or not it is `True`, but `vertical=True` also
+# changes the layout egui does, which would put a different amount of native
+# work under the measurement on each side and make the ratio mean "vertical
+# sliders cost more" rather than "a fully configured slider costs more".
+SLIDER_MANY_OPTIONS = {
+    "drag_value_speed": 1.0,
+    "vertical": False,
+    "show_value": True,
+    "trailing_fill": False,
+    "text_color": (255, 255, 255, 255),
+    "fixed_decimals": 0,
+    "min_decimals": 0,
+    "max_decimals": 3,
+    "smallest_positive": 1e-6,
+    "largest_finite": 1e6,
+    "octal": (4, False),
+    "hexadecimal": (4, False, False),
+    "handle_shape": "circle",
+}
 
 if SCENARIO not in VALID_SCENARIOS:
     raise SystemExit(
@@ -101,6 +144,43 @@ def make_update(first_frame):
         elif SCENARIO == "text_edit_hint":
             for _ in range(WIDGETS_PER_FRAME):
                 pyegui.text_edit_singleline_response(name, hint_text="name")
+        elif SCENARIO == "slider_many_options":
+            # Every option the float slider accepts, all of them supplied.
+            #
+            # This is the shape the existing `text_edit_hint` scenario cannot
+            # measure. An option lookup is paid once per option the binding
+            # DECLARES for a widget, whether or not the caller passes one, so
+            # the cost of the `**kwargs` path on a fully configured widget is
+            # what this measures -- not the marginal cost of the last option.
+            # One option extrapolated linearly would be a guess; this is the
+            # measurement.
+            #
+            # The values are egui's own accepted shapes and all of them are
+            # inert in the sense that they do not change the layout work: the
+            # point is the option plumbing, and both halves configure the
+            # slider identically, so the difference between them is the
+            # binding's.
+            #
+            # `octal`, `hexadecimal` and `binary` each replace egui's display
+            # formatter wholesale, so on both sides only the last one applied
+            # takes effect. They are all passed anyway because the scenario
+            # measures the option path, and leaving two of them out would
+            # understate it -- and because a caller who reads the docs will
+            # find that documented rather than surprised by it.
+            for _ in range(WIDGETS_PER_FRAME):
+                pyegui.slider_float_response(
+                    slider_value,
+                    0.0,
+                    100.0,
+                    "v",
+                    suffix=" u",
+                    prefix="~ ",
+                    step_by=1.0,
+                    logarithmic=False,
+                    clamping="never",
+                    binary=(4, False),
+                    **SLIDER_MANY_OPTIONS,
+                )
         elif SCENARIO == "python_side":
             for i in range(WIDGETS_PER_FRAME):
                 # Author-side work, not binding work: an f-string, an

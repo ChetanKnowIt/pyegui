@@ -32,7 +32,7 @@ def _rust_scenario_arms():
 def test_rust_lists_the_same_scenarios_as_python():
     arms = _rust_scenario_arms()
     # python_side is deliberately absent from the Rust match: it has no twin.
-    assert arms == {"label", "text_edit_plain", "text_edit_hint"}
+    assert arms == {"label", "text_edit_plain", "text_edit_hint", "slider_many_options"}
     assert arms | {"python_side"} == set(bench_names.VALID_SCENARIOS)
 
 

@@ -209,8 +209,20 @@ the coverage work so far — this is the next large gap after containers.
 
 ## 6. Builder options on existing widgets
 
-Currently only `hint_text` (text edits), `max_width`/`max_height` (image) and
-a positional label reach the builders.
+Settled. Every builder option egui 0.31.1 gives the widget families below
+now reaches the builder, an unknown option name is a `ValueError` rather
+than a silent no-op, and the names that egui cannot hand to Python are
+recorded with the reason rather than stubbed. The counts are what the code
+does, verified against the pinned sources, not what an inventory listed.
+
+Two corrections to the original list, both from reading egui's source rather
+than the list: `Slider` had **23** names on it, of which 19 are implemented
+(`update_while_editing` is `DragValue`'s and is absent from
+`slider.rs`), and `DatePickerButton` had **12**, of which 8 are implemented
+(`start_end_years`, `reverse_years` and `year_scroll_to` do not exist as
+setters at all — see below). `clamping` and `binary` were on the wrong
+lines of the list too; each is recorded under the family it actually
+belongs to.
 
 - [x] `Slider`: 19 of the 22 names below now reach the builder, verified against
       egui 0.31.1's `slider.rs`. Keyword parameters: `logarithmic`, `step_by`,
@@ -312,7 +324,9 @@ a positional label reach the builders.
 - [x] `DatePickerButton`: 8 of the 11 names below now reach the builder, on
       both `date_picker_button` and `date_picker_button_response`, verified
       against egui_extras 0.31.1's `datepicker/button.rs` (there is no
-      `datepicker.rs`; the module is a directory in this version). Keyword
+      `datepicker.rs`; the module is a directory in this version). The list
+      this line came from said 12; the eleven below are what is there, and the
+      three names dropped from it are the ones that do not exist. Keyword
       parameters: `format`, `show_icon`, `highlight_weekends`, `id_salt`.
       `**options`: `combo_boxes`, `arrows`, `calendar`, `calendar_week`. An
       unknown option name is a `ValueError`.
@@ -387,6 +401,10 @@ a positional label reach the builders.
         per-monitor placement setter in 0.31.1;
         `clamp_size_to_monitor_size` is the nearest real thing and is
         implemented.
+      - `has_shadow` does not exist at any version. 0.31.1's
+        `ViewportBuilder` has no such field and no such setter, and the
+        window shadow belongs to `NativeOptions.renderer` rather than to
+        the viewport. Rejected as an unknown name.
 - [x] `eframe::NativeOptions`: 4 of the 11 now reach the struct --
       `persistence_path`, `persist_window`, `centered`, `multisampling` --
       read against `crates/eframe/src/epi.rs` at tag 0.31.1. An unknown name
@@ -432,6 +450,56 @@ a positional label reach the builders.
 - [ ] Persistence: `App::save` / `Storage` is unreachable, so no state is
       saved between runs. `persist_window` and `persistence_path` above only
       matter once eframe's `persistence` feature is enabled.
+
+### 6 follow-ups, found while doing the above
+
+**Should `reject_unknown_options` cover the container options too?** The
+answer today is no, and the reason is worth writing down because it looks
+like an oversight and is not. It is wired into every option path this
+section added -- the slider, drag-value, text-edit and date-picker
+families, and `run_native` -- and deliberately not into the container
+options (`window`, `frame`, the panels, `scroll_area`, `collapsing`,
+`image`), which pyegui shipped before this section.
+
+Two reasons, and the second is the one that decides it:
+
+1. It is a behaviour change on the release API. A caller who passes a
+   container option name that pyegui happens not to implement -- a name
+   egui has today or adds later -- gets a working app today and a
+   `ValueError` tomorrow. That trade is defensible for the new families,
+   where the check and the option list landed together, and it is not
+   defensible retrofitted onto names that have worked since 0.5.
+2. Those paths read their options through different helpers, and two of
+   them read keys that are never option names at all. `collapsing_response`
+   and `apply_scroll_area_options` read `id_salt` / `id_source` in loops
+   whose names differ per iteration, and `image_response` reads
+   `max_height` then `max_width`. Wiring the check in without
+   enumerating those would falsely reject names pyegui *does* accept --
+   which is the specific failure a false rejection is, and there is no
+   test that would not itself have to be written by the same person who
+   made the mistake.
+
+So this is an open question, not a task: if it is wanted, it is its own
+change, it needs its own audit of every `get_item` in those functions
+(there are four sites outside the helpers), and it should ship with the
+names it would reject tested explicitly.
+
+**A known sharp edge: switch-shaped options accepted as bools.** The
+`**options` design reads every name as a key and a value, which is right
+for every setter and wrong for egui's argument-free switches. There are
+two, both in the viewport: `always_on_top=False` is accepted and does
+nothing, because `with_always_on_top()` takes no argument and only
+`True` reaches the builder, and `vertical=False` on the sliders, which
+is harmless because `False` is also the default. Everything else on
+those two paths takes a real bool -- `drag_and_drop` included, so it is
+not a third case.
+
+`inner_width` without `inner_height` is the same class of surprise and was
+deliberately left alone: the size pairs have always applied only when both
+halves arrive, `examples/`, `guides/` and `README.md` depend on those
+spellings, and changing it would be a behaviour change rather than an
+option addition. Recorded here so it is a known edge rather than a
+surprise, and so a future change to it is a deliberate one.
 
 ## 7. egui_extras
 

@@ -5,6 +5,94 @@ All notable changes to pyegui are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Built on egui 0.31.1. **No exported name is added or removed by this
+entry** — the module still exports 174 names (18 classes, 156 functions and
+46 `*_response` variants). What changes is *signatures*: widgets take more
+keyword arguments, and some names that used to be silently ignored now
+raise.
+
+### Added
+
+**Builder options on the widgets that already existed**
+
+egui's widgets are builders and pyegui reached almost none of their options,
+so an app that needed a slider with a suffix and a step could not have one.
+Each widget below now takes the options egui 0.31.1's own source gives it.
+These are *keyword arguments*, not new names in the module — the count above
+does not move — so they are listed as a mapping rather than as bullets:
+
+```
+slider_float / slider_int
+  keyword   logarithmic, step_by, prefix, suffix, clamping
+  **options drag_value_speed, vertical, show_value, trailing_fill,
+            text_color, handle_shape, fixed_decimals, min_decimals,
+            max_decimals, smallest_positive, largest_finite,
+            octal, hexadecimal
+
+drag_float / drag_int
+  **options update_while_editing, clamp_existing_to_range,
+            fixed_decimals, min_decimals, max_decimals, binary,
+            octal, hexadecimal
+
+text_edit_singleline* / text_edit_multiline*
+  **options password, desired_width, desired_rows, char_limit,
+            lock_focus, interactive, cursor_at_end, background_color,
+            margin, horizontal_align, vertical_align, clip_text, frame
+
+date_picker_button*
+  keyword   show_icon, highlight_weekends, id_salt
+  **options combo_boxes, arrows, calendar, calendar_week
+
+run_native (viewport)
+  title, app_id, position, visible, active, decorations, always_on_top,
+  window_level, taskbar, window_type, minimize_button, maximize_button,
+  close_button, title_shown, titlebar_shown, titlebar_buttons_shown,
+  fullsize_content_view, drag_and_drop, mouse_passthrough,
+  clamp_size_to_monitor_size
+
+run_native (eframe::NativeOptions)
+  multisampling, centered, persist_window, persistence_path
+```
+
+The eleven viewport names that already existed keep their exact spellings,
+and `inner_width` is still not renamed to `width`.
+
+An unknown option name on any of these is now a `ValueError` naming the
+widget and every accepted option, rather than being ignored.
+
+Three options do not take the value the name suggests, and the difference is
+egui's rather than ours. `clamping` is a `SliderClamping` word (`"never"`,
+`"edits"`, `"always"`) rather than a bool. `vertical` is a switch, because
+egui's takes no argument, so `False` leaves the widget horizontal. And
+`binary` / `octal` / `hexadecimal` take egui's own tuples
+(`(min_width, twos_complement)`, plus `upper` for hexadecimal); each replaces
+the display formatter wholesale, so passing two means only the last takes
+effect.
+
+### Changed
+
+The options `TODO.md` §6 listed that egui 0.31.1 does not have are
+**rejected as unknown names** rather than accepted and dropped. Those are
+`custom_formatter` and `custom_parser` (Rust closures, which a Python callable
+cannot reach without a trampoline and a lifetime strategy), the text edit's
+`font` and `return_key`, the three date-picker year options, and the
+viewport's `movable_by_background`, `monitor` and `has_shadow`. They were
+never accepted before either, so an app relying on that silence would have
+been relying on a misspelling.
+
+`bench/` measures a `slider_many_options` scenario alongside the existing
+ones: a slider configured with every option it accepts, on both halves. An
+option lookup is paid once per option the binding *declares*, not once per
+option the caller passes, so the previous one-option measurement did not
+measure what a fully configured widget costs.
+
+### Fixed
+
+The README's list of missing builder options described an API that had
+already changed. It is derived from what the code does now.
+
 ## [0.5.1]
 
 Released 2026-10-02. Built on egui 0.31.1.

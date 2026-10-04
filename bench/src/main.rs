@@ -56,9 +56,10 @@ fn scenario() -> Result<&'static str, String> {
         "label" => Ok("label"),
         "text_edit_plain" => Ok("text_edit_plain"),
         "text_edit_hint" => Ok("text_edit_hint"),
+        "slider_many_options" => Ok("slider_many_options"),
         _ => Err(format!(
             "unknown SCENARIO '{raw}'; valid scenarios are label, \
-             text_edit_plain, text_edit_hint, python_side"
+             text_edit_plain, text_edit_hint, slider_many_options, python_side"
         )),
     }
 }
@@ -79,6 +80,10 @@ struct Bench {
     // and TextEdit writes back only into this buffer -- but a reader comparing
     // the two halves should not have to work that out.
     name: String,
+    // The slider scenario's own value, for the same reason `name` exists and
+    // with the same caveat: every iteration edits this one `f32` and carries
+    // the same label, so egui collapses them onto one widget `Id`.
+    value: f32,
 }
 
 impl eframe::App for Bench {
@@ -95,6 +100,7 @@ impl eframe::App for Bench {
             // inside an arm could not coexist with.
             let scenario = self.scenario;
             let name = &mut self.name;
+            let value = &mut self.value;
 
             match scenario {
                 "label" => {
@@ -115,6 +121,47 @@ impl eframe::App for Bench {
                 "text_edit_hint" => {
                     for _ in 0..self.widgets {
                         ui.add(egui::TextEdit::singleline(name).hint_text("name"));
+                    }
+                }
+                "slider_many_options" => {
+                    // Configured with exactly the same set of setters as
+                    // bench/bench.py's `SLIDER_MANY_OPTIONS`, in the same
+                    // order. Order matters for the radix setters: `binary`,
+                    // `octal` and `hexadecimal` each replace egui's display
+                    // formatter wholesale, so the last one applied is the only
+                    // one in effect -- and Python applies the keyword
+                    // parameters (`binary`) before `**options` (`octal`,
+                    // then `hexadecimal`) inside `slider_float_response`, so
+                    // hexadecimal wins there and here for the same reason.
+                    //
+                    // `vertical(false)` is not what this writes, because egui's
+                    // `vertical()` takes no argument. The Python side pays the
+                    // lookup for `vertical` and then leaves the slider
+                    // horizontal, so leaving it off here configures the same
+                    // slider. See the comment on `SLIDER_MANY_OPTIONS`.
+                    for _ in 0..self.widgets {
+                        ui.add(
+                            egui::Slider::new(&mut value, 0.0..=100.0)
+                                .text("v")
+                                .suffix(" u")
+                                .prefix("~ ")
+                                .step_by(1.0)
+                                .logarithmic(false)
+                                .clamping(egui::SliderClamping::Never)
+                                .binary(4, false)
+                                .drag_value_speed(1.0)
+                                .show_value(true)
+                                .trailing_fill(false)
+                                .text_color(egui::Color32::WHITE)
+                                .fixed_decimals(0)
+                                .min_decimals(0)
+                                .max_decimals(3)
+                                .smallest_positive(1e-6)
+                                .largest_finite(1e6)
+                                .octal(4, false)
+                                .hexadecimal(4, false, false)
+                                .handle_shape(egui::style::HandleShape::Circle),
+                        );
                     }
                 }
                 _ => {}
@@ -224,6 +271,10 @@ fn main() -> eframe::Result {
                 widgets: widgets_per_frame(),
                 scenario,
                 name: String::new(),
+                // Matches bench/bench.py's `slider_value = Float(50.0)`, so the
+                // two halves start the run at the same value and the formatter
+                // they install is formatting the same number on both sides.
+                value: 50.0,
                 ..Default::default()
             }))
         }),

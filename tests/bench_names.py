@@ -14,4 +14,10 @@ compared to anything today, and unifying all of them is a design change
 rather than a documentation fix.
 """
 
-VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
+VALID_SCENARIOS = [
+    "label",
+    "text_edit_plain",
+    "text_edit_hint",
+    "slider_many_options",
+    "python_side",
+]

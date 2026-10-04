@@ -27,9 +27,9 @@ on:
         required: false
         default: '5'
       scenario:
-        description: 'Benchmark scenarios, comma separated (label, text_edit_plain, text_edit_hint, python_side)'
+        description: 'Benchmark scenarios, comma separated (label, text_edit_plain, text_edit_hint, slider_many_options, python_side)'
         required: false
-        default: 'label,text_edit_plain,text_edit_hint,python_side'
+        default: 'label,text_edit_plain,text_edit_hint,slider_many_options,python_side'
 
 permissions:
   contents: write
@@ -152,7 +152,7 @@ jobs:
           # Validated here as well as in each half, so a typo fails in seconds
           # with a message naming the valid set, rather than after the release
           # build has spent four minutes compiling.
-          SCENARIOS="${SCENARIO:-label,text_edit_plain,text_edit_hint,python_side}"
+          SCENARIOS="${SCENARIO:-label,text_edit_plain,text_edit_hint,slider_many_options,python_side}"
           # Checked on the raw comma-separated string, before the split below:
           # unquoted word splitting discards empty fields silently, so a blank
           # entry would otherwise be dropped rather than rejected -- the same
@@ -164,7 +164,7 @@ jobs:
               ;;
           esac
           SCENARIOS="$(printf '%s' "$SCENARIOS" | tr ',' ' ')"
-          VALID_SCENARIOS='label text_edit_plain text_edit_hint python_side'
+          VALID_SCENARIOS='label text_edit_plain text_edit_hint slider_many_options python_side'
           for scenario in $SCENARIOS; do
             found=false
             for valid in $VALID_SCENARIOS; do
@@ -520,7 +520,8 @@ jobs:
                   "contain by_widget_count with an empty value, so the README "
                   "table has no source. "
                   "Re-run with the default scenario list "
-                  "(label,text_edit_plain,text_edit_hint,python_side) to restore it.",
+                  "(label,text_edit_plain,text_edit_hint,slider_many_options,\n"
+                  "                  python_side) to restore it.",
                   file=sys.stderr,
               )
 

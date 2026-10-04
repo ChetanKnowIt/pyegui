@@ -388,31 +388,39 @@ egui's `Context` exposes 148 public methods; pyegui reaches 10.
   takes `Arc<dyn Any + Send + Sync>`, which has no clean Python
   mapping.
 
-**Missing builder options on existing widgets**
+**Builder options still missing on existing widgets**
 
-- `Slider`: `logarithmic`, `step_by`, `binary` / `hexadecimal` /
-  `octal`, `prefix` / `suffix`, `custom_formatter` /
-  `custom_parser`, `vertical`, `clamping`, `text_color`,
-  `handle_shape`, `fixed_decimals`, `show_value`, `trailing_fill`
-- `DragValue`: `prefix` / `suffix`, formatters, `binary`,
-  `fixed_decimals`, `clamp_existing_to_range`
-- `TextEdit`: `password`, `desired_width` / `desired_rows`,
-  `char_limit`, `lock_focus`, `font`, `interactive`,
-  `cursor_at_end`, `background_color`, `margin`,
-  `horizontal_align` / `vertical_align`, `frame`, `return_key`
-- `Button`: `selected`, `min_size`, `atoms`, `shortcut_text`,
-  `wrap`
+`Slider`, `DragValue`, `TextEdit`, `DatePickerButton` and `run_native`
+now forward every builder option egui 0.31.1 gives them, and an unknown
+option name is a `ValueError` rather than a silent no-op. What is left
+is the set egui cannot hand to Python as it stands:
+
+- `Slider` / `DragValue`: `custom_formatter` and `custom_parser`.
+  These are Rust closures, so a Python callable would need a trampoline
+  and a lifetime strategy to reach one. egui's own `binary` / `octal` /
+  `hexadecimal` are defined in terms of those two, so they are the
+  supported way to change the format.
+- `TextEdit`: `font` (needs a `TextStyle` class, see above) and
+  `return_key` (needs `KeyboardShortcut` and `Key`).
+- `DatePickerButton`: `start_end_years`. There is no setter for it at
+  any version of egui_extras 0.31.1 -- the year range is hardcoded
+  inside the popup's own draw, and the popup's fields are
+  `pub(crate)`.
+- `Button`: `selected`, `min_size`, `atoms`, `shortcut_text`, `wrap`
 - `Image`: `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
   `corner_radius`, `sense`, `alt_text`
 - `ProgressBar`: text, `animate`
-- `DatePickerButton`: `format`, `start_end_years`, `show_icon`,
-  `combo_boxes`, `calendar_week`, `highlight_weekends`
-- `run_native` viewport kwargs: only size, fullscreen, maximized,
-  resizable, transparent and `icon_path` are forwarded; position,
-  decorations, window level, app id, monitor and always-on-top are not
-- `eframe` `NativeOptions`: renderer choice, `multisampling`,
-  `depth_buffer`, `persistence_path`, `dithering`, `centered`,
-  and `App::save` (state persistence) are all unreachable
+- `eframe` `NativeOptions`: renderer choice, `glow_options`,
+  `wgpu_options`, `depth_buffer`, `dithering`, and `App::save` (state
+  persistence). The two renderer option structs are large nested
+  configuration, and half of each is irrelevant depending on which
+  renderer is in use.
+
+Three names are on no list here, because egui 0.31.1 has no such
+option: `movable_by_background` and `monitor` on the viewport --
+`drag_and_drop` and `clamp_size_to_monitor_size` are the real things
+nearby -- and `has_shadow`. They are rejected as unknown option names
+rather than silently accepted.
 
 ### Upgrade path to egui 0.36
 
