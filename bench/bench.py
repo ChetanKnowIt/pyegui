@@ -57,6 +57,12 @@ STEADY_FRAMES = 60
 SCENARIO = os.environ.get("SCENARIO", "label")
 VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
 
+# `text_edit_singleline_*` takes a `Str` rather than a plain string, and
+# python_side reads `.value`, so one binding is shared across every frame and
+# reused by every `text_edit_*` iteration -- the same as the single `String`
+# the Rust half mutates across frames.
+name = pyegui.Str("")
+
 if SCENARIO not in VALID_SCENARIOS:
     raise SystemExit(
         f"unknown SCENARIO '{SCENARIO}'; valid scenarios are "
@@ -75,8 +81,26 @@ def make_update(first_frame):
         # rather than at the top level.
         t0 = time.perf_counter()
 
-        for i in range(WIDGETS_PER_FRAME):
-            pyegui.label(f"row {i}")
+        if SCENARIO == "label":
+            for i in range(WIDGETS_PER_FRAME):
+                pyegui.label(f"row {i}")
+        elif SCENARIO == "text_edit_plain":
+            # No options passed: the kwargs path is still taken, because the
+            # signature takes **kwargs whether or not the caller supplies any.
+            for _ in range(WIDGETS_PER_FRAME):
+                pyegui.text_edit_singleline_response(name)
+        elif SCENARIO == "text_edit_hint":
+            for _ in range(WIDGETS_PER_FRAME):
+                pyegui.text_edit_singleline_response(name, hint_text="name")
+        elif SCENARIO == "python_side":
+            for i in range(WIDGETS_PER_FRAME):
+                # Author-side work, not binding work: an f-string, an
+                # attribute read and arithmetic, accumulating into a value
+                # that is read back so nothing is optimised away.
+                python_side_sink = f"{name.value}-{i}" + str(i)
+                name.value = python_side_sink[:0] or str(i)
+        else:  # pragma: no cover - SCENARIO is rejected at import
+            raise SystemExit(f"unhandled SCENARIO {SCENARIO!r}")
 
         elapsed = (time.perf_counter() - t0) * 1000
 
@@ -127,6 +151,10 @@ def main():
 
     results = {
         "widgets_per_frame": WIDGETS_PER_FRAME,
+        "scenario": SCENARIO,
+        # python_side measures the author's own work, so there is no Rust
+        # twin to divide by. The combine step must not invent a ratio for it.
+        "has_rust_twin": SCENARIO != "python_side",
         "frames_measured": len(steady),
         "first_frame_ms": round(first_frame["ms"], 4),
         "steady_frame_ms": {

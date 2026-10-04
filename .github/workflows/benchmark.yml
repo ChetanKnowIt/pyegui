@@ -26,6 +26,10 @@ on:
         description: 'Repeats per widget count. >1 reports a median and spread.'
         required: false
         default: '5'
+      scenario:
+        description: 'Benchmark scenarios, comma separated (label, text_edit_plain, text_edit_hint, python_side)'
+        required: false
+        default: 'label,text_edit_plain,text_edit_hint,python_side'
 
 permissions:
   contents: write
@@ -81,6 +85,7 @@ jobs:
           DISPLAY: ':99'
           WIDGETS: ${{ inputs.widgets }}
           TRIALS: ${{ inputs.trials }}
+          SCENARIO: ${{ inputs.scenario }}
         run: |
           set -euo pipefail
 
@@ -139,7 +144,46 @@ jobs:
             echo "trials must be at least 1, got '${TRIALS}'" >&2
             exit 2
           fi
+          # Scenarios are a list for the same reason counts are: one snapshot
+          # has to hold every scenario the documentation gate checks against,
+          # and a run that measured one scenario per dispatch would leave the
+          # gate warning forever about scenarios no single snapshot can hold.
+          #
+          # Validated here as well as in each half, so a typo fails in seconds
+          # with a message naming the valid set, rather than after the release
+          # build has spent four minutes compiling.
+          SCENARIOS="${SCENARIO:-label,text_edit_plain,text_edit_hint,python_side}"
+          # Checked on the raw comma-separated string, before the split below:
+          # unquoted word splitting discards empty fields silently, so a blank
+          # entry would otherwise be dropped rather than rejected -- the same
+          # trap a trailing comma from a copy/paste leaves behind.
+          case "$SCENARIOS" in
+            *,,*|*,|,*|,)
+              echo "scenario names must be non-empty, got '$SCENARIOS'" >&2
+              exit 2
+              ;;
+          esac
+          SCENARIOS="$(printf '%s' "$SCENARIOS" | tr ',' ' ')"
+          VALID_SCENARIOS='label text_edit_plain text_edit_hint python_side'
+          for scenario in $SCENARIOS; do
+            found=false
+            for valid in $VALID_SCENARIOS; do
+              if [ "$scenario" = "$valid" ]; then
+                found=true
+                break
+              fi
+            done
+            if [ "$found" = false ]; then
+              echo "unknown scenario '$scenario'; valid scenarios are $VALID_SCENARIOS" >&2
+              exit 2
+            fi
+          done
+          if [ -z "$(printf '%s' "$SCENARIOS" | tr -d ' ')" ]; then
+            echo "no scenario given" >&2
+            exit 2
+          fi
           echo "widget counts: ${WIDGET_COUNTS}  trials: ${TRIALS:-1}"
+          echo "scenarios: ${SCENARIOS}"
 
           # import cost, in a fresh interpreter so the module is not already up
           python -c "
@@ -176,14 +220,25 @@ jobs:
           # would write a truncated file and the combine step would read a
           # half-finished run as if it were a result.
           for trial in $(seq 1 "${TRIALS:-1}"); do
-            for count in $WIDGET_COUNTS; do
-              echo "=== trial ${trial}/${TRIALS:-1}, ${count} widgets per frame ==="
+            for scenario in $SCENARIOS; do
+              for count in $WIDGET_COUNTS; do
+                echo "=== trial ${trial}/${TRIALS:-1}, scenario ${scenario}, ${count} widgets per frame ==="
 
-              WIDGETS="${count}" timeout 300 python bench/bench.py \
-                | tee "bench/results/pyegui-${count}-t${trial}.json"
+                WIDGETS="${count}" SCENARIO="${scenario}" timeout 300 python bench/bench.py \
+                  | tee "bench/results/pyegui-${scenario}-${count}-t${trial}.json"
 
-              WIDGETS="${count}" timeout 600 bench/target/release/pyegui-bench \
-                | tee "bench/results/egui-${count}-t${trial}.json"
+                # python_side measures the author's own f-string and attribute
+                # work, so it has no Rust twin: bench/src/main.rs rejects the
+                # name by design and would exit 2. Skip it rather than
+                # pretending the pairing is optional.
+                if [ "$scenario" = "python_side" ]; then
+                  echo "--- python_side has no Rust twin; Python side only ---"
+                  continue
+                fi
+
+                WIDGETS="${count}" SCENARIO="${scenario}" timeout 600 bench/target/release/pyegui-bench \
+                  | tee "bench/results/egui-${scenario}-${count}-t${trial}.json"
+              done
             done
           done
 
@@ -199,33 +254,39 @@ jobs:
           results = pathlib.Path("bench/results")
           imp = json.loads((results / "import.json").read_text())
 
-          # Files are named `pyegui-<count>-t<trial>.json`. Both parts are parsed
-          # back out rather than trusted from the name alone, and the payload's
-          # own widgets_per_frame is checked against the name -- a file written
-          # under the wrong name would otherwise silently pair two different
-          # workloads.
+          # Scenarios without a Rust twin are recorded, not compared.
+          TWINLESS = {"python_side"}
+
+          # Files are named `pyegui-<scenario>-<count>-t<trial>.json`. Every part
+          # is parsed back out rather than trusted from the name alone, and the
+          # payload's own widgets_per_frame is checked against the name -- a file
+          # written under the wrong name would otherwise silently pair two
+          # different workloads.
           #
-          # `search`, not `match`: the digits are mid-string, so `match` would
+          # `search`, not `match`: the parts are mid-string, so `match` would
           # anchor to the front and find nothing.
-          pattern = re.compile(r"pyegui-(\d+)-t(\d+)\.json$")
+          pattern = re.compile(r"pyegui-(\w+)-(\d+)-t(\d+)\.json$")
           trials = {}
           for path in sorted(results.glob("pyegui-*.json")):
               m = pattern.search(path.name)
               if not m:
                   continue
-              count, trial = int(m.group(1)), int(m.group(2))
-              trials.setdefault(count, {})[trial] = json.loads(path.read_text())
+              scenario, count, trial = m.group(1), int(m.group(2)), int(m.group(3))
+              counts = trials.setdefault(scenario, {})
+              counts.setdefault(count, {})[trial] = json.loads(path.read_text())
 
           if not trials:
               # A single-trial run writes no -t suffix, so the runs recorded
               # before trials existed still combine. The Rust side is looked up
               # under both names, because assuming the suffixed one made a
               # legacy results directory fail with "missing Rust result".
+              # Assigned under "label", because those runs predate scenarios.
               legacy = re.compile(r"pyegui-(\d+)\.json$")
               for path in sorted(results.glob("pyegui-*.json")):
                   m = legacy.search(path.name)
                   if m:
-                      trials.setdefault(int(m.group(1)), {})[1] = json.loads(
+                      label_counts = trials.setdefault("label", {})
+                      label_counts.setdefault(int(m.group(1)), {})[1] = json.loads(
                           path.read_text()
                       )
 
@@ -235,105 +296,182 @@ jobs:
           def median(values):
               return statistics.median(values)
 
+          by_scenario = {}
+          # `label` alone populates this, so the README's existing table keeps
+          # coming from a real measurement of the scenario it was measured on
+          # rather than from whichever scenario happened to sort first.
           by_count = {}
-          for count in sorted(trials):
-              per_trial = []
-              for trial in sorted(trials[count]):
-                  pyegui = trials[count][trial]
-                  egui_path = results / f"egui-{count}-t{trial}.json"
-                  if not egui_path.exists():
-                      # Trial 1 of a legacy single-trial run.
-                      egui_path = results / f"egui-{count}.json"
-                  if not egui_path.exists():
-                      raise SystemExit(
-                          f"missing Rust result for {count} widgets, trial {trial}"
-                      )
-                  egui = json.loads(egui_path.read_text())
-
-                  # The two sides have drifted before (one repainted and one
-                  # did not), so confirm they measured the same workload before
-                  # comparing them. A ratio between different workloads is a
-                  # meaningless number, and it looks like a real one.
-                  for field in ("widgets_per_frame", "frames_measured"):
-                      if pyegui[field] != egui[field]:
+          for scenario in sorted(trials):
+              by_count_scenario = by_scenario.setdefault(scenario, {})
+              for count in sorted(trials[scenario]):
+                  # A twin-less scenario is recorded, not compared. A ratio
+                  # against a baseline that does not exist is exactly the
+                  # meaningless number the parity guard below exists to
+                  # prevent, and `python_side` would otherwise trip the
+                  # "missing Rust result" exit.
+                  twinless = scenario in TWINLESS
+                  per_trial = []
+                  for trial in sorted(trials[scenario][count]):
+                      pyegui = trials[scenario][count][trial]
+                      if pyegui.get("scenario") != scenario:
                           raise SystemExit(
-                              f"{field} mismatch at {count} widgets, trial "
-                              f"{trial}: pyegui measured {pyegui[field]}, egui "
-                              f"measured {egui[field]} -- the ratio would be "
+                              f"{pyegui.get('scenario')!r} recorded in a file "
+                              f"named for scenario {scenario!r}"
+                          )
+                      if pyegui.get("has_rust_twin", True) is twinless:
+                          # Not a crash on the payload flag alone: whether a
+                          # scenario has a twin is a property of the scenario,
+                          # and the flag is what says which one was measured.
+                          raise SystemExit(
+                              f"has_rust_twin is {pyegui['has_rust_twin']!r} for "
+                              f"{scenario!r}, which is "
+                              f"{'expected to have' if twinless else 'expected not to have'} "
+                              "a Rust twin"
+                          )
+                      if twinless:
+                          per_trial.append(
+                              {
+                                  "trial": trial,
+                                  "pyegui_frame_ms": pyegui["steady_frame_ms"]["min"],
+                                  "pyegui_per_widget_us": pyegui["per_widget_us"][
+                                      "min"
+                                  ],
+                                  "pyegui_first_frame_ms": pyegui["first_frame_ms"],
+                              }
+                          )
+                          continue
+                      egui_path = results / f"egui-{scenario}-{count}-t{trial}.json"
+                      if not egui_path.exists():
+                          # Trial 1 of a legacy single-trial run.
+                          egui_path = results / f"egui-{count}.json"
+                      if not egui_path.exists():
+                          raise SystemExit(
+                              f"missing Rust result for scenario {scenario}, "
+                              f"{count} widgets, trial {trial}"
+                          )
+                      egui = json.loads(egui_path.read_text())
+
+                      # The two sides have drifted before (one repainted and one
+                      # did not), so confirm they measured the same workload
+                      # before comparing them. A ratio between different
+                      # workloads is a meaningless number, and it looks like a
+                      # real one.
+                      for field in ("widgets_per_frame", "frames_measured"):
+                          if pyegui[field] != egui[field]:
+                              raise SystemExit(
+                                  f"{field} mismatch at {count} widgets, trial "
+                                  f"{trial}: pyegui measured {pyegui[field]}, egui "
+                                  f"measured {egui[field]} -- the ratio would be "
+                                  "comparing two different workloads"
+                              )
+                      if pyegui["widgets_per_frame"] != count:
+                          raise SystemExit(
+                              f"{pyegui['widgets_per_frame']} widgets recorded in a "
+                              f"file named for {count}"
+                          )
+                      if pyegui["scenario"] != egui["scenario"]:
+                          raise SystemExit(
+                              f"scenario mismatch at {count} widgets, trial "
+                              f"{trial}: pyegui measured "
+                              f"{pyegui['scenario']}, egui measured "
+                              f"{egui['scenario']} -- the ratio would be "
                               "comparing two different workloads"
                           )
-                  if pyegui["widgets_per_frame"] != count:
-                      raise SystemExit(
-                          f"{pyegui['widgets_per_frame']} widgets recorded in a "
-                          f"file named for {count}"
+
+                      py_per = pyegui["per_widget_us"]["min"]
+                      rs_per = egui["per_widget_us"]["min"]
+                      per_trial.append(
+                          {
+                              "trial": trial,
+                              "pyegui_us": py_per,
+                              "egui_us": rs_per,
+                              "ratio": round(py_per / rs_per, 3),
+                              "extra_us": round(py_per - rs_per, 4),
+                              "pyegui_first_frame_ms": pyegui["first_frame_ms"],
+                              "egui_first_frame_ms": egui["first_frame_ms"],
+                          }
                       )
 
-                  py_per = pyegui["per_widget_us"]["min"]
-                  rs_per = egui["per_widget_us"]["min"]
-                  per_trial.append(
-                      {
-                          "trial": trial,
-                          "pyegui_us": py_per,
-                          "egui_us": rs_per,
-                          "ratio": round(py_per / rs_per, 3),
-                          "extra_us": round(py_per - rs_per, 4),
-                          "pyegui_first_frame_ms": pyegui["first_frame_ms"],
-                          "egui_first_frame_ms": egui["first_frame_ms"],
+                  first = trials[scenario][count][sorted(trials[scenario][count])[0]]
+                  entry = {"trials": len(per_trial), "per_trial": per_trial,
+                           "python": first}
+
+                  if twinless:
+                      # An absolute per-frame cost and no `comparison` key at all,
+                      # so a consumer looking for a ratio finds nothing rather than
+                      # a fabricated one.
+                      entry["python_only"] = {
+                          "pyegui_frame_ms_median": round(
+                              median([r["pyegui_frame_ms"] for r in per_trial]), 4
+                          ),
+                          "pyegui_per_widget_us_median": round(
+                              median([r["pyegui_per_widget_us"] for r in per_trial]), 3
+                          ),
                       }
-                  )
+                      by_count_scenario[str(count)] = entry
+                      print(
+                          f"{scenario}, {count} widgets/frame over "
+                          f"{entry['trials']} trial(s): "
+                          f"{entry['python_only']['pyegui_frame_ms_median']} ms/frame, "
+                          f"{entry['python_only']['pyegui_per_widget_us_median']} us "
+                          "per widget (Python only, no Rust twin)"
+                      )
+                      continue
 
-              ratios = [r["ratio"] for r in per_trial]
-              py_all = [r["pyegui_us"] for r in per_trial]
-              rs_all = [r["egui_us"] for r in per_trial]
+                  ratios = [r["ratio"] for r in per_trial]
+                  py_all = [r["pyegui_us"] for r in per_trial]
+                  rs_all = [r["egui_us"] for r in per_trial]
 
-              # The median, not the mean: a shared runner has outliers, and one
-              # slow trial drags a mean away from the typical case. The spread
-              # is reported alongside because three runs of identical code gave
-              # 1.30x, 1.52x and 1.38-1.55x, which is too wide to quote a single
-              # figure without it.
-              entry = {
-                  "trials": len(per_trial),
-                  "per_trial": per_trial,
-                  "python": trials[count][sorted(trials[count])[0]],
-                  "comparison": {
-                      "ratio_median": round(median(ratios), 2),
-                      "ratio_min": round(min(ratios), 2),
-                      "ratio_max": round(max(ratios), 2),
-                      "ratio_spread": round(max(ratios) - min(ratios), 2),
-                      "pyegui_us_median": round(median(py_all), 3),
-                      "egui_us_median": round(median(rs_all), 3),
-                      "extra_us_median": round(
+                  # The median, not the mean: a shared runner has outliers, and one
+                  # slow trial drags a mean away from the typical case. The spread
+                  # is reported alongside because three runs of identical code gave
+                  # 1.30x, 1.52x and 1.38-1.55x, which is too wide to quote a single
+                  # figure without it.
+                  entry["comparison"] = {
+                          "ratio_median": round(median(ratios), 2),
+                          "ratio_min": round(min(ratios), 2),
+                          "ratio_max": round(max(ratios), 2),
+                          "ratio_spread": round(max(ratios) - min(ratios), 2),
+                          "pyegui_us_median": round(median(py_all), 3),
+                          "egui_us_median": round(median(rs_all), 3),
+                          "extra_us_median": round(
                           median([r["extra_us"] for r in per_trial]), 4
-                      ),
-                  },
-              }
-              if len(per_trial) > 1:
-                  # Relative spread of the ratio: how much of the number is
-                  # the measurement rather than the binding.
-                  entry["comparison"]["ratio_spread_pct"] = round(
-                      100.0 * (max(ratios) - min(ratios)) / median(ratios), 1
-                  )
-              by_count[str(count)] = entry
+                          ),
+                      }
+                  if len(per_trial) > 1:
+                      # Relative spread of the ratio: how much of the number is
+                      # the measurement rather than the binding.
+                      entry["comparison"]["ratio_spread_pct"] = round(
+                          100.0 * (max(ratios) - min(ratios)) / median(ratios), 1
+                      )
+                  by_count_scenario[str(count)] = entry
+                  if scenario == "label":
+                      # The README's table is the label comparison and nothing
+                      # else, so its numbers keep coming from the scenario they
+                      # were originally transcribed from.
+                      by_count[str(count)] = entry
 
-              c = entry["comparison"]
-              if entry["trials"] > 1:
-                  print(
-                      f"{count} widgets/frame over {entry['trials']} trials: "
-                      f"ratio median {c['ratio_median']}x "
-                      f"(min {c['ratio_min']}x, max {c['ratio_max']}x, "
-                      f"spread {c['ratio_spread_pct']}%)  "
-                      f"per widget median {c['pyegui_us_median']} us vs "
-                      f"{c['egui_us_median']} us"
-                  )
-              else:
-                  print(
-                      f"{count} widgets/frame, 1 trial: "
-                      f"ratio {c['ratio_median']}x  "
-                      f"per widget {c['pyegui_us_median']} us vs "
-                      f"{c['egui_us_median']} us"
-                  )
+                  c = entry["comparison"]
+                  if entry["trials"] > 1:
+                      print(
+                          f"{scenario}, {count} widgets/frame over "
+                          f"{entry['trials']} trials: "
+                          f"ratio median {c['ratio_median']}x "
+                          f"(min {c['ratio_min']}x, max {c['ratio_max']}x, "
+                          f"spread {c['ratio_spread_pct']}%)  "
+                          f"per widget median {c['pyegui_us_median']} us vs "
+                          f"{c['egui_us_median']} us"
+                      )
+                  else:
+                      print(
+                          f"{scenario}, {count} widgets/frame, 1 trial: "
+                          f"ratio {c['ratio_median']}x  "
+                          f"per widget {c['pyegui_us_median']} us vs "
+                          f"{c['egui_us_median']} us"
+                      )
 
-          combined = {"import": imp, "by_widget_count": by_count}
+          combined = {"import": imp, "by_scenario": by_scenario,
+                      "by_widget_count": by_count}
           (results / "combined.json").write_text(json.dumps(combined, indent=2))
           PY
 
@@ -392,6 +530,39 @@ jobs:
                           f'| {us(r["pyegui_us"])} '
                           f'| {us(r["egui_us"])} '
                           f'| {r["ratio"]}x |'
+                      )
+              print()
+          by_scenario = c.get("by_scenario") or {}
+          other = [s for s in sorted(by_scenario) if s != "label"]
+          if other:
+              print("Scenarios beyond `label`. Each is measured against its own")
+              print("Rust twin unless the row says otherwise:")
+              print()
+              print("| scenario | widgets/frame | pyegui (us) | egui (us) | ratio median |")
+              print("| --- | ---: | ---: | ---: | ---: |")
+              for s in other:
+                  for count in sorted(by_scenario[s], key=int):
+                      e = by_scenario[s][count]
+                      only = e.get("python_only")
+                      if only:
+                          # No ratio column: there is no baseline to divide by,
+                          # and printing one would invent the very number this
+                          # benchmark exists not to invent.
+                          print(
+                              f'| {s} '
+                              f'| {count} '
+                              f'| {us(only["pyegui_per_widget_us_median"])} '
+                              f'| - '
+                              f'| no Rust twin |'
+                          )
+                          continue
+                      c_ = e["comparison"]
+                      print(
+                          f'| {s} '
+                          f'| {count} '
+                          f'| {us(c_["pyegui_us_median"])} '
+                          f'| {us(c_["egui_us_median"])} '
+                          f'| {c_["ratio_median"]}x |'
                       )
               print()
           print(f'`import pyegui`: {us(c["import"]["import_pyegui_ms"])} ms (n/a for Rust)')

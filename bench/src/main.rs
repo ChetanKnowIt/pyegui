@@ -69,6 +69,13 @@ struct Bench {
     // Read once in main, not per frame: `std::env` in the measured path would be
     // this benchmark's own overhead rather than the binding's.
     widgets: usize,
+    scenario: &'static str,
+    // One buffer, mutated in place across frames and reused by every widget
+    // in the frame, matching the single module-level `Str` in bench/bench.py.
+    // A frame-local would be equivalent -- `String::new()` does not allocate
+    // and TextEdit writes back only into this buffer -- but a reader comparing
+    // the two halves should not have to work that out.
+    name: String,
 }
 
 impl eframe::App for Bench {
@@ -80,8 +87,29 @@ impl eframe::App for Bench {
         egui::CentralPanel::default().show(ctx, |ui| {
             let t0 = Instant::now();
 
-            for i in 0..self.widgets {
-                ui.label(format!("row {i}"));
+            // Copied out first: matching on `self.scenario` holds an immutable
+            // borrow of `self` for the whole match, which a `&mut self.name`
+            // inside an arm could not coexist with.
+            let scenario = self.scenario;
+            let name = &mut self.name;
+
+            match scenario {
+                "label" => {
+                    for i in 0..self.widgets {
+                        ui.label(format!("row {i}"));
+                    }
+                }
+                "text_edit_plain" => {
+                    for _ in 0..self.widgets {
+                        ui.text_edit_singleline(name);
+                    }
+                }
+                "text_edit_hint" => {
+                    for _ in 0..self.widgets {
+                        ui.text_edit_singleline(name).hint_text("name");
+                    }
+                }
+                _ => {}
             }
 
             let elapsed = t0.elapsed().as_secs_f64() * 1000.0;
@@ -136,6 +164,7 @@ impl Bench {
         println!("{{");
         println!("  \"language\": \"rust\",");
         println!("  \"widgets_per_frame\": {},", self.widgets);
+        println!("  \"scenario\": \"{}\",", self.scenario);
         println!("  \"frames_measured\": {},", self.steady.len());
         println!(
             "  \"first_frame_ms\": {:.4},",
@@ -163,10 +192,21 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
 
-    if let Err(message) = scenario() {
-        eprintln!("{message}");
-        std::process::exit(2);
-    }
+    // Validated once, before the window opens, and reused by the app: reading
+    // `std::env` per frame would make this benchmark measure its own
+    // environment lookup rather than the binding.
+    //
+    // Bound to a local rather than propagated with `?` inside the creator
+    // closure: `scenario()`'s error is a String, and `AppCreator`'s is
+    // eframe's, so `?` there would not compile. The exit happens before any
+    // window is created, which is where a bad scenario should be caught.
+    let scenario = match scenario() {
+        Ok(scenario) => scenario,
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(2);
+        }
+    };
 
     eframe::run_native(
         "bench",
@@ -174,6 +214,8 @@ fn main() -> eframe::Result {
         Box::new(|_cc| {
             Ok(Box::new(Bench {
                 widgets: widgets_per_frame(),
+                scenario,
+                name: String::new(),
                 ..Default::default()
             }))
         }),
