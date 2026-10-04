@@ -327,11 +327,22 @@ jobs:
                               f"{recorded!r} recorded in a file "
                               f"named for scenario {scenario!r}"
                           )
-                      # `bool(...)` rather than `is`: the value comes out of JSON
-                      # and could be anything, and `0`/`1`/`"false"` would
-                      # compare false against both `True` and `False` under an
-                      # identity check, silently skipping the guard.
-                      has_twin = bool(pyegui.get("has_rust_twin", True))
+                      # Default the ABSENT key to True, but a key that IS
+                      # present must actually be a bool. `bool(...)` coerced
+                      # instead of rejecting, so a truthy string like "false"
+                      # claimed a twin exists and sailed through the guard
+                      # below; that is worse than not checking at all,
+                      # because the snapshot then records a comparison
+                      # against a baseline nobody measured. Reject the
+                      # malformed value here, where the scenario is known,
+                      # rather than coercing it.
+                      has_twin = pyegui.get("has_rust_twin", True)
+                      if not isinstance(has_twin, bool):
+                          raise SystemExit(
+                              f"has_rust_twin is {has_twin!r} "
+                              f"({type(has_twin).__name__}) for scenario "
+                              f"{scenario!r}, but it must be a JSON boolean"
+                          )
                       if has_twin is twinless:
                           # The payload's own claim contradicts the scenario it
                           # was written under, so the file is either misnamed or
@@ -506,7 +517,8 @@ jobs:
           if not by_count:
               print(
                   "WARNING: by_widget_count is empty. The committed snapshot will "
-                  "not contain by_widget_count, so the README table has no source. "
+                  "contain by_widget_count with an empty value, so the README "
+                  "table has no source. "
                   "Re-run with the default scenario list "
                   "(label,text_edit_plain,text_edit_hint,python_side) to restore it.",
                   file=sys.stderr,
