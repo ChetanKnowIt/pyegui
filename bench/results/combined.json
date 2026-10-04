@@ -1,20 +1,56 @@
 {
   "import": {
-    "import_pyegui_ms": 11.62
+    "import_pyegui_ms": 10.265
   },
   "by_scenario": {
     "label": {
       "50": {
-        "trials": 1,
+        "trials": 5,
         "per_trial": [
           {
             "trial": 1,
-            "pyegui_us": 0.869,
-            "egui_us": 0.526,
-            "ratio": 1.652,
-            "extra_us": 0.343,
-            "pyegui_first_frame_ms": 0.1142,
-            "egui_first_frame_ms": 0.1329
+            "pyegui_us": 0.894,
+            "egui_us": 0.625,
+            "ratio": 1.43,
+            "extra_us": 0.269,
+            "pyegui_first_frame_ms": 0.1329,
+            "egui_first_frame_ms": 0.1175
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 0.902,
+            "egui_us": 0.617,
+            "ratio": 1.462,
+            "extra_us": 0.285,
+            "pyegui_first_frame_ms": 0.1574,
+            "egui_first_frame_ms": 0.1316
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 0.918,
+            "egui_us": 0.624,
+            "ratio": 1.471,
+            "extra_us": 0.294,
+            "pyegui_first_frame_ms": 0.1395,
+            "egui_first_frame_ms": 0.1182
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 0.892,
+            "egui_us": 0.624,
+            "ratio": 1.429,
+            "extra_us": 0.268,
+            "pyegui_first_frame_ms": 0.1588,
+            "egui_first_frame_ms": 0.1316
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 0.942,
+            "egui_us": 0.625,
+            "ratio": 1.507,
+            "extra_us": 0.317,
+            "pyegui_first_frame_ms": 0.1672,
+            "egui_first_frame_ms": 0.1181
           }
         ],
         "python": {
@@ -22,39 +58,220 @@
           "scenario": "label",
           "has_rust_twin": true,
           "frames_measured": 61,
-          "first_frame_ms": 0.1142,
+          "first_frame_ms": 0.1329,
           "steady_frame_ms": {
-            "min": 0.0434,
-            "mean": 0.0509,
-            "stdev": 0.0105
+            "min": 0.0447,
+            "mean": 0.0512,
+            "stdev": 0.0114
           },
           "per_widget_us": {
-            "min": 0.869,
-            "mean": 1.017
+            "min": 0.894,
+            "mean": 1.024
           },
-          "run_native_total_ms": 345.04,
+          "run_native_total_ms": 349.2,
           "python": "3.11.16"
         },
         "comparison": {
-          "ratio_median": 1.65,
-          "ratio_min": 1.65,
-          "ratio_max": 1.65,
-          "ratio_spread": 0.0,
-          "pyegui_us_median": 0.869,
-          "egui_us_median": 0.526,
-          "extra_us_median": 0.343
+          "ratio_median": 1.46,
+          "ratio_min": 1.43,
+          "ratio_max": 1.51,
+          "ratio_spread": 0.08,
+          "pyegui_us_median": 0.902,
+          "egui_us_median": 0.624,
+          "extra_us_median": 0.285,
+          "ratio_spread_pct": 5.3
+        }
+      },
+      "500": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 0.684,
+            "egui_us": 0.495,
+            "ratio": 1.382,
+            "extra_us": 0.189,
+            "pyegui_first_frame_ms": 1.0708,
+            "egui_first_frame_ms": 1.0309
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 0.693,
+            "egui_us": 0.492,
+            "ratio": 1.409,
+            "extra_us": 0.201,
+            "pyegui_first_frame_ms": 1.077,
+            "egui_first_frame_ms": 1.2748
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 0.675,
+            "egui_us": 0.495,
+            "ratio": 1.364,
+            "extra_us": 0.18,
+            "pyegui_first_frame_ms": 1.0745,
+            "egui_first_frame_ms": 1.029
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 0.706,
+            "egui_us": 0.49,
+            "ratio": 1.441,
+            "extra_us": 0.216,
+            "pyegui_first_frame_ms": 1.0998,
+            "egui_first_frame_ms": 1.0105
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 0.697,
+            "egui_us": 0.494,
+            "ratio": 1.411,
+            "extra_us": 0.203,
+            "pyegui_first_frame_ms": 1.0965,
+            "egui_first_frame_ms": 1.0187
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 500,
+          "scenario": "label",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 1.0708,
+          "steady_frame_ms": {
+            "min": 0.342,
+            "mean": 0.3775,
+            "stdev": 0.0926
+          },
+          "per_widget_us": {
+            "min": 0.684,
+            "mean": 0.755
+          },
+          "run_native_total_ms": 267.99,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.41,
+          "ratio_min": 1.36,
+          "ratio_max": 1.44,
+          "ratio_spread": 0.08,
+          "pyegui_us_median": 0.693,
+          "egui_us_median": 0.494,
+          "extra_us_median": 0.201,
+          "ratio_spread_pct": 5.5
+        }
+      },
+      "2000": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 0.683,
+            "egui_us": 0.501,
+            "ratio": 1.363,
+            "extra_us": 0.182,
+            "pyegui_first_frame_ms": 4.4972,
+            "egui_first_frame_ms": 4.2441
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 0.683,
+            "egui_us": 0.5,
+            "ratio": 1.366,
+            "extra_us": 0.183,
+            "pyegui_first_frame_ms": 4.4534,
+            "egui_first_frame_ms": 4.1561
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 0.684,
+            "egui_us": 0.503,
+            "ratio": 1.36,
+            "extra_us": 0.181,
+            "pyegui_first_frame_ms": 4.4675,
+            "egui_first_frame_ms": 4.1504
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 0.683,
+            "egui_us": 0.499,
+            "ratio": 1.369,
+            "extra_us": 0.184,
+            "pyegui_first_frame_ms": 4.6427,
+            "egui_first_frame_ms": 4.1679
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 0.683,
+            "egui_us": 0.5,
+            "ratio": 1.366,
+            "extra_us": 0.183,
+            "pyegui_first_frame_ms": 4.4826,
+            "egui_first_frame_ms": 4.0076
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 2000,
+          "scenario": "label",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 4.4972,
+          "steady_frame_ms": {
+            "min": 1.3652,
+            "mean": 1.4622,
+            "stdev": 0.4023
+          },
+          "per_widget_us": {
+            "min": 0.683,
+            "mean": 0.731
+          },
+          "run_native_total_ms": 337.45,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.37,
+          "ratio_min": 1.36,
+          "ratio_max": 1.37,
+          "ratio_spread": 0.01,
+          "pyegui_us_median": 0.683,
+          "egui_us_median": 0.5,
+          "extra_us_median": 0.183,
+          "ratio_spread_pct": 0.7
         }
       }
     },
     "python_side": {
       "50": {
-        "trials": 1,
+        "trials": 5,
         "per_trial": [
           {
             "trial": 1,
-            "pyegui_frame_ms": 0.0198,
-            "pyegui_per_widget_us": 0.396,
-            "pyegui_first_frame_ms": 0.0499
+            "pyegui_frame_ms": 0.0199,
+            "pyegui_per_widget_us": 0.398,
+            "pyegui_first_frame_ms": 0.0368
+          },
+          {
+            "trial": 2,
+            "pyegui_frame_ms": 0.0197,
+            "pyegui_per_widget_us": 0.395,
+            "pyegui_first_frame_ms": 0.0384
+          },
+          {
+            "trial": 3,
+            "pyegui_frame_ms": 0.0193,
+            "pyegui_per_widget_us": 0.385,
+            "pyegui_first_frame_ms": 0.0379
+          },
+          {
+            "trial": 4,
+            "pyegui_frame_ms": 0.0197,
+            "pyegui_per_widget_us": 0.395,
+            "pyegui_first_frame_ms": 0.0372
+          },
+          {
+            "trial": 5,
+            "pyegui_frame_ms": 0.0212,
+            "pyegui_per_widget_us": 0.423,
+            "pyegui_first_frame_ms": 0.0384
           }
         ],
         "python": {
@@ -62,37 +279,187 @@
           "scenario": "python_side",
           "has_rust_twin": false,
           "frames_measured": 61,
-          "first_frame_ms": 0.0499,
+          "first_frame_ms": 0.0368,
           "steady_frame_ms": {
-            "min": 0.0198,
-            "mean": 0.0239,
-            "stdev": 0.0062
+            "min": 0.0199,
+            "mean": 0.0221,
+            "stdev": 0.0027
           },
           "per_widget_us": {
-            "min": 0.396,
-            "mean": 0.478
+            "min": 0.398,
+            "mean": 0.443
           },
-          "run_native_total_ms": 241.53,
+          "run_native_total_ms": 232.96,
           "python": "3.11.16"
         },
         "python_only": {
-          "pyegui_frame_ms_median": 0.0198,
-          "pyegui_per_widget_us_median": 0.396
+          "pyegui_frame_ms_median": 0.0197,
+          "pyegui_per_widget_us_median": 0.395
+        }
+      },
+      "500": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_frame_ms": 0.1613,
+            "pyegui_per_widget_us": 0.323,
+            "pyegui_first_frame_ms": 0.1823
+          },
+          {
+            "trial": 2,
+            "pyegui_frame_ms": 0.1602,
+            "pyegui_per_widget_us": 0.32,
+            "pyegui_first_frame_ms": 0.2029
+          },
+          {
+            "trial": 3,
+            "pyegui_frame_ms": 0.1605,
+            "pyegui_per_widget_us": 0.321,
+            "pyegui_first_frame_ms": 0.1785
+          },
+          {
+            "trial": 4,
+            "pyegui_frame_ms": 0.1628,
+            "pyegui_per_widget_us": 0.326,
+            "pyegui_first_frame_ms": 0.177
+          },
+          {
+            "trial": 5,
+            "pyegui_frame_ms": 0.162,
+            "pyegui_per_widget_us": 0.324,
+            "pyegui_first_frame_ms": 0.1833
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 500,
+          "scenario": "python_side",
+          "has_rust_twin": false,
+          "frames_measured": 61,
+          "first_frame_ms": 0.1823,
+          "steady_frame_ms": {
+            "min": 0.1613,
+            "mean": 0.1678,
+            "stdev": 0.0077
+          },
+          "per_widget_us": {
+            "min": 0.323,
+            "mean": 0.336
+          },
+          "run_native_total_ms": 242.92,
+          "python": "3.11.16"
+        },
+        "python_only": {
+          "pyegui_frame_ms_median": 0.1613,
+          "pyegui_per_widget_us_median": 0.323
+        }
+      },
+      "2000": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_frame_ms": 0.6372,
+            "pyegui_per_widget_us": 0.319,
+            "pyegui_first_frame_ms": 0.6827
+          },
+          {
+            "trial": 2,
+            "pyegui_frame_ms": 0.636,
+            "pyegui_per_widget_us": 0.318,
+            "pyegui_first_frame_ms": 0.6826
+          },
+          {
+            "trial": 3,
+            "pyegui_frame_ms": 0.634,
+            "pyegui_per_widget_us": 0.317,
+            "pyegui_first_frame_ms": 0.675
+          },
+          {
+            "trial": 4,
+            "pyegui_frame_ms": 0.6365,
+            "pyegui_per_widget_us": 0.318,
+            "pyegui_first_frame_ms": 0.6576
+          },
+          {
+            "trial": 5,
+            "pyegui_frame_ms": 0.6333,
+            "pyegui_per_widget_us": 0.317,
+            "pyegui_first_frame_ms": 0.6863
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 2000,
+          "scenario": "python_side",
+          "has_rust_twin": false,
+          "frames_measured": 61,
+          "first_frame_ms": 0.6827,
+          "steady_frame_ms": {
+            "min": 0.6372,
+            "mean": 0.6544,
+            "stdev": 0.0111
+          },
+          "per_widget_us": {
+            "min": 0.319,
+            "mean": 0.327
+          },
+          "run_native_total_ms": 271.31,
+          "python": "3.11.16"
+        },
+        "python_only": {
+          "pyegui_frame_ms_median": 0.636,
+          "pyegui_per_widget_us_median": 0.318
         }
       }
     },
     "text_edit_hint": {
       "50": {
-        "trials": 1,
+        "trials": 5,
         "per_trial": [
           {
             "trial": 1,
-            "pyegui_us": 1.519,
-            "egui_us": 0.903,
-            "ratio": 1.682,
-            "extra_us": 0.616,
-            "pyegui_first_frame_ms": 0.1373,
-            "egui_first_frame_ms": 0.0862
+            "pyegui_us": 1.651,
+            "egui_us": 1.039,
+            "ratio": 1.589,
+            "extra_us": 0.612,
+            "pyegui_first_frame_ms": 0.1473,
+            "egui_first_frame_ms": 0.0906
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.706,
+            "egui_us": 1.043,
+            "ratio": 1.636,
+            "extra_us": 0.663,
+            "pyegui_first_frame_ms": 0.147,
+            "egui_first_frame_ms": 0.0878
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.707,
+            "egui_us": 1.061,
+            "ratio": 1.609,
+            "extra_us": 0.646,
+            "pyegui_first_frame_ms": 0.1504,
+            "egui_first_frame_ms": 0.0881
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.649,
+            "egui_us": 1.059,
+            "ratio": 1.557,
+            "extra_us": 0.59,
+            "pyegui_first_frame_ms": 0.138,
+            "egui_first_frame_ms": 0.0908
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.675,
+            "egui_us": 1.072,
+            "ratio": 1.562,
+            "extra_us": 0.603,
+            "pyegui_first_frame_ms": 0.152,
+            "egui_first_frame_ms": 0.0895
           }
         ],
         "python": {
@@ -100,42 +467,235 @@
           "scenario": "text_edit_hint",
           "has_rust_twin": true,
           "frames_measured": 61,
-          "first_frame_ms": 0.1373,
+          "first_frame_ms": 0.1473,
           "steady_frame_ms": {
-            "min": 0.076,
-            "mean": 0.0829,
+            "min": 0.0826,
+            "mean": 0.0871,
             "stdev": 0.0094
           },
           "per_widget_us": {
-            "min": 1.519,
-            "mean": 1.657
+            "min": 1.651,
+            "mean": 1.742
           },
-          "run_native_total_ms": 355.44,
+          "run_native_total_ms": 348.96,
           "python": "3.11.16"
         },
         "comparison": {
-          "ratio_median": 1.68,
-          "ratio_min": 1.68,
-          "ratio_max": 1.68,
-          "ratio_spread": 0.0,
-          "pyegui_us_median": 1.519,
-          "egui_us_median": 0.903,
-          "extra_us_median": 0.616
+          "ratio_median": 1.59,
+          "ratio_min": 1.56,
+          "ratio_max": 1.64,
+          "ratio_spread": 0.08,
+          "pyegui_us_median": 1.675,
+          "egui_us_median": 1.059,
+          "extra_us_median": 0.612,
+          "ratio_spread_pct": 5.0
+        }
+      },
+      "500": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 1.368,
+            "egui_us": 0.877,
+            "ratio": 1.56,
+            "extra_us": 0.491,
+            "pyegui_first_frame_ms": 0.8495,
+            "egui_first_frame_ms": 0.693
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.439,
+            "egui_us": 0.888,
+            "ratio": 1.62,
+            "extra_us": 0.551,
+            "pyegui_first_frame_ms": 0.8447,
+            "egui_first_frame_ms": 0.7027
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.309,
+            "egui_us": 0.922,
+            "ratio": 1.42,
+            "extra_us": 0.387,
+            "pyegui_first_frame_ms": 0.7842,
+            "egui_first_frame_ms": 0.6862
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.298,
+            "egui_us": 0.878,
+            "ratio": 1.478,
+            "extra_us": 0.42,
+            "pyegui_first_frame_ms": 0.7892,
+            "egui_first_frame_ms": 0.6601
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.371,
+            "egui_us": 0.904,
+            "ratio": 1.517,
+            "extra_us": 0.467,
+            "pyegui_first_frame_ms": 0.7993,
+            "egui_first_frame_ms": 0.7186
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 500,
+          "scenario": "text_edit_hint",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 0.8495,
+          "steady_frame_ms": {
+            "min": 0.6842,
+            "mean": 0.7108,
+            "stdev": 0.0315
+          },
+          "per_widget_us": {
+            "min": 1.368,
+            "mean": 1.422
+          },
+          "run_native_total_ms": 387.78,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.52,
+          "ratio_min": 1.42,
+          "ratio_max": 1.62,
+          "ratio_spread": 0.2,
+          "pyegui_us_median": 1.368,
+          "egui_us_median": 0.888,
+          "extra_us_median": 0.467,
+          "ratio_spread_pct": 13.2
+        }
+      },
+      "2000": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 1.345,
+            "egui_us": 0.889,
+            "ratio": 1.513,
+            "extra_us": 0.456,
+            "pyegui_first_frame_ms": 3.4332,
+            "egui_first_frame_ms": 2.5481
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.356,
+            "egui_us": 0.907,
+            "ratio": 1.495,
+            "extra_us": 0.449,
+            "pyegui_first_frame_ms": 3.4149,
+            "egui_first_frame_ms": 2.6133
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.299,
+            "egui_us": 0.898,
+            "ratio": 1.447,
+            "extra_us": 0.401,
+            "pyegui_first_frame_ms": 3.3642,
+            "egui_first_frame_ms": 2.5608
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.351,
+            "egui_us": 0.9,
+            "ratio": 1.501,
+            "extra_us": 0.451,
+            "pyegui_first_frame_ms": 3.4413,
+            "egui_first_frame_ms": 2.6119
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.351,
+            "egui_us": 0.916,
+            "ratio": 1.475,
+            "extra_us": 0.435,
+            "pyegui_first_frame_ms": 3.413,
+            "egui_first_frame_ms": 2.5981
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 2000,
+          "scenario": "text_edit_hint",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 3.4332,
+          "steady_frame_ms": {
+            "min": 2.6897,
+            "mean": 2.7591,
+            "stdev": 0.1073
+          },
+          "per_widget_us": {
+            "min": 1.345,
+            "mean": 1.38
+          },
+          "run_native_total_ms": 518.46,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.5,
+          "ratio_min": 1.45,
+          "ratio_max": 1.51,
+          "ratio_spread": 0.07,
+          "pyegui_us_median": 1.351,
+          "egui_us_median": 0.9,
+          "extra_us_median": 0.449,
+          "ratio_spread_pct": 4.4
         }
       }
     },
     "text_edit_plain": {
       "50": {
-        "trials": 1,
+        "trials": 5,
         "per_trial": [
           {
             "trial": 1,
-            "pyegui_us": 1.156,
-            "egui_us": 0.741,
-            "ratio": 1.56,
-            "extra_us": 0.415,
-            "pyegui_first_frame_ms": 0.1179,
-            "egui_first_frame_ms": 0.0752
+            "pyegui_us": 1.323,
+            "egui_us": 0.901,
+            "ratio": 1.468,
+            "extra_us": 0.422,
+            "pyegui_first_frame_ms": 0.1187,
+            "egui_first_frame_ms": 0.0792
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.26,
+            "egui_us": 0.915,
+            "ratio": 1.377,
+            "extra_us": 0.345,
+            "pyegui_first_frame_ms": 0.1199,
+            "egui_first_frame_ms": 0.0786
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.298,
+            "egui_us": 0.893,
+            "ratio": 1.454,
+            "extra_us": 0.405,
+            "pyegui_first_frame_ms": 0.1226,
+            "egui_first_frame_ms": 0.0789
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.313,
+            "egui_us": 0.893,
+            "ratio": 1.47,
+            "extra_us": 0.42,
+            "pyegui_first_frame_ms": 0.126,
+            "egui_first_frame_ms": 0.0803
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.354,
+            "egui_us": 0.927,
+            "ratio": 1.461,
+            "extra_us": 0.427,
+            "pyegui_first_frame_ms": 0.1298,
+            "egui_first_frame_ms": 0.08
           }
         ],
         "python": {
@@ -143,43 +703,236 @@
           "scenario": "text_edit_plain",
           "has_rust_twin": true,
           "frames_measured": 61,
-          "first_frame_ms": 0.1179,
+          "first_frame_ms": 0.1187,
           "steady_frame_ms": {
-            "min": 0.0578,
-            "mean": 0.0646,
-            "stdev": 0.0088
+            "min": 0.0662,
+            "mean": 0.0706,
+            "stdev": 0.0076
           },
           "per_widget_us": {
-            "min": 1.156,
-            "mean": 1.292
+            "min": 1.323,
+            "mean": 1.411
           },
-          "run_native_total_ms": 339.94,
+          "run_native_total_ms": 333.96,
           "python": "3.11.16"
         },
         "comparison": {
-          "ratio_median": 1.56,
-          "ratio_min": 1.56,
-          "ratio_max": 1.56,
-          "ratio_spread": 0.0,
-          "pyegui_us_median": 1.156,
-          "egui_us_median": 0.741,
-          "extra_us_median": 0.415
+          "ratio_median": 1.46,
+          "ratio_min": 1.38,
+          "ratio_max": 1.47,
+          "ratio_spread": 0.09,
+          "pyegui_us_median": 1.313,
+          "egui_us_median": 0.901,
+          "extra_us_median": 0.42,
+          "ratio_spread_pct": 6.4
+        }
+      },
+      "500": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 1.083,
+            "egui_us": 0.861,
+            "ratio": 1.258,
+            "extra_us": 0.222,
+            "pyegui_first_frame_ms": 0.6966,
+            "egui_first_frame_ms": 0.6662
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.148,
+            "egui_us": 0.841,
+            "ratio": 1.365,
+            "extra_us": 0.307,
+            "pyegui_first_frame_ms": 0.7076,
+            "egui_first_frame_ms": 0.6643
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.151,
+            "egui_us": 0.866,
+            "ratio": 1.329,
+            "extra_us": 0.285,
+            "pyegui_first_frame_ms": 0.7206,
+            "egui_first_frame_ms": 0.6597
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.089,
+            "egui_us": 0.865,
+            "ratio": 1.259,
+            "extra_us": 0.224,
+            "pyegui_first_frame_ms": 0.6632,
+            "egui_first_frame_ms": 0.6865
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.092,
+            "egui_us": 0.846,
+            "ratio": 1.291,
+            "extra_us": 0.246,
+            "pyegui_first_frame_ms": 0.7073,
+            "egui_first_frame_ms": 0.8734
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 500,
+          "scenario": "text_edit_plain",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 0.6966,
+          "steady_frame_ms": {
+            "min": 0.5416,
+            "mean": 0.5626,
+            "stdev": 0.0251
+          },
+          "per_widget_us": {
+            "min": 1.083,
+            "mean": 1.125
+          },
+          "run_native_total_ms": 363.06,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.29,
+          "ratio_min": 1.26,
+          "ratio_max": 1.36,
+          "ratio_spread": 0.11,
+          "pyegui_us_median": 1.092,
+          "egui_us_median": 0.861,
+          "extra_us_median": 0.246,
+          "ratio_spread_pct": 8.3
+        }
+      },
+      "2000": {
+        "trials": 5,
+        "per_trial": [
+          {
+            "trial": 1,
+            "pyegui_us": 1.116,
+            "egui_us": 0.864,
+            "ratio": 1.292,
+            "extra_us": 0.252,
+            "pyegui_first_frame_ms": 2.8709,
+            "egui_first_frame_ms": 2.5224
+          },
+          {
+            "trial": 2,
+            "pyegui_us": 1.155,
+            "egui_us": 0.865,
+            "ratio": 1.335,
+            "extra_us": 0.29,
+            "pyegui_first_frame_ms": 2.9683,
+            "egui_first_frame_ms": 2.5125
+          },
+          {
+            "trial": 3,
+            "pyegui_us": 1.164,
+            "egui_us": 0.867,
+            "ratio": 1.343,
+            "extra_us": 0.297,
+            "pyegui_first_frame_ms": 2.9209,
+            "egui_first_frame_ms": 2.521
+          },
+          {
+            "trial": 4,
+            "pyegui_us": 1.109,
+            "egui_us": 0.864,
+            "ratio": 1.284,
+            "extra_us": 0.245,
+            "pyegui_first_frame_ms": 2.8974,
+            "egui_first_frame_ms": 2.5313
+          },
+          {
+            "trial": 5,
+            "pyegui_us": 1.152,
+            "egui_us": 0.877,
+            "ratio": 1.314,
+            "extra_us": 0.275,
+            "pyegui_first_frame_ms": 2.9213,
+            "egui_first_frame_ms": 2.5377
+          }
+        ],
+        "python": {
+          "widgets_per_frame": 2000,
+          "scenario": "text_edit_plain",
+          "has_rust_twin": true,
+          "frames_measured": 61,
+          "first_frame_ms": 2.8709,
+          "steady_frame_ms": {
+            "min": 2.2319,
+            "mean": 2.2824,
+            "stdev": 0.0992
+          },
+          "per_widget_us": {
+            "min": 1.116,
+            "mean": 1.141
+          },
+          "run_native_total_ms": 473.9,
+          "python": "3.11.16"
+        },
+        "comparison": {
+          "ratio_median": 1.31,
+          "ratio_min": 1.28,
+          "ratio_max": 1.34,
+          "ratio_spread": 0.06,
+          "pyegui_us_median": 1.152,
+          "egui_us_median": 0.865,
+          "extra_us_median": 0.275,
+          "ratio_spread_pct": 4.5
         }
       }
     }
   },
   "by_widget_count": {
     "50": {
-      "trials": 1,
+      "trials": 5,
       "per_trial": [
         {
           "trial": 1,
-          "pyegui_us": 0.869,
-          "egui_us": 0.526,
-          "ratio": 1.652,
-          "extra_us": 0.343,
-          "pyegui_first_frame_ms": 0.1142,
-          "egui_first_frame_ms": 0.1329
+          "pyegui_us": 0.894,
+          "egui_us": 0.625,
+          "ratio": 1.43,
+          "extra_us": 0.269,
+          "pyegui_first_frame_ms": 0.1329,
+          "egui_first_frame_ms": 0.1175
+        },
+        {
+          "trial": 2,
+          "pyegui_us": 0.902,
+          "egui_us": 0.617,
+          "ratio": 1.462,
+          "extra_us": 0.285,
+          "pyegui_first_frame_ms": 0.1574,
+          "egui_first_frame_ms": 0.1316
+        },
+        {
+          "trial": 3,
+          "pyegui_us": 0.918,
+          "egui_us": 0.624,
+          "ratio": 1.471,
+          "extra_us": 0.294,
+          "pyegui_first_frame_ms": 0.1395,
+          "egui_first_frame_ms": 0.1182
+        },
+        {
+          "trial": 4,
+          "pyegui_us": 0.892,
+          "egui_us": 0.624,
+          "ratio": 1.429,
+          "extra_us": 0.268,
+          "pyegui_first_frame_ms": 0.1588,
+          "egui_first_frame_ms": 0.1316
+        },
+        {
+          "trial": 5,
+          "pyegui_us": 0.942,
+          "egui_us": 0.625,
+          "ratio": 1.507,
+          "extra_us": 0.317,
+          "pyegui_first_frame_ms": 0.1672,
+          "egui_first_frame_ms": 0.1181
         }
       ],
       "python": {
@@ -187,27 +940,184 @@
         "scenario": "label",
         "has_rust_twin": true,
         "frames_measured": 61,
-        "first_frame_ms": 0.1142,
+        "first_frame_ms": 0.1329,
         "steady_frame_ms": {
-          "min": 0.0434,
-          "mean": 0.0509,
-          "stdev": 0.0105
+          "min": 0.0447,
+          "mean": 0.0512,
+          "stdev": 0.0114
         },
         "per_widget_us": {
-          "min": 0.869,
-          "mean": 1.017
+          "min": 0.894,
+          "mean": 1.024
         },
-        "run_native_total_ms": 345.04,
+        "run_native_total_ms": 349.2,
         "python": "3.11.16"
       },
       "comparison": {
-        "ratio_median": 1.65,
-        "ratio_min": 1.65,
-        "ratio_max": 1.65,
-        "ratio_spread": 0.0,
-        "pyegui_us_median": 0.869,
-        "egui_us_median": 0.526,
-        "extra_us_median": 0.343
+        "ratio_median": 1.46,
+        "ratio_min": 1.43,
+        "ratio_max": 1.51,
+        "ratio_spread": 0.08,
+        "pyegui_us_median": 0.902,
+        "egui_us_median": 0.624,
+        "extra_us_median": 0.285,
+        "ratio_spread_pct": 5.3
+      }
+    },
+    "500": {
+      "trials": 5,
+      "per_trial": [
+        {
+          "trial": 1,
+          "pyegui_us": 0.684,
+          "egui_us": 0.495,
+          "ratio": 1.382,
+          "extra_us": 0.189,
+          "pyegui_first_frame_ms": 1.0708,
+          "egui_first_frame_ms": 1.0309
+        },
+        {
+          "trial": 2,
+          "pyegui_us": 0.693,
+          "egui_us": 0.492,
+          "ratio": 1.409,
+          "extra_us": 0.201,
+          "pyegui_first_frame_ms": 1.077,
+          "egui_first_frame_ms": 1.2748
+        },
+        {
+          "trial": 3,
+          "pyegui_us": 0.675,
+          "egui_us": 0.495,
+          "ratio": 1.364,
+          "extra_us": 0.18,
+          "pyegui_first_frame_ms": 1.0745,
+          "egui_first_frame_ms": 1.029
+        },
+        {
+          "trial": 4,
+          "pyegui_us": 0.706,
+          "egui_us": 0.49,
+          "ratio": 1.441,
+          "extra_us": 0.216,
+          "pyegui_first_frame_ms": 1.0998,
+          "egui_first_frame_ms": 1.0105
+        },
+        {
+          "trial": 5,
+          "pyegui_us": 0.697,
+          "egui_us": 0.494,
+          "ratio": 1.411,
+          "extra_us": 0.203,
+          "pyegui_first_frame_ms": 1.0965,
+          "egui_first_frame_ms": 1.0187
+        }
+      ],
+      "python": {
+        "widgets_per_frame": 500,
+        "scenario": "label",
+        "has_rust_twin": true,
+        "frames_measured": 61,
+        "first_frame_ms": 1.0708,
+        "steady_frame_ms": {
+          "min": 0.342,
+          "mean": 0.3775,
+          "stdev": 0.0926
+        },
+        "per_widget_us": {
+          "min": 0.684,
+          "mean": 0.755
+        },
+        "run_native_total_ms": 267.99,
+        "python": "3.11.16"
+      },
+      "comparison": {
+        "ratio_median": 1.41,
+        "ratio_min": 1.36,
+        "ratio_max": 1.44,
+        "ratio_spread": 0.08,
+        "pyegui_us_median": 0.693,
+        "egui_us_median": 0.494,
+        "extra_us_median": 0.201,
+        "ratio_spread_pct": 5.5
+      }
+    },
+    "2000": {
+      "trials": 5,
+      "per_trial": [
+        {
+          "trial": 1,
+          "pyegui_us": 0.683,
+          "egui_us": 0.501,
+          "ratio": 1.363,
+          "extra_us": 0.182,
+          "pyegui_first_frame_ms": 4.4972,
+          "egui_first_frame_ms": 4.2441
+        },
+        {
+          "trial": 2,
+          "pyegui_us": 0.683,
+          "egui_us": 0.5,
+          "ratio": 1.366,
+          "extra_us": 0.183,
+          "pyegui_first_frame_ms": 4.4534,
+          "egui_first_frame_ms": 4.1561
+        },
+        {
+          "trial": 3,
+          "pyegui_us": 0.684,
+          "egui_us": 0.503,
+          "ratio": 1.36,
+          "extra_us": 0.181,
+          "pyegui_first_frame_ms": 4.4675,
+          "egui_first_frame_ms": 4.1504
+        },
+        {
+          "trial": 4,
+          "pyegui_us": 0.683,
+          "egui_us": 0.499,
+          "ratio": 1.369,
+          "extra_us": 0.184,
+          "pyegui_first_frame_ms": 4.6427,
+          "egui_first_frame_ms": 4.1679
+        },
+        {
+          "trial": 5,
+          "pyegui_us": 0.683,
+          "egui_us": 0.5,
+          "ratio": 1.366,
+          "extra_us": 0.183,
+          "pyegui_first_frame_ms": 4.4826,
+          "egui_first_frame_ms": 4.0076
+        }
+      ],
+      "python": {
+        "widgets_per_frame": 2000,
+        "scenario": "label",
+        "has_rust_twin": true,
+        "frames_measured": 61,
+        "first_frame_ms": 4.4972,
+        "steady_frame_ms": {
+          "min": 1.3652,
+          "mean": 1.4622,
+          "stdev": 0.4023
+        },
+        "per_widget_us": {
+          "min": 0.683,
+          "mean": 0.731
+        },
+        "run_native_total_ms": 337.45,
+        "python": "3.11.16"
+      },
+      "comparison": {
+        "ratio_median": 1.37,
+        "ratio_min": 1.36,
+        "ratio_max": 1.37,
+        "ratio_spread": 0.01,
+        "pyegui_us_median": 0.683,
+        "egui_us_median": 0.5,
+        "extra_us_median": 0.183,
+        "ratio_spread_pct": 0.7
       }
     }
   }
