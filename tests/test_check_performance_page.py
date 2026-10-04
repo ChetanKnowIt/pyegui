@@ -8,6 +8,7 @@ documentation drift nobody can act on.
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -180,4 +181,115 @@ def test_the_real_page_and_the_real_snapshot_agree():
 
 
 def test_widget_count_is_the_one_the_page_states():
-    assert WIDGET_COUNT == "2000"
+    """The gate checks one widget-count column; the page must quote that one.
+
+    Asserting the constant against itself would pass forever and catch nothing.
+    The gate compares only the WIDGET_COUNT column, so a page rewritten to
+    quote a different column would carry numbers for a run the gate never
+    checks -- and this gate is the only thing that would notice.
+
+    Matched on "<count> widgets" rather than a bare number: the page quotes
+    several figures (us-per-widget costs, a ratio, a run id), and only the
+    frame's widget count is the column the gate reads.
+    """
+    page = (Path(__file__).resolve().parent.parent / "docs" / "performance.rst").read_text(
+        encoding="utf-8"
+    )
+    assert re.search(rf"\b{WIDGET_COUNT} widgets?\b", page), (
+        f"the page no longer states {WIDGET_COUNT} widgets, the only column "
+        f"this gate checks (WIDGET_COUNT = {WIDGET_COUNT})"
+    )
+    # No other column may be advertised as the one being quoted. 50 and 500
+    # are in the snapshot too, and the page mentioning them as prose would be
+    # fine; quoting a *different* count as the run's subject is not.
+    others = {c for c in ("50", "500", "2000") if c != WIDGET_COUNT}
+    for count in others:
+        assert not re.search(rf"\b{count} widgets\b", page), (
+            f"the page also quotes {count} widgets, which is not the column "
+            f"the gate checks"
+        )
+
+
+def _malformed_shapes():
+    """Every shape a truncated or hand-edited snapshot can arrive in.
+
+    Each one is a snapshot that parses as JSON but is not the shape the gate
+    reads. A crash here would turn `examples` red for a documentation number
+    nobody can act on, which is exactly what this tier exists to prevent.
+    """
+    return {
+        "list": [],
+        "string": "hello",
+        "null": None,
+        "number": 123,
+        "by_scenario list": {"by_scenario": []},
+        "by_scenario string": {"by_scenario": {"label": "x"}},
+        "import is a number": {"import": 5},
+        "import is a list": {"import": []},
+        "scenario is a string": {"by_scenario": {"label": "x", "python_side": {}}},
+        "widget entry is a string": {"by_scenario": {"python_side": {"2000": "x"}}},
+        "comparison is a string": {
+            "by_scenario": {"label": {"2000": {"comparison": "1.37x"}}}
+        },
+    }
+
+
+def test_no_malformed_snapshot_shape_raises(tmp_path):
+    page = tmp_path / "performance.rst"
+    page.write_text(MATCHING_PAGE, encoding="utf-8")
+    for label, snapshot in _malformed_shapes().items():
+        sp = tmp_path / "combined.json"
+        sp.write_text(json.dumps(snapshot), encoding="utf-8")
+        warnings = []
+        check_performance_page(sp, page, warnings)
+        assert warnings, f"{label} produced neither a warning nor a raise"
+
+
+def test_empty_by_scenario_warns(tmp_path):
+    """No scenarios at all is a different defect from a malformed shape."""
+    sp, pp = write(tmp_path, {"by_scenario": {}}, MATCHING_PAGE)
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    assert warnings, warnings
+
+
+def test_page_path_that_is_a_directory_warns_and_does_not_raise(tmp_path):
+    page_dir = tmp_path / "performance.rst.d"
+    page_dir.mkdir()
+    sp, _ = write(tmp_path, SNAPSHOT, MATCHING_PAGE)
+    warnings = []
+    check_performance_page(sp, page_dir, warnings)
+    assert any("not a file" in w for w in warnings), warnings
+
+
+def test_missing_snapshot_file_warns_and_does_not_raise(tmp_path):
+    page = tmp_path / "performance.rst"
+    page.write_text(MATCHING_PAGE, encoding="utf-8")
+    warnings = []
+    check_performance_page(tmp_path / "absent.json", page, warnings)
+    assert any("no benchmark snapshot" in w for w in warnings), warnings
+
+
+def test_invalid_json_warns_and_does_not_raise(tmp_path):
+    sp = tmp_path / "combined.json"
+    sp.write_text("{not json", encoding="utf-8")
+    page = tmp_path / "performance.rst"
+    page.write_text(MATCHING_PAGE, encoding="utf-8")
+    warnings = []
+    check_performance_page(sp, page, warnings)
+    assert any("valid JSON" in w for w in warnings), warnings
+
+
+def test_absent_scenario_warns_once_not_twice(tmp_path):
+    """The absent-scenario warning must not be joined by a second one.
+
+    Two warnings for one missing scenario reads as two defects and sends a
+    reader looking for a problem that is not there.
+    """
+    snapshot = json.loads(json.dumps(SNAPSHOT))
+    del snapshot["by_scenario"]["text_edit_hint"]
+    sp, pp = write(tmp_path, snapshot, MATCHING_PAGE)
+    warnings = []
+    check_performance_page(sp, pp, warnings)
+    mentioning = [w for w in warnings if "text_edit_hint" in w]
+    assert len(mentioning) == 1, mentioning

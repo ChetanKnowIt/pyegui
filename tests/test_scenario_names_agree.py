@@ -12,6 +12,7 @@ that a future change to it is a test failure rather than a silent widening of
 what the Rust binary pretends to support.
 """
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -50,4 +51,6 @@ def test_bench_py_agrees_with_the_shared_list():
     source = (REPO_ROOT / "bench" / "bench.py").read_text(encoding="utf-8")
     match = re.search(r"^VALID_SCENARIOS = (\[[^\]]*\])", source, re.M)
     assert match, "bench/bench.py no longer defines VALID_SCENARIOS"
-    assert eval(match.group(1)) == bench_names.VALID_SCENARIOS  # noqa: S307
+    # literal_eval, not eval: this parses a list of string literals from a
+    # file this repo owns, but `eval` would happily run whatever is there.
+    assert ast.literal_eval(match.group(1)) == bench_names.VALID_SCENARIOS

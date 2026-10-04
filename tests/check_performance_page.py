@@ -73,6 +73,17 @@ def _warn(warnings, message):
     warnings.append(message)
 
 
+def _as_dict(value):
+    """Coerce a snapshot node to a dict, treating anything else as absent.
+
+    The snapshot is written by the benchmark run, so its shape is a fact we
+    read rather than one we can assume: a truncated or hand-edited file can put
+    a list where a mapping belongs. This gate warns and never fails, so a
+    surprising shape has to become a warning and never an AttributeError.
+    """
+    return value if isinstance(value, dict) else {}
+
+
 def check_performance_page(snapshot_path, page_path, warnings):
     """Append warnings about page/snapshot disagreement. Never raises."""
     snapshot_path = Path(snapshot_path)
@@ -83,7 +94,26 @@ def check_performance_page(snapshot_path, page_path, warnings):
         # predates the page.
         return
 
-    page_text = page_path.read_text(encoding="utf-8")
+    if not page_path.is_file():
+        # Exists but is not a file -- a directory, most likely. read_text on
+        # one raises IsADirectoryError, which would turn a documentation-path
+        # mistake into a red `examples` job.
+        _warn(
+            warnings,
+            f"docs/performance.rst: {page_path} is not a file, so its numbers "
+            "cannot be checked.",
+        )
+        return
+
+    try:
+        page_text = page_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        _warn(
+            warnings,
+            f"docs/performance.rst: {page_path} could not be read ({exc}), so "
+            "its numbers cannot be checked.",
+        )
+        return
     declared = _substitutions(page_text)
 
     if not snapshot_path.exists():
@@ -100,17 +130,37 @@ def check_performance_page(snapshot_path, page_path, warnings):
     except json.JSONDecodeError as exc:
         _warn(warnings, f"docs/performance.rst: snapshot is not valid JSON ({exc})")
         return
-
-    by_scenario = snapshot.get("by_scenario")
-    if by_scenario is None:
+    except OSError as exc:
         _warn(
             warnings,
-            "docs/performance.rst: the snapshot predates by_scenario, so the "
-            "page cannot be checked against it. Re-run `benchmark`.",
+            f"docs/performance.rst: the snapshot at {snapshot_path} could not "
+            f"be read ({exc}), so the page cannot be checked against it.",
         )
         return
 
-    import_ms = (snapshot.get("import") or {}).get("import_pyegui_ms")
+    if not isinstance(snapshot, dict):
+        _warn(
+            warnings,
+            "docs/performance.rst: the snapshot is a "
+            f"{type(snapshot).__name__}, not a mapping, so its shape is "
+            "malformed and the page cannot be checked against it. Re-run "
+            "`benchmark`.",
+        )
+        return
+
+    by_scenario = snapshot.get("by_scenario")
+    if not isinstance(by_scenario, dict):
+        _warn(
+            warnings,
+            "docs/performance.rst: the snapshot predates by_scenario, so the "
+            "page cannot be checked against it. Re-run `benchmark`."
+            + ("" if by_scenario is None
+               else " by_scenario is a "
+                    f"{type(by_scenario).__name__}, not a mapping."),
+        )
+        return
+
+    import_ms = _as_dict(snapshot.get("import")).get("import_pyegui_ms")
     if import_ms is not None:
         _compare(warnings, declared, "import_ms", _ms(import_ms), "import time")
     else:
@@ -145,8 +195,8 @@ def check_performance_page(snapshot_path, page_path, warnings):
             "Re-run `benchmark`.",
         )
     else:
-        entry = python_side.get(WIDGET_COUNT) or {}
-        frame_ms = (entry.get("python_only") or {}).get("pyegui_frame_ms_median")
+        entry = _as_dict(python_side.get(WIDGET_COUNT))
+        frame_ms = _as_dict(entry.get("python_only")).get("pyegui_frame_ms_median")
         if frame_ms is None:
             _warn(
                 warnings,
@@ -170,8 +220,13 @@ def check_performance_page(snapshot_path, page_path, warnings):
 
     # The ratios, at the widget count the page quotes.
     for scenario, names in SUBSTITUTIONS.items():
-        entry = (by_scenario.get(scenario) or {}).get(WIDGET_COUNT)
-        comparison = (entry or {}).get("comparison")
+        if scenario not in by_scenario:
+            # Already reported as an absent scenario by the first loop; a
+            # second warning saying the same file has "no comparison block"
+            # would read as a distinct defect and is not one.
+            continue
+        entry = _as_dict(by_scenario.get(scenario)).get(WIDGET_COUNT)
+        comparison = _as_dict(_as_dict(entry).get("comparison"))
         if not comparison:
             _warn(
                 warnings,
