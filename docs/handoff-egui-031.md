@@ -10,7 +10,8 @@ Latest runs, all green: `check` 37104300409, `examples` 37104300424,
 `benchmark` 37101858384.
 
 **174 exported names** — 18 classes, 156 functions (110 plain + 46
-`*_response`), clippy at 0 diagnostics.
+`*_response`). Clippy is **not** at 0 diagnostics: 29 lints and 2 errors,
+hidden by two `check.yml` defects — see the Clippy section below.
 
 TODO totals: **33 open, 7 partial, 41 done.** §3 (containers) is closed.
 
