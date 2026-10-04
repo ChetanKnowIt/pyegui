@@ -486,7 +486,11 @@ jobs:
           import json, pathlib
           c = json.loads((pathlib.Path("bench/results") / "combined.json").read_text())
           by_count = c["by_widget_count"]
-          trials = max(e["trials"] for e in by_count.values())
+          # A dispatch that measured no `label` writes no by_widget_count, because that
+          # key is the label comparison. Guarded rather than unguarded: max() of an empty
+          # sequence would raise and report a benchmark failure for a benchmark that ran
+          # correctly, and the scenario table below is still worth printing.
+          trials = max((e["trials"] for e in by_count.values()), default=0)
 
           def us(value):
               # Fixed to 4 dp, not repr: a float straight out of json prints as
@@ -494,44 +498,49 @@ jobs:
               # not a measurement. 1 ns is well past the noise here.
               return f"{value:.4f}".rstrip("0").rstrip(".") or "0"
 
-          if trials > 1:
-              print(f"Median of {trials} trials per widget count, all in this one run,")
-              print("so the rows are comparable with each other.")
+          if not by_count:
+              print("No `label` scenario was measured, so there is no widgets/frame")
+              print("table. The scenarios that were measured follow.")
+              print()
           else:
-              print("One trial per widget count. Re-run with trials > 1 for a spread.")
-          print()
-          print("| widgets/frame | pyegui (us) | egui (us) | ratio median | ratio min-max | spread | extra (us) |")
-          print("| ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
-          for count in sorted(by_count, key=int):
-              e = by_count[count]
-              c_ = e["comparison"]
-              rng = f'{c_["ratio_min"]}x-{c_["ratio_max"]}x'
-              spread = f'{c_["ratio_spread_pct"]}%' if "ratio_spread_pct" in c_ else "-"
-              print(
-                  f'| {count} '
-                  f'| {us(c_["pyegui_us_median"])} '
-                  f'| {us(c_["egui_us_median"])} '
-                  f'| {c_["ratio_median"]}x '
-                  f'| {rng} '
-                  f'| {spread} '
-                  f'| {us(c_["extra_us_median"])} |'
-              )
-          print()
-          if trials > 1:
-              print("Every trial, so the spread is visible rather than summarised:")
+              if trials > 1:
+                  print(f"Median of {trials} trials per widget count, all in this one run,")
+                  print("so the rows are comparable with each other.")
+              else:
+                  print("One trial per widget count. Re-run with trials > 1 for a spread.")
               print()
-              print("| widgets/frame | trial | pyegui (us) | egui (us) | ratio |")
-              print("| ---: | ---: | ---: | ---: | ---: |")
+              print("| widgets/frame | pyegui (us) | egui (us) | ratio median | ratio min-max | spread | extra (us) |")
+              print("| ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
               for count in sorted(by_count, key=int):
-                  for r in by_count[count]["per_trial"]:
-                      print(
-                          f'| {count} '
-                          f'| {r["trial"]} '
-                          f'| {us(r["pyegui_us"])} '
-                          f'| {us(r["egui_us"])} '
-                          f'| {r["ratio"]}x |'
-                      )
+                  e = by_count[count]
+                  c_ = e["comparison"]
+                  rng = f'{c_["ratio_min"]}x-{c_["ratio_max"]}x'
+                  spread = f'{c_["ratio_spread_pct"]}%' if "ratio_spread_pct" in c_ else "-"
+                  print(
+                      f'| {count} '
+                      f'| {us(c_["pyegui_us_median"])} '
+                      f'| {us(c_["egui_us_median"])} '
+                      f'| {c_["ratio_median"]}x '
+                      f'| {rng} '
+                      f'| {spread} '
+                      f'| {us(c_["extra_us_median"])} |'
+                  )
               print()
+              if trials > 1:
+                  print("Every trial, so the spread is visible rather than summarised:")
+                  print()
+                  print("| widgets/frame | trial | pyegui (us) | egui (us) | ratio |")
+                  print("| ---: | ---: | ---: | ---: | ---: |")
+                  for count in sorted(by_count, key=int):
+                      for r in by_count[count]["per_trial"]:
+                          print(
+                              f'| {count} '
+                              f'| {r["trial"]} '
+                              f'| {us(r["pyegui_us"])} '
+                              f'| {us(r["egui_us"])} '
+                              f'| {r["ratio"]}x |'
+                          )
+                  print()
           by_scenario = c.get("by_scenario") or {}
           other = [s for s in sorted(by_scenario) if s != "label"]
           if other:
