@@ -3047,8 +3047,9 @@ unsafe fn collapsing_response(
         // egui's own alias pair; both hash a str directly. Recorded by hand:
         // `reject_unknown_options` would read the untouched `get_item` as an
         // unknown option, so this insert is required by that check.
+        used.insert("id_salt".to_string());
+        used.insert("id_source".to_string());
         for name in ["id_salt", "id_source"] {
-            used.insert(name.to_string());
             if let Some(value) = opts.get_item(name)? {
                 let salt: String = value
                     .extract()
@@ -3864,8 +3865,9 @@ unsafe fn apply_scroll_area_options(
     // loop in `collapsing_response`: `reject_unknown_options` would read the
     // untouched `get_item` as an unknown option, so this insert is required
     // by that check.
+    used.insert("id_source".to_string());
+    used.insert("id_salt".to_string());
     for name in ["id_source", "id_salt"] {
-        used.insert(name.to_string());
         if let Some(value) = opts.get_item(name)? {
             let salt: String = value.extract().map_err(|_| {
                 PyValueError::new_err(format!("{name} must be a string"))
