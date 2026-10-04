@@ -57,7 +57,9 @@ information.
 2. **An unknown option name is an error.** A misspelled `suffix` must not
    silently do nothing. Chosen over silent-ignore because pyegui cannot know
    what a future egui release will accept, and a silent no-op is
-   indistinguishable from correct behaviour until the app is wrong.
+   indistinguishable from correct behaviour until the app is wrong. Implemented
+   with a consumed-key tracker, never by mutating the caller's dict — see "The
+   unknown-name check".
 
 3. **All six target groups ship in one commit, verified by one `check` run.**
    Not one commit per widget. Chosen for throughput: the option lists are
@@ -71,6 +73,23 @@ information.
    documents name the run they cite, so a reader sees two runs rather than a
    contradiction. Revisit when a full-input (3 counts × 5 trials) run is
    dispatched deliberately.
+
+## The option inventory is pinned to egui 0.31.1
+
+egui evolves, so a spec that says "Slider's 23 options" is a claim about a
+release, not about `Slider`. The inventory this plan implements is derived from
+**egui 0.31.1 exactly** (`Cargo.toml` pins `=0.31.1`; `check.yml` asserts every
+`egui`/`eframe`/`egui_extras` in the tree resolves to 0.31.1 and fails the build
+otherwise). Two consequences:
+
+- Every option list in this document must be read against that tag's sources,
+  the same discipline `TODO.md` already follows for its `Ui`-method census.
+- If the pin moves, the inventory is re-derived rather than assumed. The counts
+  in `TODO.md` §6 are the ones to re-check first.
+
+The per-group lists in "Per-group notes" below are that inventory. They are
+claims about 0.31.1 and should be verified against it during implementation,
+not trusted because they appear in a document.
 
 ## The compatibility constraint that shapes everything
 
@@ -110,6 +129,31 @@ already third positional in `slider_float(value, min, max, text)`.
 
 ## Design
 
+### PyO3 materialisation, verified rather than assumed
+
+The proposed signature mixes named parameters with `**options`, and how PyO3
+materialises the trailing keywords matters enough to check before writing code.
+Verified against this repository's resolved versions: **pyo3 0.24.1** (`Cargo.toml`
+requests `0.24.0`, the lockfile resolves 0.24.1) and **egui 0.31.1** (pinned `=0.31.1`).
+
+Two facts from the code settle it:
+
+- All 25 option-consuming pyfunctions already declare the dict as
+  `Option<&Bound<'_, PyDict>>`, and `run_native` — the one function that mixes
+  named parameters with trailing keywords today — receives `**kwargs` that way.
+  So the mixed form is **already in use and already compiles**; §6 copies a
+  working shape rather than introducing one.
+- `Option<&Bound<'_, PyDict>>` is `None` when the caller passes no keywords.
+  Every `opt_*` call site must therefore keep handling `None`, which it already
+  does.
+
+The one thing to confirm during implementation is that a named parameter
+shadowing a dict key behaves as expected — e.g. `slider_float(v, 0, 1,
+suffix="ms", **{"suffix": "s"})` must raise `TypeError` for the duplicate
+keyword rather than silently picking one. That is a Python-level guarantee
+rather than a PyO3 one, but it should be pinned by a test because §6 introduces
+the first signature where a name can arrive twice.
+
 ### Two mechanisms, one per decision
 
 **Named parameters** for the high-traffic options, declared in the
@@ -148,8 +192,8 @@ egui enum with no Python equivalent yet — see "Enums" below).
 
 ### The unknown-name check
 
-Decision 2 needs a mechanism no existing `opt_*` call provides, and the spec's
-first draft got the mechanism wrong. Corrected after reading the code.
+Decision 2 needs a mechanism no existing `opt_*` call provides, and both drafts
+of this spec got it wrong before the code was read.
 
 Today `opt_bool` is:
 
@@ -162,69 +206,110 @@ unsafe fn opt_bool(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<bool
 }
 ```
 
-It **reads** the key and leaves it in the dict — `opts.get_item`, not
-`opts.remove_item`. So "what remains after reading the known keys" does not
-exist: every key is still there afterwards. Checking for leftovers therefore
-needs a *list of the names the widget knows*, which is a second list to maintain
-and drifts the moment an option is added.
+It reads the key and leaves it in the dict, so "what remains after reading the
+known keys" does not exist. Checking for leftovers needs a record of which keys
+were consumed.
 
-The alternative is to make the helpers consume the key:
+**Rejected: `remove_item`.** An earlier draft had each `opt_*` helper remove the
+key it consumes, so the leftovers would be exactly the unrecognised names. That
+was rejected on two independent grounds, the second of which was found by
+reading the signatures:
+
+1. **It is a backwards-incompatible mutation of a caller-owned object.** A
+   caller who builds an options dict and passes it to two widgets currently has
+   both calls see every key; after the change the first call consumes them.
+   Nothing in this repository does that — every call site uses a literal dict —
+   but it is user-visible, and introducing a silent behaviour change to released
+   API purely to simplify a validation check is the wrong trade.
+2. **It does not compile without a sweeping signature change.** All 25
+   option-consuming pyfunctions take `Option<&Bound<'_, PyDict>>` — a *shared*
+   reference. `remove_item` requires `&mut PyDict`. Mutating would mean changing
+   the parameter type in all 25 signatures and importing `PyDictMut`, which is
+   not currently imported. The approach was never a small change; it was a large
+   one wearing a small one's clothes.
+
+**Adopted: a consumed-key tracker.** Zero compatibility risk, at the cost of one
+extra argument at each call site:
 
 ```rust
-/// Read an optional bool from `opts`, REMOVING the key so that whatever is
-/// left after a widget has read everything it knows is exactly the set of
-/// names it did not recognise.
-unsafe fn opt_bool(opts: &Bound<'_, PyDict>, name: &str) -> PyResult<Option<bool>> {
-    match opts.remove_item(name)? {
+/// The set of option names a widget has consumed.
+///
+/// The unknown-option check needs to know which keys were read, because
+/// `opt_*` helpers leave the dict untouched — deliberately, so that a caller
+/// may reuse one dict across several widgets. Rather than mutate the caller's
+/// dictionary, each read records the name here and the leftovers are computed
+/// at the end.
+type OptNames = std::collections::HashSet<String>;
+
+/// Read an optional bool from `opts`, recording `name` as consumed.
+unsafe fn opt_bool(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<bool>> {
+    used.insert(name.to_string());
+    match opts.get_item(name)? {
         Some(value) => Ok(Some(value.extract()?)),
         None => Ok(None),
     }
 }
 ```
 
-Then the check needs no known-names list at all:
+and at the end of the widget:
+
+```rust
+reject_unknown_options(options, &used, "slider_float")?;
+```
 
 ```rust
 /// Fail on any option key the widget did not consume.
 ///
 /// Decided 2026-10-04: a misspelled option must be an error, not a silent
-/// no-op. Every `opt_*` read removes the key it consumes, so whatever remains
-/// in `opts` is either a typo or an option this binding does not expose.
+/// no-op. `used` is every name the option path read, so any key in `opts`
+/// outside it is either a typo or an option this binding does not expose.
 /// Either way the caller is wrong, and silently doing nothing is the worst
 /// possible answer.
-unsafe fn reject_unknown_options(opts: &Bound<'_, PyDict>, widget: &str) -> PyResult<()> {
-    if opts.is_empty() {
-        return Ok(());
-    }
-    let mut names: Vec<String> = opts
+///
+/// The contract this relies on: EVERY key supplied to a widget must be consumed
+/// exactly once by that widget's own option-processing path, or the call fails.
+/// Delegated helpers must therefore thread `used` through to their own `opt_*`
+/// reads rather than taking a dict and reading behind the caller's back.
+unsafe fn reject_unknown_options(
+    opts: &Bound<'_, PyDict>,
+    used: &OptNames,
+    widget: &str,
+) -> PyResult<()> {
+    let unknown: Vec<String> = opts
         .keys()
         .iter()
-        .map(|k| k.extract::<String>())
-        .collect::<PyResult<_>>()?;
-    names.sort();
+        .filter_map(|k| k.extract::<String>().ok())
+        .filter(|k| !used.contains(k))
+        .collect();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    let mut unknown = unknown;
+    unknown.sort();
     Err(PyValueError::new_err(format!(
         "{widget} got unknown option(s): {}. See the documentation for the \
          options this widget accepts.",
-        names.join(", ")
+        unknown.join(", ")
     )))
 }
 ```
 
-It must run **last** in every function that uses it, after all `opt_*` reads —
-including reads inside helper functions that option handling delegates to.
+`used.insert` happens unconditionally, whether or not the key is present, so a
+declared-but-absent option is still "known" — which is correct, since the point
+is to distinguish *names the widget does not implement* from *values the caller
+did not supply*.
 
-Two consequences worth stating because they are easy to get wrong:
+Two properties worth stating because they are what make this the right shape:
 
-- **`get_item` → `remove_item` changes the signature's behaviour for callers
-  that reuse one dict across calls.** Today a caller may pass the same options
-  dict to two widgets and have both see every key; after this change the first
-  call consumes them. That is correct for the stated use (a literal dict at the
-  call site) but is a real change for anyone building a dict programmatically
-  and reusing it. It is a behaviour change to documented-as-stable `text_edit_*`
-  and `image`, and the release notes must say so.
-- **A helper called twice for the same name now returns `None` the second
-  time.** No current helper is, but it means the consume-a-key discipline is
-  part of each helper's contract, not just an implementation detail.
+- **The caller's dict is never mutated.** Existing behaviour is preserved
+  exactly, including reuse across widgets. That was the whole objection to
+  `remove_item`.
+- **A helper called twice for the same name is harmless**, unlike the
+  `remove_item` version where the second call would silently return `None`.
 
 ### Enums with no Python equivalent
 
@@ -240,6 +325,20 @@ Building four enum classes instead would be consistent with `Color32` and `Rect`
 which exist as classes because their shape is genuinely not a tuple. These are
 closed string sets, so a class would be a wrapper around one string with no
 behaviour. Revisit if a future option needs associated data.
+
+**Enum strings are case-exact and must be tested both ways.** The failure mode is
+a caller typing `"verts"` or `"horizontal"` and getting either an obscure error
+or, worse, a silent default. So for every enum-valued option:
+
+- The accepted set is documented as the exact egui variant names, spelled as
+  egui spells them (`"Verts"`, not `"verts"`).
+- The error message for an unrecognised value **lists the accepted values**.
+  `"unknown handle_shape 'circle'; expected one of Verts, Circle"` is
+  self-correcting; `"invalid handle_shape"` is not.
+- A test asserts each accepted spelling succeeds and each near-miss
+  (`"verts"`, `"VERTS"`, `""`) is rejected. `"circle"` — a real variant of
+  `Slider`'s handle shape in egui — must be accepted, which is exactly the kind
+  of thing a hand-written list gets wrong.
 
 ### Per-group notes
 
@@ -288,27 +387,56 @@ standing constraint.
   Add a snippet to `tests/doc_snippets.py` (or a case in the examples job)
   asserting that `slider_float(v, 0, 1, sufix="x")` raises and names the
   widget. Without it, decision 2 is an intention rather than a behaviour.
-- **New: a preservation test.** Assert the eleven `run_native` names and the
-  three widget-level names still resolve. The examples cover this incidentally;
-  an explicit test makes it deliberate.
+- **New: a preservation test that checks BEHAVIOUR, not resolution.** Asserting
+  that `run_native(inner_width=800)` merely *resolves* is weak — it passes even
+  if the value is accepted and then dropped before reaching `ViewportBuilder`.
+  What must be asserted is that the option reaches egui: that the window comes
+  up at the requested inner width, that `fullscreen=True` fullscreens, that
+  `Slider`'s `suffix` appears in the rendered text. Where an option's effect is
+  observable from Python, assert the observation. The repo's `examples/` and
+  `guides/` are the natural home for this, since the examples job already runs
+  them under Xvfb and can screenshot.
+- **New: a many-options benchmark.** `docs/performance.rst` currently measures a
+  single `hint_text` option (~0.17 µs). §6 adds up to 23 options on one widget,
+  and the cost of an option lookup is paid once per *declared* option, not once
+  per *supplied* one — so 23 declared options on a call that passes none is the
+  worst case and is not what the existing number measures. Add a
+  `slider_many_options` scenario pairing a bare `Slider` against one passing
+  every available option, both against their Rust twins, and let the same
+  warn-not-fail gate check the page. Without it the design's cost claim rests on
+  a one-option extrapolation.
+- **New: per-group tests, because one commit does not mean one test.** A single
+  commit can still fail in a way that does not name the guilty group. Each of
+  the six groups gets at least one test that exercises a representative option
+  end to end, so a failure points at a group rather than at §6. This is
+  independent of the commit-count decision: one commit, six focused tests.
 
 Because §6 ships as one commit, a regression in any one group surfaces as one
 red run naming one function. That is the accepted cost of decision 3.
 
 ## Risks
 
-**The unknown-name check requires changing all ten `opt_*` helpers.** Making
-them `remove_item` instead of `get_item` is a change to code that already works,
-used by every container. If a helper is called twice for the same name, or a
-widget's `reject_unknown_options` runs before its last read, it breaks.
-Mitigation: `check` and `examples` both exercise the containers, so a mistake is
-loud.
+**The tracker threads a `&mut OptNames` through every `opt_*` call site.** Ten
+helpers gain a parameter, and every existing container that reads options must
+either thread it or opt out of the unknown-name check. A helper that reads
+behind the caller's back — taking only the dict — is the failure mode, and it
+produces a *false rejection*: an option the widget does support gets reported as
+unknown because nobody recorded it. That is the more likely mistake, and it is
+caught by the existing container examples.
 
-**It is also a behaviour change to released API, not an internal tidy-up.** A
-caller who builds an options dict and passes it to two widgets currently has
-both calls see every key; after this change the first consumes them. Nothing in
-the repo does this — every call site uses a literal dict — but it is user-visible
-and belongs in the release notes.
+**Delegated option paths must thread `used` consistently.** `window`,
+`collapsing_response` and the rest read options inside helper functions. The
+contract above ("every key must be consumed exactly once by that widget's own
+option-processing path") is what makes this checkable, and a widget that accepts
+an option through a delegate but checks in the outer function will reject valid
+input. Per-group tests exist to catch exactly this.
+
+**Does the unknown-name check apply to the existing containers too?** This spec
+adds it to the six §6 targets. Applying it to the ~19 existing option-consuming
+functions is a separate, larger change that would surface unknown names in code
+that ships today. Leaving them unvalidated is inconsistent; changing them in this
+plan risks breaking working apps on names pyegui happens not to implement. Not
+doing it here — recorded in `TODO.md` as follow-up.
 
 **Enum-as-string is a precedent with a cost.** Four options get strings today.
 If a future option needs associated data, this decision has to be revisited for
