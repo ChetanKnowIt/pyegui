@@ -36,6 +36,30 @@ fn widgets_per_frame() -> usize {
         .unwrap_or(500)
 }
 
+/// The scenario under test, read from the environment for the same reason
+/// `WIDGETS` is: both halves read it, so a typo cannot make one side measure
+/// something other than the other.
+///
+/// An unknown value is rejected rather than defaulted. A silent fallback to
+/// `label` would produce a mismatched pair whose ratio looks like a real one,
+/// which is the failure the combine step's parity guard exists to catch.
+///
+/// The names are duplicated from `bench/bench.py` rather than shared, because
+/// a Rust binary cannot read the Python module at runtime. `tests/doc_claims.py`
+/// asserts the two lists agree, since drift here is silent otherwise.
+fn scenario() -> Result<&'static str, String> {
+    let raw = std::env::var("SCENARIO").unwrap_or_else(|_| "label".to_string());
+    match raw.as_str() {
+        "label" => Ok("label"),
+        "text_edit_plain" => Ok("text_edit_plain"),
+        "text_edit_hint" => Ok("text_edit_hint"),
+        _ => Err(format!(
+            "unknown SCENARIO '{raw}'; valid scenarios are label, \
+             text_edit_plain, text_edit_hint, python_side"
+        )),
+    }
+}
+
 #[derive(Default)]
 struct Bench {
     started: Option<Instant>,
@@ -138,6 +162,11 @@ fn main() -> eframe::Result {
             .with_title("bench"),
         ..Default::default()
     };
+
+    if let Err(message) = scenario() {
+        eprintln!("{message}");
+        std::process::exit(2);
+    }
 
     eframe::run_native(
         "bench",

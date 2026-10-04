@@ -50,6 +50,19 @@ from pyegui import *  # noqa: F401,F403  -- names come from the star import
 WIDGETS_PER_FRAME = int(os.environ.get("WIDGETS", "500"))
 STEADY_FRAMES = 60
 
+# The scenario is an env var for the same reason WIDGETS is: both halves read
+# it, so a typo cannot make one side measure something other than the other.
+# An unknown value is rejected rather than defaulted -- a silent fallback to
+# `label` would produce a mismatched pair whose ratio looks like a real one.
+SCENARIO = os.environ.get("SCENARIO", "label")
+VALID_SCENARIOS = ["label", "text_edit_plain", "text_edit_hint", "python_side"]
+
+if SCENARIO not in VALID_SCENARIOS:
+    raise SystemExit(
+        f"unknown SCENARIO '{SCENARIO}'; valid scenarios are "
+        + ", ".join(VALID_SCENARIOS)
+    )
+
 # Fill a frame with work, and report how long the frame body took rather than
 # the whole frame: the difference is eframe's compositing, which is egui's
 # cost and identical in a Rust app.
