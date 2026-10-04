@@ -1,0 +1,105 @@
+{
+  "import": {
+    "import_pyegui_ms": 14.621
+  },
+  "by_widget_count": {
+    "50": {
+      "trials": 2,
+      "per_trial": [
+        {
+          "trial": 1,
+          "pyegui_us": 1.062,
+          "egui_us": 0.708,
+          "ratio": 1.5,
+          "extra_us": 0.354,
+          "pyegui_first_frame_ms": 0.1554,
+          "egui_first_frame_ms": 0.1739
+        },
+        {
+          "trial": 2,
+          "pyegui_us": 1.052,
+          "egui_us": 0.69,
+          "ratio": 1.525,
+          "extra_us": 0.362,
+          "pyegui_first_frame_ms": 0.1681,
+          "egui_first_frame_ms": 0.1711
+        }
+      ],
+      "python": {
+        "widgets_per_frame": 50,
+        "frames_measured": 61,
+        "first_frame_ms": 0.1554,
+        "steady_frame_ms": {
+          "min": 0.0531,
+          "mean": 0.0584,
+          "stdev": 0.0139
+        },
+        "per_widget_us": {
+          "min": 1.062,
+          "mean": 1.167
+        },
+        "run_native_total_ms": 1519.25,
+        "python": "3.11.16"
+      },
+      "comparison": {
+        "ratio_median": 1.51,
+        "ratio_min": 1.5,
+        "ratio_max": 1.52,
+        "ratio_spread": 0.02,
+        "pyegui_us_median": 1.057,
+        "egui_us_median": 0.699,
+        "extra_us_median": 0.358,
+        "ratio_spread_pct": 1.7
+      }
+    },
+    "500": {
+      "trials": 2,
+      "per_trial": [
+        {
+          "trial": 1,
+          "pyegui_us": 0.766,
+          "egui_us": 0.5,
+          "ratio": 1.532,
+          "extra_us": 0.266,
+          "pyegui_first_frame_ms": 1.4926,
+          "egui_first_frame_ms": 1.6165
+        },
+        {
+          "trial": 2,
+          "pyegui_us": 0.769,
+          "egui_us": 0.531,
+          "ratio": 1.448,
+          "extra_us": 0.238,
+          "pyegui_first_frame_ms": 1.434,
+          "egui_first_frame_ms": 1.6455
+        }
+      ],
+      "python": {
+        "widgets_per_frame": 500,
+        "frames_measured": 61,
+        "first_frame_ms": 1.4926,
+        "steady_frame_ms": {
+          "min": 0.383,
+          "mean": 0.4203,
+          "stdev": 0.1405
+        },
+        "per_widget_us": {
+          "min": 0.766,
+          "mean": 0.841
+        },
+        "run_native_total_ms": 355.45,
+        "python": "3.11.16"
+      },
+      "comparison": {
+        "ratio_median": 1.49,
+        "ratio_min": 1.45,
+        "ratio_max": 1.53,
+        "ratio_spread": 0.08,
+        "pyegui_us_median": 0.768,
+        "egui_us_median": 0.516,
+        "extra_us_median": 0.252,
+        "ratio_spread_pct": 5.6
+      }
+    }
+  }
+}
