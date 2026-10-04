@@ -7,6 +7,7 @@ workflow, and an exception there would turn the whole job red over a
 documentation drift nobody can act on.
 """
 
+import ast
 import json
 import re
 import sys
@@ -275,6 +276,152 @@ _DRIFT = re.compile(
 
 def _is_drift(warning):
     return _DRIFT.match(warning) is not None
+
+
+_PLACEHOLDER = "Zq7"
+
+
+def _render_message(expr):
+    """Render one `_warn` message expression with every hole stubbed.
+
+    Each name the expression reads (a page path, an exception, a substitution
+    name, `type(...)`) is bound to the same neutral token, and the gate's own
+    module globals are supplied too so a template that interpolates a constant
+    like `WIDGET_COUNT` still reads as the gate wrote it. The expression is
+    then evaluated unmodified -- not rewritten -- so the prose, the
+    punctuation, and any conditional the gate concatenates survive exactly as
+    authored. Only the *content* of the holes is pinned down; the *shape* is
+    what is under test.
+    """
+    import builtins
+
+    import check_performance_page as gate
+
+    # A hole is a name that resolves to a *runtime value*: a gate local (a page
+    # path, an exception, a substitution name) or an attribute of one. Names
+    # that resolve to a module constant or a builtin are part of the message's
+    # shape and are left alone, so `WIDGET_COUNT` still reads as 2000 and
+    # `type(...)` still formats a type name.
+    resolved = set(vars(gate)) | set(vars(builtins))
+    stubs = {n.id for n in ast.walk(expr)
+             if isinstance(n, ast.Name) and n.id not in resolved}
+    namespace = dict(vars(gate))
+    namespace.update({name: _PLACEHOLDER for name in stubs})
+    # An expression parsed from our own module's AST, with every name it
+    # reads bound above.
+    code = compile(ast.Expression(body=expr), "check_performance_page.py", "eval")
+    return eval(code, namespace)  # noqa: S307
+
+
+def _warn_message_templates():
+    """Every `_warn` call site's message, read from the gate's source.
+
+    Parsed rather than imported-and-exercised on purpose: this has to hold
+    for messages the gate cannot reach from any fixture, and it must not read
+    docs/performance.rst or bench/results/combined.json -- or it would only
+    ever classify the shapes the committed pair happens to produce, which is
+    the vacuity this test exists to remove.
+    """
+    source = Path(__file__).resolve().parent / "check_performance_page.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    rendered = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) == "_warn"):
+            continue
+        assert len(node.args) >= 2, (
+            f"tests/check_performance_page.py:{node.lineno} calls _warn without "
+            "a message; update _warn_message_templates to match"
+        )
+        expr = ast.parse(ast.unparse(node.args[1]), mode="eval").body
+        rendered.append((node.lineno, _render_message(expr)))
+    return rendered
+
+
+def test_every_structural_message_is_non_drift_and_drift_still_matches():
+    """Pin the drift/structural split to the gate, not to the artifacts.
+
+    WHY THIS EXISTS, INSTEAD OF RELYING ON THE REAL PAIR:
+
+    `test_the_real_page_and_the_real_snapshot_agree` asserts the committed
+    page/snapshot pair has no structural warnings. Today that pair produces no
+    warnings at all, so that assertion is `assert not []` -- it cannot detect
+    anything, and it never will while the two files agree.
+
+    The hole it leaves: if a commit broadens `_DRIFT` (drops the `\\.rst: `
+    anchor, or the trailing `\\(.+\\)\\.` clause) *in the same commit* that
+    introduces a structural defect, that defect reclassifies as tolerated
+    drift, the structural list stays empty, and the job goes green with a
+    broken gate. No other test reads `_DRIFT`, so nothing else notices.
+
+    So this pins the classification directly, from the gate's own source:
+    every message shape it can emit must be non-drift, and the one synthetic
+    drift message must be drift. The shapes come from walking `_warn` call
+    sites, so a new call site is classified here too -- the next structural
+    message cannot escape unpinned by being added to the gate.
+    """
+    templates = _warn_message_templates()
+    assert templates, (
+        "no _warn call sites were found in tests/check_performance_page.py -- "
+        "the gate's messages are no longer built through _warn, so this test "
+        "has silently stopped classifying anything"
+    )
+
+    # Independent cross-check that the AST walk saw every call site: count the
+    # raw textual calls too. A disagreement means a site exists in a form the
+    # walk skips, and this test would be pinning a subset without saying so.
+    source_text = (Path(__file__).resolve().parent
+                   / "check_performance_page.py").read_text(encoding="utf-8")
+    textual = len(re.findall(r"(?<!def )\b_warn\(", source_text))
+    assert textual == len(templates), (
+        f"found {textual} textual _warn( call sites but rendered "
+        f"{len(templates)} messages; one of them is not being classified"
+    )
+
+    # The table. One row per `_warn` call site, keyed by source line so a
+    # failure names the site rather than a pile of text, and each row asserted
+    # individually: a single `assert not [...]` over the whole table would
+    # pass if the classifier ever returned None for everything, which is
+    # exactly the failure mode this test is here to catch.
+    table = {f"check_performance_page.py:{ln}": (msg, _is_drift(msg))
+             for ln, msg in templates}
+    assert len(table) == len(templates), (
+        "two _warn call sites render to the same table key, so one of them is "
+        "not getting its own row"
+    )
+
+    for key, (msg, is_drift) in sorted(table.items()):
+        # Exactly one site -- `_compare`'s number mismatch -- is drift.
+        # Everything else the gate can say names something missing, which is a
+        # defect a human has to fix.
+        assert is_drift == ("says" in msg and "the snapshot says" in msg), (
+            f"{key} is classified {'drift' if is_drift else 'structural'}, which "
+            f"is the wrong side of the split for this message: {msg}"
+        )
+
+    drift_shaped = [msg for msg, is_drift in table.values() if is_drift]
+    assert len(drift_shaped) == 1, (
+        "exactly one _warn call site may produce a message _DRIFT matches -- "
+        "the number mismatch in _compare. If a structural message now matches, "
+        "the drift tolerance is hiding a defect that must fail the build: "
+        f"{sorted(msg for msg, d in table.values() if d)}"
+    )
+
+    # And the positive direction, stated explicitly rather than only inferred
+    # from the table above: a message of the documented drift shape must be
+    # classified drift, or the structural half would be failing on the
+    # ordinary benchmark variation this tolerance exists to absorb.
+    assert _is_drift(
+        "docs/performance.rst: |ratio_label| says 1.99x, the snapshot says "
+        "1.37x (scenario 'label', 2000 widgets/frame)."
+    ), "_DRIFT no longer matches the drift shape it exists to tolerate"
+    assert not _is_drift(
+        "docs/performance.rst: |ratio_label| says 1.99x, the snapshot says "
+        "1.37x"
+    ), (
+        "_DRIFT matches an unanchored number mismatch -- a truncated message "
+        "would be tolerated as drift"
+    )
 
 
 def test_the_real_page_and_the_real_snapshot_agree(tmp_path):

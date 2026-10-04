@@ -31,6 +31,15 @@ on:
       # advertise functions that do not exist.
       - 'CHANGELOG.md'
       - 'docs/**'
+      # The gate tests below read bench/results/combined.json, and
+      # tests/test_scenario_names_agree.py compares bench/bench.py against
+      # bench/src/main.rs -- so a change to either benchmark half, or to the
+      # snapshot, must run this job. 'src/lib.rs' does not glob-match
+      # bench/src/main.rs, so without this a push touching only a benchmark
+      # ran cargo check (check.yml has no path filter) but not pytest, leaving
+      # cross-language scenario-name duplication unguarded on exactly the
+      # pushes most likely to cause it.
+      - 'bench/**'
       - 'src/lib.rs'
       # The examples run against a wheel built from this lockfile, so a
       # dependency change is exactly when their verdict can move.
@@ -49,6 +58,15 @@ on:
       # advertise functions that do not exist.
       - 'CHANGELOG.md'
       - 'docs/**'
+      # The gate tests below read bench/results/combined.json, and
+      # tests/test_scenario_names_agree.py compares bench/bench.py against
+      # bench/src/main.rs -- so a change to either benchmark half, or to the
+      # snapshot, must run this job. 'src/lib.rs' does not glob-match
+      # bench/src/main.rs, so without this a push touching only a benchmark
+      # ran cargo check (check.yml has no path filter) but not pytest, leaving
+      # cross-language scenario-name duplication unguarded on exactly the
+      # pushes most likely to cause it.
+      - 'bench/**'
       - 'src/lib.rs'
       # The examples run against a wheel built from this lockfile, so a
       # dependency change is exactly when their verdict can move.
