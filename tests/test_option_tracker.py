@@ -69,19 +69,26 @@ pyegui.run_native("reused", update)
 # `text_edit_singleline` reads its one option straight off the dict, so it is
 # the simplest witness that the helpers' presence did not change dict handling
 # for a widget that shares the same kwargs shape.
+#
+# The edits go inside `central_panel`'s callback because a widget needs a current
+# `Ui` to draw into. Calling one straight from `update` raises inside egui's
+# update closure, which never returns to the harness's close call -- the app
+# then hangs rather than failing, which is a much worse error message.
 REUSED_TEXT_KWARGS = '''
 import pyegui
 
 shared = {"hint_text": "name"}
 
-def update(ctx):
+def main():
     a = pyegui.Str("a")
     b = pyegui.Str("b")
     pyegui.text_edit_singleline(a, **shared)
     # Must still see hint_text. A consumed key here would leave this field with
     # no placeholder at all.
     pyegui.text_edit_singleline(b, **shared)
-    pyegui.central_panel(ctx, lambda: pyegui.heading("reused kwargs"))
+
+def update(ctx):
+    pyegui.central_panel(ctx, main)
 
 pyegui.run_native("reused kwargs", update)
 '''
@@ -98,11 +105,14 @@ def contents():
     pyegui.label("inside a frame")
     pyegui.label("inside a window")
 
-def update(ctx):
+def main():
+    # frame is not a top-level container, so it needs a Ui to draw into.
     pyegui.frame(contents, inner_margin=8, corner_radius=4)
+
+def update(ctx):
     pyegui.window(ctx, "Settings", "settings", contents,
                   default_size=(320.0, 240.0), resizable=True)
-    pyegui.central_panel(ctx, lambda: pyegui.heading("delegated options"))
+    pyegui.central_panel(ctx, main)
 
 pyegui.run_native("delegated", update)
 '''
