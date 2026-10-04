@@ -65,12 +65,54 @@ runner per commit to produce a lockfile nobody read: the resolution has not
 moved since the egui `=0.31.1` pin. Delete it once dependency work settles --
 TODO §7 plans to enable `egui_extras`' `syntect` feature, which needs it once.
 
-**Clippy is advisory, not a gate.** `check.yml` runs clippy without
-`-D warnings` and posts the diagnostics to the job summary instead of
-failing, so it is a "no new lints" regression gate. The baseline is **0
-diagnostics** — re-verified against run 37104300409 — so promoting it to
-`-- -D warnings` is worth doing: it would make CI enforce the clean state
-rather than merely report it.
+**Clippy is advisory, not a gate — and it is NOT currently clean.** An
+earlier revision of this file claimed a baseline of **0 diagnostics**
+"re-verified against run 37104300409". That was wrong, and the way it was
+wrong is worth knowing.
+
+Measured from the raw run logs on 2026-10-04 (`gh api
+repos/ChetanKnowIT/pyegui/actions/runs/<id>/logs`, because `gh run view
+--log` returns nothing for some runs), runs 37216647892 and 37222603927
+each report **29 clippy lints across 14 distinct lints, plus 2 hard
+errors**:
+
+```
+error: mutable borrow from immutable input(s)
+  --> src/lib.rs:1237   unsafe fn ui_stack(ui: &*mut Vec<*mut egui::Ui>) -> PyResult<&mut Vec<...>>
+  --> src/lib.rs:1252   unsafe fn current_ui(...)  (same shape)
+error: could not compile `pyegui` (lib) due to 2 previous errors; 29 warnings emitted
+```
+
+`clippy::mut_from_ref` is **deny-by-default**, so clippy aborts before
+linting finishes. Both functions date to `2691c95` (the initial commit),
+so they are pre-existing, not introduced by the 0.31.1 work.
+
+**Two independent defects in `check.yml` hide this**, and both are worth
+fixing in their own change:
+
+1. The clippy step is `cargo clippy --locked --all-targets 2>&1 | tee
+   clippy.log` with no `pipefail`, so clippy failing to compile exits 0
+   and the job concludes SUCCESS.
+2. The "Report clippy delta" step counts with `grep -cE
+   '^(warning|error)(\[|:)'`, anchored at the start of the line. Every
+   clippy diagnostic is indented, so the count is always **0** and the
+   summary prints "clippy diagnostic lines: 0" regardless of the truth.
+
+So the "no new lints" property holds only by accident: Task 3's clippy
+step is byte-identical to Task 2's apart from line-number shifts, which
+was verified by diffing the two step blocks with integers normalised. The
+gate is not measuring what it claims to measure.
+
+**Do not promote clippy to `-- -D warnings` yet.** The handoff previously
+recommended exactly that on the strength of the false zero. The real
+prerequisite is fixing the two defects above, then working the 29 down —
+starting with the two `mut_from_ref` errors, which are the only ones
+clippy treats as fatal.
+
+**Counting diagnostics:** do it from the raw log zip, strip ANSI codes
+first (`CARGO_TERM_COLOR: always` is set), and count distinct lint
+help-URLs (`index.html#<lint>`). Counting lines overcounts, because
+clippy repeats warnings across `lib` and `lib test` targets.
 
 ## Branch policy
 
