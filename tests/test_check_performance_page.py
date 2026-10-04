@@ -257,16 +257,92 @@ def test_no_comparison_key_is_not_invented_into_a_ratio(tmp_path):
     assert not any("python_side" in w and "ratio" in w for w in warnings), warnings
 
 
-def test_the_real_page_and_the_real_snapshot_agree():
-    """The committed pair, checked in CI as well as here."""
+# The gate's one warning shape for "both sides have this number and they are
+# not equal", produced by `_compare`:
+#
+#   docs/performance.rst: |ratio_label| says 1.99x, the snapshot says 1.37x
+#   (scenario 'label', 2000 widgets/frame).
+#
+# Anchored and closed so it matches that shape and nothing else. Every other
+# warning the gate can emit names something *missing* -- an absent scenario, an
+# unparseable snapshot, an undeclared or absent token, a python_side entry
+# with no python_only -- and those are defects in the gate or the page that a
+# human has to fix, not benchmark noise.
+_DRIFT = re.compile(
+    r"^docs/performance\.rst: \|\w+\| says .+, the snapshot says .+ \(.+\)\.$"
+)
+
+
+def _is_drift(warning):
+    return _DRIFT.match(warning) is not None
+
+
+def test_the_real_page_and_the_real_snapshot_agree(tmp_path):
+    """The committed pair, split into benchmark drift and structural defects.
+
+    WHY THE SPLIT, AND WHY NOT `assert not warnings`:
+
+    Between-run variation on hosted runners is 1.30x-1.55x for identical
+    code, so the numbers in `docs/performance.rst` and the numbers in
+    `bench/results/combined.json` will legitimately disagree after any future
+    benchmark run. `examples` now runs this suite, so demanding zero warnings
+    here makes every ordinary benchmark run red -- which inverts the
+    warn-not-fail design of the gate itself, and teaches people to ignore a
+    red build. Do not "tighten" this back to `assert not warnings`.
+
+    So: a NUMBER THAT DIFFERS is tolerated drift; everything else -- a
+    scenario missing from the snapshot, an unparseable snapshot, an absent or
+    undeclared substitution token, a missing required token, a python_side
+    entry without python_only -- is a structural defect and must still fail.
+
+    The second half of the test is what keeps this from decaying into
+    vacuity: it re-runs the gate against the real snapshot with one number in
+    the real page perturbed, and requires that the gate notice. If the gate
+    ever stopped comparing numbers, that perturbed run would warn about
+    nothing and this test would fail.
+    """
     root = Path(__file__).resolve().parent.parent
+    snapshot = root / "bench" / "results" / "combined.json"
+    page = root / "docs" / "performance.rst"
+
     warnings = []
-    check_performance_page(
-        root / "bench" / "results" / "combined.json",
-        root / "docs" / "performance.rst",
-        warnings,
+    check_performance_page(snapshot, page, warnings)
+    structural = [w for w in warnings if not _is_drift(w)]
+    assert not structural, (
+        "the committed page/snapshot pair has structural defects: "
+        + "; ".join(structural)
     )
-    assert not warnings, warnings
+
+    # Non-vacuity: a wrong number must still be reported, and must land in
+    # the drift bucket rather than the structural one. Perturbing a copy of
+    # the real page leaves every other number exactly as committed, so any
+    # warning this produces is a consequence of the perturbation alone.
+    original_text = page.read_text(encoding="utf-8")
+    perturbed_text = re.sub(
+        r"(^\.\. \|ratio_label\| replace:: )\S+",
+        r"\g<1>9.99x",
+        original_text,
+        count=1,
+        flags=re.M,
+    )
+    assert perturbed_text != original_text, (
+        "could not perturb |ratio_label| in the real page, so the drift check "
+        "below would pass without exercising anything"
+    )
+    perturbed = tmp_path / "performance.rst"
+    perturbed.write_text(perturbed_text, encoding="utf-8")
+    drifted = []
+    check_performance_page(snapshot, perturbed, drifted)
+    assert drifted, (
+        "the gate reported nothing for a page whose |ratio_label| is 9.99x "
+        "against a snapshot saying otherwise -- it has stopped checking "
+        "numbers, so the split above no longer means anything"
+    )
+    assert all(_is_drift(w) for w in drifted), (
+        "perturbing one number produced warnings that are not number "
+        "mismatches, which means the drift tolerance would be hiding a "
+        f"structural defect: {drifted}"
+    )
 
 
 def test_widget_count_is_the_one_the_page_states():
