@@ -126,6 +126,11 @@ jobs:
           source .venv-ci/bin/activate
           python -m pip install --upgrade pip
           python -m pip install "maturin>=1.8,<2.0"
+          # pytest runs the gate's own tests and the scenario-name agreement
+          # tests. Without it in CI they are local-only, and the agreement tests
+          # guard a duplication across two languages that is otherwise silent --
+          # nothing else in the job would notice it drifting.
+          python -m pip install pytest
 
           # Print what got installed, so a wheel that installs but is not the
           # one this branch would build fails here rather than as fourteen
@@ -182,6 +187,18 @@ jobs:
           # module exported 123. This derives the numbers from
           # tests/expected_exports.py instead of trusting the prose.
           python tests/doc_claims.py || doc_status=$?
+          echo "::endgroup::"
+
+          # The gate's own tests, plus the check that the two benchmark halves
+          # agree on the scenario names. Run here rather than in check.yml
+          # because the gate reads bench/results/combined.json, which check.yml
+          # never has.
+          #
+          # Accumulated into doc_status like the doc checks above, NOT run bare:
+          # this step is `set -uo pipefail` without `-e`, so a bare failing
+          # command would print red output and the job would still go green.
+          echo "::group::gate tests"
+          python -m pytest tests/ -q || doc_status=$?
           echo "::endgroup::"
 
           # Discover the apps rather than listing them: a new example that is
