@@ -812,6 +812,112 @@ impl SRGB {
     }
 }
 
+/// Rich text with optional styling, for use with `colored_label` and other
+/// widgets that accept `impl Into<WidgetText>`.
+///
+/// Usage::
+///
+///     rt = RichText("hello").color(Color32(255, 0, 0, 255)).size(20.0)
+///     colored_label_from_rich_text(rt)
+///
+/// Builder methods return a new `RichText`; they do not mutate in place.
+#[pyclass]
+struct RichText {
+    inner: egui::RichText,
+}
+
+#[pymethods]
+impl RichText {
+    #[new]
+    fn new(text: &str) -> Self {
+        RichText {
+            inner: egui::RichText::new(text),
+        }
+    }
+
+    fn size(&self, size: f32) -> RichText {
+        RichText {
+            inner: self.inner.clone().size(size),
+        }
+    }
+
+    fn color(&self, color: &Color32) -> RichText {
+        RichText {
+            inner: self.inner.clone().color(egui::Color32::from_rgba_unmultiplied(
+                color.r, color.g, color.b, color.a,
+            )),
+        }
+    }
+
+    fn background_color(&self, color: &Color32) -> RichText {
+        RichText {
+            inner: self.inner.clone().background_color(egui::Color32::from_rgba_unmultiplied(
+                color.r, color.g, color.b, color.a,
+            )),
+        }
+    }
+
+    fn heading(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().heading(),
+        }
+    }
+
+    fn monospace(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().monospace(),
+        }
+    }
+
+    fn code(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().code(),
+        }
+    }
+
+    fn strong(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().strong(),
+        }
+    }
+
+    fn weak(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().weak(),
+        }
+    }
+
+    fn underline(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().underline(),
+        }
+    }
+
+    fn strikethrough(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().strikethrough(),
+        }
+    }
+
+    fn italics(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().italics(),
+        }
+    }
+
+    fn small(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().small(),
+        }
+    }
+
+    fn raised(&self) -> RichText {
+        RichText {
+            inner: self.inner.clone().raised(),
+        }
+    }
+}
+
 /// Mouse button that triggered an interaction.
 ///
 /// Passed to Response.clicked_by and friends. Values are Primary (usually the
@@ -1848,6 +1954,33 @@ unsafe fn code_response(text: &str) -> PyResult<Response> {
 
     Ok(Response {
         inner: ui.code(text),
+    })
+}
+
+/// Show colored text. The color is a `Color32` or an `(r, g, b, a)` tuple.
+///
+/// Example::
+///
+///     colored_label("error", Color32(255, 0, 0, 255))
+///     colored_label("warning", (255, 165, 0, 255))
+#[pyfunction]
+unsafe fn colored_label(text: &str, color: &Color32) -> PyResult<()> {
+    colored_label_response(text, color)?;
+    Ok(())
+}
+
+/// Returns the Response of the colored text. See `label_response`.
+///
+/// Example::
+///
+///     colored_label_response("error", Color32(255, 0, 0, 255))
+#[pyfunction]
+unsafe fn colored_label_response(text: &str, color: &Color32) -> PyResult<Response> {
+    let ui = current_ui(&UI)?;
+
+    let c = egui::Color32::from_rgba_unmultiplied(color.r, color.g, color.b, color.a);
+    Ok(Response {
+        inner: ui.label(egui::RichText::new(text).color(c)),
     })
 }
 
@@ -6350,6 +6483,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HSVA>()?;
     m.add_class::<Color32>()?;
     m.add_class::<SRGB>()?;
+    m.add_class::<RichText>()?;
     // functions
     m.add_function(wrap_pyfunction!(run_native, m)?)?;
     m.add_function(wrap_pyfunction!(heading, m)?)?;
@@ -6359,6 +6493,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(weak, m)?)?;
     m.add_function(wrap_pyfunction!(label, m)?)?;
     m.add_function(wrap_pyfunction!(code, m)?)?;
+    m.add_function(wrap_pyfunction!(colored_label, m)?)?;
     m.add_function(wrap_pyfunction!(code_editor, m)?)?;
     m.add_function(wrap_pyfunction!(text_edit_singleline, m)?)?;
     m.add_function(wrap_pyfunction!(text_edit_multiline, m)?)?;
@@ -6478,6 +6613,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(strong_response, m)?)?;
     m.add_function(wrap_pyfunction!(weak_response, m)?)?;
     m.add_function(wrap_pyfunction!(code_response, m)?)?;
+    m.add_function(wrap_pyfunction!(colored_label_response, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink_response, m)?)?;
     m.add_function(wrap_pyfunction!(hyperlink_to_response, m)?)?;
     m.add_function(wrap_pyfunction!(checkbox_response, m)?)?;

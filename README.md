@@ -62,7 +62,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **174 names** today: 18 classes, 156 functions and 46
+The API surface is **177 names** today: 19 classes, 157 functions and 47
 `*_response` variants. This number comes from the `check` job, which builds
 the wheel and asserts the module's exports against
 [tests/expected_exports.py](https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py)
@@ -95,8 +95,8 @@ pyegui is five egui minor releases behind. egui 0.36 requires Rust 1.95
 
 ### Available now
 
-- Text: `heading`, `label`, `monospace`, `small`, `strong`,
-  `weak`, `code`, `code_editor`
+- Text: `heading`, `label`, `colored_label`, `monospace`, `small`,
+  `strong`, `weak`, `code`, `code_editor`
 - Input: `text_edit_singleline`, `text_edit_multiline`
 - Buttons and links: `button_clicked`, `small_button_clicked`,
   `link_clicked`, `hyperlink`, `hyperlink_to`,
@@ -374,7 +374,6 @@ egui's `Context` exposes 148 public methods; pyegui reaches 10.
 
 **Missing widgets**
 
-- `colored_label` — needs `Color32` and `RichText` wrappers
 - `ComboBox` as a widget (only pyegui's hand-rolled `combo_box`
   exists), including `width`, `wrap`, `icon`, `popup_style`,
   `from_id_salt`

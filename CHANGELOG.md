@@ -7,13 +7,21 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-Built on egui 0.31.1. **No exported name is added or removed by this
-entry** — the module still exports 174 names (18 classes, 156 functions and
-46 `*_response` variants). What changes is *signatures*: widgets take more
-keyword arguments, and some names that used to be silently ignored now
-raise.
+Built on egui 0.31.1. This entry adds one class (`RichText`), one function
+(`colored_label`) and one `*_response` variant (`colored_label_response`) —
+the module now exports 177 names (19 classes, 158 functions and 47
+`*_response` variants). The previous entry changed *signatures* only.
 
 ### Added
+
+**`colored_label` and the `RichText` class**
+
+`colored_label(text, color)` shows text in a given color, where `color` is a
+`Color32` or an `(r, g, b, a)` tuple. `colored_label_response` returns the
+`Response`. The `RichText` class wraps `egui::RichText` and exposes its
+builder methods (`size`, `color`, `background_color`, `heading`, `monospace`,
+`code`, `strong`, `weak`, `underline`, `strikethrough`, `italics`, `small`,
+`raised`), each returning a new `RichText`.
 
 **Builder options on the widgets that already existed**
 

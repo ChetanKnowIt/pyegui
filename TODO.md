@@ -14,7 +14,7 @@ not reachable) · `[ ]` not implemented
 
 Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 
-174 names exported (`src/lib.rs`): 18 classes, 156 functions and 46
+177 names exported (`src/lib.rs`): 19 classes, 158 functions and 47
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 61 on `Response`.
@@ -53,7 +53,7 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
       `contains_pointer`, `interact_pointer_pos`, `hover_pos`,
       `is_pointer_button_down_on`, `mark_changed`, `is_tooltip_open`,
       `context_menu_opened`
-- [x] `*_response` variants for existing widgets (46 of them)
+- [x] `*_response` variants for existing widgets (47 of them)
 - [ ] `interact`, `interact_opt`, `highlight`, `widget_info`, `union`,
       `scroll_to_me`, `output_event`, `labelled_by` — builder-style methods
       that consume or replace the `Response`
@@ -74,7 +74,7 @@ were dropped rather than shipped as stubs:
 - [x] `selectable_label` (selection without a companion value)
 - [x] `radio` (selectable without a companion value)
 - [x] `drag_angle`, `drag_angle_tau`
-- [ ] `colored_label`
+- [x] `colored_label` — and the `RichText` class it is built on
 - [x] `color_edit_button_rgb` — and now every other colour space: `hsva`,
       `srgb`, `srgba`, `rgba_premultiplied`, `rgba_unmultiplied`,
       `srgba_premultiplied`, `srgba_unmultiplied`. Backed by the `RGBA`,
