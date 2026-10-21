@@ -11,7 +11,62 @@ use pyo3::{
     types::{PyAny, PyDict, PyInt},
 };
 use std::sync::{Arc, Mutex};
-use std::{fs, ptr};
+use std::{fs, ptr, time::Duration};
+
+fn viewport_command_from_py(name: &str) -> PyResult<egui::ViewportCommand> {
+    match name {
+        "close" => Ok(egui::ViewportCommand::Close),
+        "cancel_close" => Ok(egui::ViewportCommand::CancelClose),
+        "minimized" => Ok(egui::ViewportCommand::Minimized(true)),
+        "maximized" => Ok(egui::ViewportCommand::Maximized(true)),
+        _ => Err(PyValueError::new_err(format!(
+            "Unsupported ViewportCommand '{name}' (value-less commands only): close, cancel_close, minimized, maximized. For value-bearing commands (title, transparent, fullscreen, ...) use a separate API."
+        ))),
+    }
+}
+
+fn cursor_icon_from_py(name: &str) -> PyResult<egui::CursorIcon> {
+    match name {
+        "default" => Ok(egui::CursorIcon::Default),
+        "none" => Ok(egui::CursorIcon::None),
+        "context_menu" => Ok(egui::CursorIcon::ContextMenu),
+        "help" => Ok(egui::CursorIcon::Help),
+        "pointing_hand" => Ok(egui::CursorIcon::PointingHand),
+        "progress" => Ok(egui::CursorIcon::Progress),
+        "wait" => Ok(egui::CursorIcon::Wait),
+        "cell" => Ok(egui::CursorIcon::Cell),
+        "crosshair" => Ok(egui::CursorIcon::Crosshair),
+        "text" => Ok(egui::CursorIcon::Text),
+        "vertical_text" => Ok(egui::CursorIcon::VerticalText),
+        "alias" => Ok(egui::CursorIcon::Alias),
+        "copy" => Ok(egui::CursorIcon::Copy),
+        "move" => Ok(egui::CursorIcon::Move),
+        "no_drop" => Ok(egui::CursorIcon::NoDrop),
+        "not_allowed" => Ok(egui::CursorIcon::NotAllowed),
+        "grab" => Ok(egui::CursorIcon::Grab),
+        "grabbing" => Ok(egui::CursorIcon::Grabbing),
+        "all_scroll" => Ok(egui::CursorIcon::AllScroll),
+        "resize_horizontal" => Ok(egui::CursorIcon::ResizeHorizontal),
+        "resize_ne_sw" => Ok(egui::CursorIcon::ResizeNeSw),
+        "resize_nw_se" => Ok(egui::CursorIcon::ResizeNwSe),
+        "resize_vertical" => Ok(egui::CursorIcon::ResizeVertical),
+        "resize_east" => Ok(egui::CursorIcon::ResizeEast),
+        "resize_southeast" => Ok(egui::CursorIcon::ResizeSouthEast),
+        "resize_south" => Ok(egui::CursorIcon::ResizeSouth),
+        "resize_southwest" => Ok(egui::CursorIcon::ResizeSouthWest),
+        "resize_west" => Ok(egui::CursorIcon::ResizeWest),
+        "resize_northwest" => Ok(egui::CursorIcon::ResizeNorthWest),
+        "resize_north" => Ok(egui::CursorIcon::ResizeNorth),
+        "resize_northeast" => Ok(egui::CursorIcon::ResizeNorthEast),
+        "resize_column" => Ok(egui::CursorIcon::ResizeColumn),
+        "resize_row" => Ok(egui::CursorIcon::ResizeRow),
+        "zoom_in" => Ok(egui::CursorIcon::ZoomIn),
+        "zoom_out" => Ok(egui::CursorIcon::ZoomOut),
+        _ => Err(PyValueError::new_err(format!(
+            "Unsupported CursorIcon '{name}'. Accepted: default, none, context_menu, help, pointing_hand, progress, wait, cell, crosshair, text, vertical_text, alias, copy, move, no_drop, not_allowed, grab, grabbing, all_scroll, resize_horizontal, resize_ne_sw, resize_nw_se, resize_vertical, resize_east, resize_southeast, resize_south, resize_southwest, resize_west, resize_northwest, resize_north, resize_northeast, resize_column, resize_row, zoom_in, zoom_out"
+        ))),
+    }
+}
 
 // state
 
@@ -222,6 +277,140 @@ impl Context {
     fn is_minimized(&self) -> Option<bool> {
         self.0.input(|i| i.viewport().minimized)
     }
+
+    // -- Viewport API (egui::Context) --------------------------------------
+
+    /// True if the mouse cursor is currently over the area of the app.
+    fn is_pointer_over_area(&self) -> bool {
+        self.0.is_pointer_over_area()
+    }
+
+    /// True if the platform is sending keyboard input to the app.
+    fn wants_keyboard_input(&self) -> bool {
+        self.0.wants_keyboard_input()
+    }
+
+    /// True if the platform is sending pointer input to the app.
+    fn wants_pointer_input(&self) -> bool {
+        self.0.wants_pointer_input()
+    }
+
+    /// True if the app is currently using pointer input.
+    fn is_using_pointer(&self) -> bool {
+        self.0.is_using_pointer()
+    }
+
+    /// The pointer's hover position, or `None`.
+    fn pointer_hover_pos(&self) -> Option<(f32, f32)> {
+        self.0.pointer_hover_pos().map(|p| (p.x, p.y))
+    }
+
+    /// The position of the latest pointer event, or `None`.
+    fn pointer_latest_pos(&self) -> Option<(f32, f32)> {
+        self.0.pointer_latest_pos().map(|p| (p.x, p.y))
+    }
+
+    /// The position where the pointer last interacted with a widget, or
+    /// `None`.
+    fn pointer_interact_pos(&self) -> Option<(f32, f32)> {
+        self.0.pointer_interact_pos().map(|p| (p.x, p.y))
+    }
+
+    /// Request a repaint after the given number of seconds.
+    fn request_repaint_after(&self, seconds: f32) {
+        self.0.request_repaint_after(Duration::from_secs_f32(seconds));
+    }
+
+    /// Request a repaint after a whole number of seconds.
+    fn request_repaint_after_secs(&self, seconds: f32) {
+        self.0.request_repaint_after_secs(seconds);
+    }
+
+    /// True if a repaint has been requested in the previous pass.
+    fn requested_repaint_last_pass(&self) -> bool {
+        self.0.requested_repaint_last_pass()
+    }
+
+    /// The window's on-screen rectangle, in egui points.
+    fn screen_rect(&self) -> Rect {
+        let rect = self.0.screen_rect();
+        Rect {
+            min_x: rect.min.x,
+            min_y: rect.min.y,
+            max_x: rect.max.x,
+            max_y: rect.max.y,
+        }
+    }
+
+    /// Whether embedded viewports are enabled.
+    fn embed_viewports(&self) -> bool {
+        self.0.embed_viewports()
+    }
+
+    /// Enable or disable embedded viewports.
+    fn set_embed_viewports(&self, value: bool) {
+        self.0.set_embed_viewports(value);
+    }
+
+    /// Send a viewport command. Only the value-less commands are accepted here;
+    /// value-bearing commands (title, transparent, fullscreen, ...) need an
+    /// API that carries a value and are left for a follow-up pass.
+    fn send_viewport_cmd(&self, command: &str) -> PyResult<()> {
+        self.0.send_viewport_cmd(viewport_command_from_py(command)?);
+        Ok(())
+    }
+
+    /// The current zoom factor applied to the UI.
+    fn zoom_factor(&self) -> f32 {
+        self.0.zoom_factor()
+    }
+
+    /// Set the zoom factor of the UI.
+    fn set_zoom_factor(&self, zoom_factor: f32) {
+        self.0.set_zoom_factor(zoom_factor);
+    }
+
+    /// The pixels-per-point factor reported by the platform.
+    fn pixels_per_point(&self) -> f32 {
+        self.0.pixels_per_point()
+    }
+
+    /// Set the pixels-per-point factor.
+    fn set_pixels_per_point(&self, pixels_per_point: f32) {
+        self.0.set_pixels_per_point(pixels_per_point);
+    }
+
+    /// The platform's native pixels-per-point, or `None`.
+    fn native_pixels_per_point(&self) -> Option<f32> {
+        self.0.native_pixels_per_point().map(|v| v)
+    }
+
+    /// Animate a float value over time. `id` labels the animation and must be
+    /// stable across frames.
+    fn animate_value_with_time(&self, id: &str, target_value: f32, animation_time: f32) -> f32 {
+        self.0
+            .animate_value_with_time(egui::Id::new(id.to_owned()), target_value, animation_time)
+    }
+
+    /// Animate a bool value over time. `id` labels the animation and must be
+    /// stable across frames.
+    fn animate_bool_with_time(&self, id: &str, target_value: bool, animation_time: f32) -> f32 {
+        self.0
+            .animate_bool_with_time(egui::Id::new(id.to_owned()), target_value, animation_time)
+    }
+
+    /// Stop all ongoing animations.
+    fn clear_animations(&self) {
+        self.0.clear_animations();
+    }
+
+    /// Set the mouse cursor icon. The accepted names are the `CursorIcon`
+    /// variants; see `cursor_icon_from_py` for the full list.
+    fn set_cursor_icon(&self, cursor_icon: &str) -> PyResult<()> {
+        self.0.set_cursor_icon(cursor_icon_from_py(cursor_icon)?);
+        Ok(())
+    }
+
 }
 
 /// Str stores string value that can be referenced
