@@ -4669,7 +4669,7 @@ unsafe fn child_ui(rect: Rect, layout: &str, update_fun: Bound<'_, PyAny>) -> Py
         "vertical" | "top_down" => egui::Layout::top_down(egui::Align::LEFT),
         _ => egui::Layout::top_down(egui::Align::LEFT),
     };
-    let mut child = ui.child_ui(r, l);
+    let mut child = ui.child_ui(r, ui.id(), l);
     run_nested_update_func(&mut child, update_fun)
 }
 
