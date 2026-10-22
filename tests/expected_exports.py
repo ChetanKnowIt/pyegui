@@ -86,6 +86,7 @@ FUNCTIONS = [
     "group",
     "heading",
     "horizontal",
+    "with_layout",
     "horizontal_centered",
     "horizontal_top",
     "horizontal_wrapped",
