@@ -6161,7 +6161,7 @@ unsafe fn close_menu() -> PyResult<()> {
 /// Example::
 ///
 ///     progress(0.5)
-#[pyfunction]
+#[pyfunction(signature = (value, text=None, animate=None))]
 unsafe fn progress(value: f32, text: Option<String>, animate: Option<bool>) -> PyResult<()> {
     progress_response(value, text, animate)?;
     Ok(())
@@ -6173,7 +6173,7 @@ unsafe fn progress(value: f32, text: Option<String>, animate: Option<bool>) -> P
 /// Example::
 ///
 ///     progress_response(0.5)
-#[pyfunction]
+#[pyfunction(signature = (value, text=None, animate=None))]
 unsafe fn progress_response(value: f32, text: Option<String>, animate: Option<bool>) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
