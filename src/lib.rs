@@ -4018,7 +4018,26 @@ unsafe fn horizontal(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
         .inner
 }
 
-/// Like horizontal, but allocates the full vertical height and then centers elements vertically.
+/// Run the given update function with a specific layout.
+#[pyfunction]
+unsafe fn with_layout(layout: &str, update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+    let layout = match layout {
+        "horizontal" | "left_to_right" => egui::Layout::left_to_right(egui::Align::Center),
+        "horizontal_top" => egui::Layout::left_to_right(egui::Align::TOP),
+        "horizontal_bottom" => egui::Layout::left_to_right(egui::Align::BOTTOM),
+        "vertical" | "top_down" => egui::Layout::top_down(egui::Align::LEFT),
+        "vertical_centered" => egui::Layout::top_down(egui::Align::Center),
+        "right_to_left" => egui::Layout::right_to_left(egui::Align::Center),
+        "bottom_up" => egui::Layout::bottom_up(egui::Align::LEFT),
+        _ => {
+            return Err(PyValueError::new_err(
+                "Unsupported layout. Accepted: horizontal, horizontal_top, horizontal_bottom, vertical, vertical_centered, right_to_left, bottom_up, left_to_right, top_down",
+            ))
+        }
+    };
+    current_ui(&UI)?.with_layout(layout, |ui| run_nested_update_func(ui, update_fun));
+    Ok(())
+}
 #[pyfunction]
 unsafe fn horizontal_centered(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
     current_ui(&UI)?
@@ -6721,6 +6740,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(button_clicked, m)?)?;
     m.add_function(wrap_pyfunction!(small_button_clicked, m)?)?;
     m.add_function(wrap_pyfunction!(horizontal, m)?)?;
+    m.add_function(wrap_pyfunction!(with_layout, m)?)?;
     m.add_function(wrap_pyfunction!(horizontal_centered, m)?)?;
     m.add_function(wrap_pyfunction!(horizontal_top, m)?)?;
     m.add_function(wrap_pyfunction!(horizontal_wrapped, m)?)?;
