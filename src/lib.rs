@@ -1254,6 +1254,11 @@ impl Response {
         self.inner.lost_focus()
     }
 
+    /// Highlight this widget.
+    fn highlight(&self) {
+        self.inner.highlight();
+    }
+
     /// Give the widget keyboard focus.
     fn request_focus(&self) {
         self.inner.request_focus();
