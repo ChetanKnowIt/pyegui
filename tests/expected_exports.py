@@ -117,6 +117,7 @@ FUNCTIONS = [
     "resize",
     "run_native",
     "scope",
+    "scope_builder",
     "scroll_area_both",
     "scroll_area_horizontal",
     "scroll_area_vertical",

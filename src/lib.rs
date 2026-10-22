@@ -4673,14 +4673,22 @@ unsafe fn child_ui(rect: Rect, layout: &str, update_fun: Bound<'_, PyAny>) -> Py
     run_nested_update_func(&mut child, update_fun)
 }
 
+/// Run the update function in a new scope built with a default UiBuilder.
+#[pyfunction]
+unsafe fn scope_builder(update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+    ui.scope_builder(egui::UiBuilder::new(), |ui| {
+        run_nested_update_func_lossy(ui, update_fun.clone());
+    });
+    Ok(())
+}
+
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
     current_ui(&UI)?.set_height(height);
     Ok(())
 }
-#[pyfunction]
-unsafe fn set_min_width(width: f32) -> PyResult<()> {
     current_ui(&UI)?.set_min_width(width);
     Ok(())
 }
@@ -6910,6 +6918,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(unique_id, m)?)?;
     m.add_function(wrap_pyfunction!(id, m)?)?;
+    m.add_function(wrap_pyfunction!(scope_builder, m)?)?;
     m.add_function(wrap_pyfunction!(child_ui, m)?)?;
     m.add_function(wrap_pyfunction!(painter, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
