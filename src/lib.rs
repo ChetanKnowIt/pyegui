@@ -5987,8 +5987,8 @@ unsafe fn close_menu() -> PyResult<()> {
 ///
 ///     progress(0.5)
 #[pyfunction]
-unsafe fn progress(value: f32) -> PyResult<()> {
-    progress_response(value)?;
+unsafe fn progress(value: f32, text: Option<String>, animate: Option<bool>) -> PyResult<()> {
+    progress_response(value, text, animate)?;
     Ok(())
 }
 
@@ -5999,11 +5999,18 @@ unsafe fn progress(value: f32) -> PyResult<()> {
 ///
 ///     progress_response(0.5)
 #[pyfunction]
-unsafe fn progress_response(value: f32) -> PyResult<Response> {
+unsafe fn progress_response(value: f32, text: Option<String>, animate: Option<bool>) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 
+    let mut bar = egui::widgets::ProgressBar::new(value).show_percentage();
+    if let Some(t) = text {
+        bar = bar.text(t);
+    }
+    if let Some(a) = animate {
+        bar = bar.animate(a);
+    }
     Ok(Response {
-        inner: ui.add(egui::widgets::ProgressBar::new(value).show_percentage()),
+        inner: ui.add(bar),
     })
 }
 
