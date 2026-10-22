@@ -4523,9 +4523,9 @@ unsafe fn set_width(width: f32) -> PyResult<()> {
 #[pyfunction]
 unsafe fn wrap_mode(mode: &str) -> PyResult<()> {
     let mode = match mode {
-        "wrap" => egui::text::WrapMode::Wrap,
-        "truncate" => egui::text::WrapMode::Truncate,
-        "extend" => egui::text::WrapMode::Extend,
+        "wrap" => egui::WrapMode::Wrap,
+        "truncate" => egui::WrapMode::Truncate,
+        "extend" => egui::WrapMode::Extend,
         _ => {
             return Err(PyValueError::new_err(
                 "Unsupported wrap mode. Accepted: wrap, truncate, extend",
