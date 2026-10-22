@@ -4312,6 +4312,27 @@ unsafe fn menu_image_text_button(
 /// A rectangle, mirroring `egui::Rect`.
 ///
 /// egui's is two corners (`min` and `max`), not a position and a size. This is
+/// An egui `Id`, used to identify widgets and scopes.
+#[pyclass]
+#[derive(Clone, Copy)]
+struct Id {
+    #[pyo3(get, set)]
+    value: u64,
+}
+
+#[pymethods]
+impl Id {
+    #[new]
+    #[pyo3(signature = (value=None))]
+    fn new(value: Option<&str>) -> Self {
+        let inner = match value {
+            Some(s) => egui::Id::new(s),
+            None => egui::Id::null(),
+        };
+        Self { value: inner.value() }
+    }
+}
+
 /// the value `scene` reads and writes between frames: egui mutates it as the
 /// user pans and zooms, so it has to survive across frames.
 ///
@@ -6718,6 +6739,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Group>()?;
     m.add_class::<Response>()?;
     m.add_class::<Rect>()?;
+    m.add_class::<Id>()?;
     m.add_class::<PointerButton>()?;
     m.add_class::<RGBA>()?;
     m.add_class::<HSVA>()?;

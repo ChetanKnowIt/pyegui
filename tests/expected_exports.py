@@ -29,6 +29,7 @@ CLASSES = [
     "PointerButton",
     "RGB",
     "RGBA",
+    "Id",
     "Rect",
     "Response",
     "RichText",
