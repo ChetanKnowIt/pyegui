@@ -4327,7 +4327,7 @@ impl Id {
     fn new(value: Option<&str>) -> Self {
         let inner = match value {
             Some(s) => egui::Id::new(s),
-            None => egui::Id::null(),
+            None => egui::Id::default(),
         };
         Self { value: inner.value() }
     }
