@@ -4656,14 +4656,29 @@ unsafe fn painter() -> PyResult<Painter> {
     Ok(Painter { inner: current_ui(&UI)?.painter().clone() })
 }
 
+/// Run the update function in a child Ui with the given rect and layout.
+#[pyfunction]
+unsafe fn child_ui(rect: Rect, layout: &str, update_fun: Bound<'_, PyAny>) -> PyResult<()> {
+    let ui = current_ui(&UI)?;
+    let r = egui::Rect::from_min_max(
+        egui::pos2(rect.min_x, rect.min_y),
+        egui::pos2(rect.max_x, rect.max_y),
+    );
+    let l = match layout {
+        "horizontal" | "left_to_right" => egui::Layout::left_to_right(egui::Align::Center),
+        "vertical" | "top_down" => egui::Layout::top_down(egui::Align::LEFT),
+        _ => egui::Layout::top_down(egui::Align::LEFT),
+    };
+    let mut child = ui.child_ui(r, l);
+    run_nested_update_func(&mut child, update_fun)
+}
+
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
     current_ui(&UI)?.set_height(height);
     Ok(())
 }
-
-/// Set the minimum width of the current `Ui`, mirroring `Ui::set_min_width`.
 #[pyfunction]
 unsafe fn set_min_width(width: f32) -> PyResult<()> {
     current_ui(&UI)?.set_min_width(width);
@@ -6895,6 +6910,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(unique_id, m)?)?;
     m.add_function(wrap_pyfunction!(id, m)?)?;
+    m.add_function(wrap_pyfunction!(child_ui, m)?)?;
     m.add_function(wrap_pyfunction!(painter, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
     m.add_function(wrap_pyfunction!(set_height, m)?)?;

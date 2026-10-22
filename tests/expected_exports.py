@@ -54,6 +54,7 @@ FUNCTIONS = [
     "centered_and_justified",
     "central_panel",
     "checkbox",
+    "child_ui",
     "close_menu",
     "code",
     "code_editor",
