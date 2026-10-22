@@ -659,9 +659,8 @@ impl Layout {
         }
     }
 
-    #[staticmethod]
-    fn __init__(scope_type: LayoutType) -> PyResult<Self> {
-        Self::__new__(scope_type)
+    fn __init__(&mut self, _scope_type: LayoutType) -> PyResult<()> {
+        Ok(())
     }
 
     fn __enter__(&mut self) -> PyResult<()> {
