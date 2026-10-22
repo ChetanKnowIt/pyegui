@@ -182,6 +182,11 @@ jobs:
           name: release-dist
           path: dist
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-dist-pypy
+          path: dist
+
       - name: List what will be published
         run: |
           set -euo pipefail
