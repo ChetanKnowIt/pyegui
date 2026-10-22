@@ -4573,6 +4573,13 @@ unsafe fn set_height(height: f32) -> PyResult<()> {
     Ok(())
 }
 
+/// Set the minimum width of the current `Ui`, mirroring `Ui::set_min_width`.
+#[pyfunction]
+unsafe fn set_min_width(width: f32) -> PyResult<()> {
+    current_ui(&UI)?.set_min_width(width);
+    Ok(())
+}
+
 /// Set the maximum width of the current `Ui`, mirroring `Ui::set_max_width`.
 #[pyfunction]
 unsafe fn set_max_width(width: f32) -> PyResult<()> {
