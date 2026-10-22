@@ -5939,29 +5939,42 @@ unsafe fn radio_response(selected: &mut Bool, text: &str) -> PyResult<Response> 
 ///     def update_func(a):
 ///         combo_box(data, [RED, GREEN, BLUE], ["red", "green", "blue"], "choose your fate")
 #[pyfunction]
+#[pyo3(signature = (current_value, alternatives, names, label, width=None, wrap=None, from_id_salt=None))]
 unsafe fn combo_box(
     current_value: &mut Int,
     alternatives: Vec<i32>,
     names: Vec<String>,
     label: &str,
+    width: Option<f32>,
+    wrap: Option<bool>,
+    from_id_salt: Option<String>,
 ) -> PyResult<()> {
     let ui = current_ui(&UI)?;
 
-    egui::ComboBox::from_label(label)
-        .selected_text(
-            names
-                .get(current_value.value.try_into().unwrap_or(0))
-                .unwrap_or(&"Unknown".to_string()),
-        )
-        .show_ui(ui, |ui| {
-            for i in 0..alternatives.len() {
-                ui.selectable_value(
-                    &mut current_value.value,
-                    alternatives[i],
-                    names.get(i).unwrap_or(&"Unknown".to_string()),
-                );
-            }
-        });
+    let mut cb = egui::ComboBox::from_label(label);
+    if let Some(w) = width {
+        cb = cb.width(w);
+    }
+    if let Some(wr) = wrap {
+        cb = cb.wrap(wr);
+    }
+    if let Some(s) = from_id_salt {
+        cb = cb.id_salt(s);
+    }
+    cb.selected_text(
+        names
+            .get(current_value.value.try_into().unwrap_or(0))
+            .unwrap_or(&"Unknown".to_string()),
+    )
+    .show_ui(ui, |ui| {
+        for i in 0..alternatives.len() {
+            ui.selectable_value(
+                &mut current_value.value,
+                alternatives[i],
+                names.get(i).unwrap_or(&"Unknown".to_string()),
+            );
+        }
+    });
     Ok(())
 }
 
