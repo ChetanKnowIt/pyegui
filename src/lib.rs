@@ -4624,26 +4624,6 @@ let mut s = egui::Sense::empty();
     Ok(Response { inner: ui.interact(r, id.inner, s) })
 }
 
-/// Interact with a rectangle, returning an optional Response.
-#[pyfunction]
-unsafe fn interact_opt(rect: Rect, id: Option<Id>, sense: Sense) -> PyResult<Option<Response>> {
-    let ui = current_ui(&UI)?;
-    let r = egui::Rect::from_min_max(
-        egui::pos2(rect.min_x, rect.min_y),
-        egui::pos2(rect.max_x, rect.max_y),
-    );
-    let s = {
-        let mut s = egui::Sense::empty();
-        if sense.click { s |= egui::Sense::click(); }
-        if sense.drag { s |= egui::Sense::drag(); }
-        if sense.hover { s |= egui::Sense::hover(); }
-        s
-    };
-    let id = id.map(|i| i.inner).unwrap_or_else(|| egui::Id::new(""));
-    // Id::null not available; use a default id via new("")
-    Ok(ui.interact_opt(r, id, s).map(|resp| Response { inner: resp }))
-}
-
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
@@ -6877,7 +6857,6 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scroll_area_both, m)?)?;
     m.add_function(wrap_pyfunction!(scene, m)?)?;
     m.add_function(wrap_pyfunction!(make_persistent_id, m)?)?;
-    m.add_function(wrap_pyfunction!(interact_opt, m)?)?;
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(id, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
