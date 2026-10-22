@@ -62,7 +62,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **177 names** today: 19 classes, 157 functions and 47
+The API surface is **188 names** today: 19 classes, 157 functions and 47
 `*_response` variants. This number comes from the `check` job, which builds
 the wheel and asserts the module's exports against
 [tests/expected_exports.py](https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py)

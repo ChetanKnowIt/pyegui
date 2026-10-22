@@ -9,7 +9,7 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 Built on egui 0.31.1. This entry adds one class (`RichText`), one function
 (`colored_label`) and one `*_response` variant (`colored_label_response`) —
-the module now exports 177 names (19 classes, 158 functions and 47
+the module now exports 188 names (19 classes, 158 functions and 47
 `*_response` variants). The previous entry changed *signatures* only.
 
 ### Added

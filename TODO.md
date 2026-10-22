@@ -14,7 +14,7 @@ not reachable) · `[ ]` not implemented
 
 Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 
-177 names exported (`src/lib.rs`): 19 classes, 158 functions and 47
+188 names exported (`src/lib.rs`): 19 classes, 158 functions and 47
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 61 on `Response`.
