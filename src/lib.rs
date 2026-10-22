@@ -4653,7 +4653,7 @@ impl Painter {
 /// Get the painter for the current Ui.
 #[pyfunction]
 unsafe fn painter() -> PyResult<Painter> {
-    Ok(Painter { inner: current_ui(&UI)?.painter() })
+    Ok(Painter { inner: current_ui(&UI)?.painter().clone() })
 }
 
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
