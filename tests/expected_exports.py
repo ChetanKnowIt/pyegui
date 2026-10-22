@@ -132,6 +132,7 @@ FUNCTIONS = [
     "set_opacity",
     "set_row_height",
     "interact",
+    "unique_id",
     "id",
     "make_persistent_id",
     "set_width",

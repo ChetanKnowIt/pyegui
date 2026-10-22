@@ -4624,14 +4624,18 @@ let mut s = egui::Sense::empty();
     Ok(Response { inner: ui.interact(r, id.inner, s) })
 }
 
+/// The unique id of the current Ui.
+#[pyfunction]
+unsafe fn unique_id() -> PyResult<Id> {
+    Ok(Id { inner: current_ui(&UI)?.id() })
+}
+
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
     current_ui(&UI)?.set_height(height);
     Ok(())
 }
-#[pyfunction]
-unsafe fn set_min_width(width: f32) -> PyResult<()> {
     current_ui(&UI)?.set_min_width(width);
     Ok(())
 }
@@ -6858,6 +6862,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scene, m)?)?;
     m.add_function(wrap_pyfunction!(make_persistent_id, m)?)?;
     m.add_function(wrap_pyfunction!(interact, m)?)?;
+    m.add_function(wrap_pyfunction!(unique_id, m)?)?;
     m.add_function(wrap_pyfunction!(id, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
     m.add_function(wrap_pyfunction!(set_height, m)?)?;
