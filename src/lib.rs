@@ -4519,14 +4519,29 @@ unsafe fn set_width(width: f32) -> PyResult<()> {
     Ok(())
 }
 
+/// Set the wrap mode of the current `Ui`, mirroring `Ui::wrap_mode`.
+#[pyfunction]
+unsafe fn wrap_mode(mode: &str) -> PyResult<()> {
+    let mode = match mode {
+        "wrap" => egui::text::WrapMode::Wrap,
+        "truncate" => egui::text::WrapMode::Truncate,
+        "extend" => egui::text::WrapMode::Extend,
+        _ => {
+            return Err(PyValueError::new_err(
+                "Unsupported wrap mode. Accepted: wrap, truncate, extend",
+            ))
+        }
+    };
+    current_ui(&UI)?.wrap_mode(mode);
+    Ok(())
+}
+
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
     current_ui(&UI)?.set_height(height);
     Ok(())
 }
-
-/// Set the minimum width of the current `Ui`, mirroring `Ui::set_min_width`.
 #[pyfunction]
 unsafe fn set_min_width(width: f32) -> PyResult<()> {
     current_ui(&UI)?.set_min_width(width);
@@ -6751,6 +6766,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(scroll_area_both, m)?)?;
     m.add_function(wrap_pyfunction!(scene, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
+    m.add_function(wrap_pyfunction!(wrap_mode, m)?)?;
     m.add_function(wrap_pyfunction!(set_height, m)?)?;
     m.add_function(wrap_pyfunction!(set_min_width, m)?)?;
     m.add_function(wrap_pyfunction!(set_max_width, m)?)?;
