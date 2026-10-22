@@ -1256,7 +1256,7 @@ impl Response {
 
     /// Highlight this widget.
     fn highlight(&self) {
-        self.inner.highlight();
+        self.inner.clone().highlight();
     }
 
     /// Give the widget keyboard focus.
