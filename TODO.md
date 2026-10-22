@@ -83,8 +83,7 @@ were dropped rather than shipped as stubs:
       `wrap`, `icon`, `popup_style`, `from_id_salt`
 - [~] `image` — missing `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
       `corner_radius`, `sense`, `alt_text`
-- [~] `image_and_text_clicked` — missing `Button` options: `selected`,
-      `min_size`, `sense`, `corner_radius`, `shortcut_text`
+- [~] `image_and_text_clicked` — missing `Button` options: `selected`, `min_size`, `sense`, `corner_radius`, `shortcut_text` (selected + shortcut_text now shipped)
 - [~] `progress` — missing text/format and `animate`
 - [x] `close_menu`
 
