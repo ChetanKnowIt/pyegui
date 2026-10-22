@@ -6394,6 +6394,15 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
         if let Some(width) = kwargs.get_item("max_width")? {
             img = img.max_width(width.downcast::<PyInt>()?.extract()?);
         }
+        used.insert("tint".to_string());
+        if let Some(tint) = kwargs.get_item("tint")? {
+            let c = color32_from_any(&tint)?;
+            img = img.tint(c);
+        }
+        used.insert("alt_text".to_string());
+        if let Some(alt) = kwargs.get_item("alt_text")? {
+            img = img.alt_text(alt.downcast::<PyString>()?.to_string());
+        }
     }
 
     Ok(Response {
