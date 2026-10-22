@@ -5939,7 +5939,7 @@ unsafe fn radio_response(selected: &mut Bool, text: &str) -> PyResult<Response> 
 ///     def update_func(a):
 ///         combo_box(data, [RED, GREEN, BLUE], ["red", "green", "blue"], "choose your fate")
 #[pyfunction]
-#[pyo3(signature = (current_value, alternatives, names, label, width=None, wrap=None, from_id_salt=None))]
+#[pyo3(signature = (current_value, alternatives, names, label, width=None, wrap=None))]
 unsafe fn combo_box(
     current_value: &mut Int,
     alternatives: Vec<i32>,
@@ -5947,7 +5947,6 @@ unsafe fn combo_box(
     label: &str,
     width: Option<f32>,
     wrap: Option<bool>,
-    from_id_salt: Option<String>,
 ) -> PyResult<()> {
     let ui = current_ui(&UI)?;
 
@@ -5959,9 +5958,6 @@ unsafe fn combo_box(
         if wr {
             cb = cb.wrap();
         }
-    }
-    if let Some(s) = from_id_salt {
-        cb = cb.from_id_salt(s);
     }
     cb.selected_text(
         names

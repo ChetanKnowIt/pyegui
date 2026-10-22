@@ -79,7 +79,7 @@ were dropped rather than shipped as stubs:
       `srgb`, `srgba`, `rgba_premultiplied`, `rgba_unmultiplied`,
       `srgba_premultiplied`, `srgba_unmultiplied`. Backed by the `RGBA`,
       `HSVA`, `Color32` and `SRGB` classes
-- [~] `combo_box` — width, wrap, from_id_salt added; icon, popup_style remain
+- [~] `combo_box` — width, wrap added; icon, popup_style, from_id_salt remain
 - [~] `image` — missing `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
       `corner_radius`, `sense`, `alt_text`
 - [~] `image_and_text_clicked` — missing `Button` options: `selected`, `min_size`, `sense`, `corner_radius`, `shortcut_text` (selected + shortcut_text now shipped)
