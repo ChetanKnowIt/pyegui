@@ -4617,12 +4617,11 @@ unsafe fn interact(rect: Rect, id: Id, sense: Sense) -> PyResult<Response> {
         egui::pos2(rect.min_x, rect.min_y),
         egui::pos2(rect.max_x, rect.max_y),
     );
-    let s = egui::Sense {
-        click: sense.click,
-        drag: sense.drag,
-        focusable: sense.focusable,
-        hover: sense.hover,
-    };
+let mut s = egui::Sense::default();
+    if sense.click { s |= egui::Sense::click(); }
+    if sense.drag { s |= egui::Sense::drag(); }
+    if sense.focusable { s |= egui::Sense::focusable(); }
+    if sense.hover { s |= egui::Sense::hover(); }
     Ok(Response { inner: ui.interact(r, id.inner, s) })
 }
 
