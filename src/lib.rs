@@ -6401,7 +6401,7 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
         }
         used.insert("alt_text".to_string());
         if let Some(alt) = kwargs.get_item("alt_text")? {
-            img = img.alt_text(alt.downcast::<PyString>()?.to_string());
+            img = img.alt_text(alt.downcast::<PyStr>()?.to_string());
         }
     }
 
