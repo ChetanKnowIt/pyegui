@@ -137,9 +137,37 @@ jobs:
           path: dist
           if-no-files-found: error
 
+  build-pypy:
+    name: Build PyPy wheel
+    needs: [verify, check, examples]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 'pypy3.10'
+
+      - name: Build PyPy wheel
+        run: |
+          set -euo pipefail
+          python -m pip install "maturin>=1.8,<2.0"
+          maturin build --release --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-dist-pypy
+          path: dist
+          if-no-files-found: error
   publish:
     name: Create the GitHub Release
-    needs: [verify, check, examples, build]
+    needs: [verify, check, examples, build, build-pypy]
     runs-on: ubuntu-22.04
     permissions:
       # Creating a release and uploading assets to it.
