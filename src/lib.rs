@@ -4630,16 +4630,38 @@ unsafe fn unique_id() -> PyResult<Id> {
     Ok(Id { inner: current_ui(&UI)?.id() })
 }
 
+/// A painter for custom drawing on a Ui.
+#[pyclass]
+struct Painter {
+    inner: egui::Painter,
+}
+
+#[pymethods]
+impl Painter {
+    /// Draw text at a position.
+    fn text(&self, pos: (f32, f32), text: &str) {
+        self.inner.text(
+            egui::pos2(pos.0, pos.1),
+            egui::Align2::LEFT_TOP,
+            text,
+            egui::FontId::default(),
+            egui::Color32::WHITE,
+        );
+    }
+}
+
+/// Get the painter for the current Ui.
+#[pyfunction]
+unsafe fn painter() -> PyResult<Painter> {
+    Ok(Painter { inner: current_ui(&UI)?.painter() })
+}
+
 /// Fix the height of the current `Ui`, mirroring `Ui::set_height`.
 #[pyfunction]
 unsafe fn set_height(height: f32) -> PyResult<()> {
     current_ui(&UI)?.set_height(height);
     Ok(())
 }
-
-/// Set the minimum width of the current `Ui`, mirroring `Ui::set_min_width`.
-#[pyfunction]
-unsafe fn set_min_width(width: f32) -> PyResult<()> {
     current_ui(&UI)?.set_min_width(width);
     Ok(())
 }
@@ -6811,6 +6833,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scope>()?;
     m.add_class::<Group>()?;
     m.add_class::<Response>()?;
+    m.add_class::<Painter>()?;
     m.add_class::<Rect>()?;
     m.add_class::<Sense>()?;
     m.add_class::<Id>()?;
@@ -6868,6 +6891,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(interact, m)?)?;
     m.add_function(wrap_pyfunction!(unique_id, m)?)?;
     m.add_function(wrap_pyfunction!(id, m)?)?;
+    m.add_function(wrap_pyfunction!(painter, m)?)?;
     m.add_function(wrap_pyfunction!(set_width, m)?)?;
     m.add_function(wrap_pyfunction!(set_height, m)?)?;
     m.add_function(wrap_pyfunction!(set_min_width, m)?)?;
