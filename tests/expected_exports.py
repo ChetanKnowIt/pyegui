@@ -130,6 +130,8 @@ FUNCTIONS = [
     "set_min_width",
     "set_opacity",
     "set_row_height",
+    "id",
+    "make_persistent_id",
     "set_width",
     "set_width_range",
     "shrink_height_to_current",
