@@ -5956,10 +5956,12 @@ unsafe fn combo_box(
         cb = cb.width(w);
     }
     if let Some(wr) = wrap {
-        cb = cb.wrap(wr);
+        if wr {
+            cb = cb.wrap();
+        }
     }
     if let Some(s) = from_id_salt {
-        cb = cb.id_salt(s);
+        cb = cb.from_id_salt(s);
     }
     cb.selected_text(
         names
