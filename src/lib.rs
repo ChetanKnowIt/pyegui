@@ -4312,6 +4312,45 @@ unsafe fn menu_image_text_button(
 /// A rectangle, mirroring `egui::Rect`.
 ///
 /// egui's is two corners (`min` and `max`), not a position and a size. This is
+/// An egui `Sense`, describing what a widget is sensitive to.
+#[pyclass]
+#[derive(Clone, Copy)]
+struct Sense {
+    #[pyo3(get, set)]
+    click: bool,
+    #[pyo3(get, set)]
+    drag: bool,
+    #[pyo3(get, set)]
+    focusable: bool,
+    #[pyo3(get, set)]
+    hover: bool,
+}
+
+#[pymethods]
+impl Sense {
+    #[new]
+    #[pyo3(signature = (click=false, drag=false, focusable=false, hover=false))]
+    fn new(click: bool, drag: bool, focusable: bool, hover: bool) -> Self {
+        Self { click, drag, focusable, hover }
+    }
+
+    /// A sense that reacts to clicks.
+    #[staticmethod]
+    fn click() -> Self {
+        Self { click: true, drag: false, focusable: false, hover: false }
+    }
+    /// A sense that reacts to drags.
+    #[staticmethod]
+    fn drag() -> Self {
+        Self { click: false, drag: true, focusable: false, hover: false }
+    }
+    /// A sense that reacts to hover.
+    #[staticmethod]
+    fn hover() -> Self {
+        Self { click: false, drag: false, focusable: false, hover: true }
+    }
+}
+
 /// An egui `Id`, used to identify widgets and scopes.
 #[pyclass]
 #[derive(Clone, Copy)]
@@ -6748,6 +6787,7 @@ fn pyegui(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Group>()?;
     m.add_class::<Response>()?;
     m.add_class::<Rect>()?;
+    m.add_class::<Sense>()?;
     m.add_class::<Id>()?;
     m.add_class::<PointerButton>()?;
     m.add_class::<RGBA>()?;

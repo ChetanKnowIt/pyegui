@@ -26,6 +26,7 @@ CLASSES = [
     "Int",
     "Layout",
     "LayoutType",
+    "Sense",
     "PointerButton",
     "RGB",
     "RGBA",
