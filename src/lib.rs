@@ -727,9 +727,8 @@ impl Scope {
         }
     }
 
-    #[staticmethod]
-    fn __init__() -> PyResult<Self> {
-        Self::__new__()
+    fn __init__(&mut self) -> PyResult<()> {
+        Ok(())
     }
 
     fn __enter__(&mut self) -> PyResult<()> {
@@ -795,9 +794,8 @@ impl Group {
         }
     }
 
-    #[staticmethod]
-    fn __init__() -> PyResult<Self> {
-        Self::__new__()
+    fn __init__(&mut self) -> PyResult<()> {
+        Ok(())
     }
 
     fn __enter__(&mut self) -> PyResult<()> {
