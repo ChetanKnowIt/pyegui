@@ -4323,13 +4323,8 @@ struct Id {
 #[pymethods]
 impl Id {
     #[new]
-    #[pyo3(signature = (value=None))]
-    fn new(value: Option<&str>) -> Self {
-        let inner = match value {
-            Some(s) => egui::Id::new(s),
-            None => egui::Id::default(),
-        };
-        Self { value: inner.value() }
+    fn new(value: &str) -> Self {
+        Self { value: egui::Id::new(value).value() }
     }
 }
 
