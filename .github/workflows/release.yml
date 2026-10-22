@@ -158,7 +158,7 @@ jobs:
           uv python install pypy3.11
           uv venv --python pypy3.11 .venv
           uv pip install "maturin>=1.8,<2.0"
-          .venv/bin/maturin build --release --out dist
+          .venv/bin/maturin build --release --interpreter .venv/bin/python --out dist
 
       - uses: actions/upload-artifact@v4
         with:
