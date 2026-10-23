@@ -5,6 +5,43 @@ All notable changes to pyegui are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.3]
+
+Released 2026-10-23. Built on egui 0.31.1.
+
+### Added
+
+**Image builder options**
+
+`image` and `image_response` now accept all 15 builder options egui 0.31.1's
+`Image` widget provides: `max_height`, `max_width`, `tint`, `alt_text`,
+`fit_to_exact_size`, `fit_to_original_size`, `fit_to_fraction`,
+`maintain_aspect_ratio`, `shrink_to_fit`, `show_loading_spinner`, `bg_fill`,
+`corner_radius`, `sense`, `uv`, `rotate`. Unknown option names raise
+`ValueError` naming the widget and every accepted option.
+
+`uv` takes a `Rect`; `rotate` takes `(angle_rad, origin_x, origin_y)`;
+`corner_radius` takes an int or a 2/4-sequence. `size` does not exist in
+egui 0.31.1 (no such setter on `Image`).
+
+`image_and_text_clicked` and `image_and_text_response` now accept `selected`
+and `shortcut_text` as optional keyword arguments.
+
+### Changed
+
+The `reject_unknown_options` check now covers `image_response`, alongside the
+existing slider, drag-value, text-edit and date-picker families. See the
+"Should `reject_unknown_options` cover the container options too?" note in
+TODO.md §6 for why the remaining container options stay opt-in.
+
+### Fixed
+
+`image_response` previously raised a `PyTypeError` (with no mention of the
+option name) when a value had the wrong type. It now raises `ValueError` with
+a message naming the offending option and the expected shape.
+
+---
+
 ## [Unreleased]
 
 Built on egui 0.31.1. This entry adds one class (`RichText`), one function
