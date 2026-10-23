@@ -7,10 +7,9 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 ## [Unreleased]
 
-Built on egui 0.31.1. This entry adds one class (`RichText`), one function
-(`colored_label`) and one `*_response` variant (`colored_label_response`) —
-the module now exports 188 names (22 classes, 119 functions and 47
-`*_response` variants). The previous entry changed *signatures* only.
+## [0.5.3]
+
+Released 2026-10-23. Built on egui 0.31.1.
 
 ### Added
 
@@ -22,6 +21,22 @@ the module now exports 188 names (22 classes, 119 functions and 47
 builder methods (`size`, `color`, `background_color`, `heading`, `monospace`,
 `code`, `strong`, `weak`, `underline`, `strikethrough`, `italics`, `small`,
 `raised`), each returning a new `RichText`.
+
+**Image builder options**
+
+`image` and `image_response` now accept all 15 builder options egui 0.31.1's
+`Image` widget provides: `max_height`, `max_width`, `tint`, `alt_text`,
+`fit_to_exact_size`, `fit_to_original_size`, `fit_to_fraction`,
+`maintain_aspect_ratio`, `shrink_to_fit`, `show_loading_spinner`, `bg_fill`,
+`corner_radius`, `sense`, `uv`, `rotate`. Unknown option names raise
+`ValueError` naming the widget and every accepted option.
+
+`uv` takes a `Rect`; `rotate` takes `(angle_rad, origin_x, origin_y)`;
+`corner_radius` takes an int or a 2/4-sequence. `size` does not exist in
+egui 0.31.1 (no such setter on `Image`).
+
+`image_and_text_clicked` and `image_and_text_response` now accept `selected`
+and `shortcut_text` as optional keyword arguments.
 
 **Builder options on the widgets that already existed**
 
@@ -58,9 +73,6 @@ image / image_response*
             fit_to_exact_size, fit_to_original_size, fit_to_fraction,
             maintain_aspect_ratio, shrink_to_fit, show_loading_spinner,
             bg_fill, corner_radius, sense, uv, rotate
-  Unknown option names raise ValueError. `uv` takes a Rect; `rotate`
-  takes (angle_rad, origin_x, origin_y); `corner_radius` takes an int
-  or a 2/4-sequence. `size` does not exist in egui 0.31.1.
 
 image_and_text_clicked / image_and_text_response*
   keyword   selected, shortcut_text
@@ -69,8 +81,7 @@ run_native (viewport)
   title, app_id, position, visible, active, decorations, always_on_top,
   window_level, taskbar, window_type, minimize_button, maximize_button,
   close_button, title_shown, titlebar_shown, titlebar_buttons_shown,
-  fullsize_content_view, drag_and_drop, mouse_passthrough,
-  clamp_size_to_monitor_size
+  fullsize_content_view, drag_and_drop, clamp_size_to_monitor_size
 
 run_native (eframe::NativeOptions)
   multisampling, centered, persist_window, persistence_path
@@ -79,8 +90,8 @@ run_native (eframe::NativeOptions)
 The eleven viewport names that already existed keep their exact spellings,
 and `inner_width` is still not renamed to `width`.
 
-An unknown option name on any of these is now a `ValueError` naming the
-widget and every accepted option, rather than being ignored.
+An unknown option name on any of these is now a `ValueError` rather than
+being ignored.
 
 Three options do not take the value the name suggests, and the difference is
 egui's rather than ours. `clamping` is a `SliderClamping` word (`"never"`,
@@ -116,6 +127,8 @@ already changed. It is derived from what the code does now.
 - `image_and_text_clicked` and `image_and_text_response` made their
   second and third parameters optional, fixing a TypeError when callers
   pass only the source and label arguments.
+
+---
 
 ## [0.5.1]
 
@@ -235,7 +248,7 @@ def main():
 `Rect` is a new class mirroring `egui::Rect`, which is two corners rather than
 a position and a size: `Rect(min, size)`, `Rect.from_corners(min, max)` and
 `Rect.zero()`, with `min`, `max`, `size`, `width`, `height`, `center`,
-`is_finite()` and a `repr`. `Rect.zero()` means "no view yet", which is what
+`is_finite()` and a `repr`. `Rect.zero()` means `"no view yet"`, which is what
 egui resets from — it fits the contents on the first frame.
 
 `zoom_range` defaults to egui's `(0.0, 1.0)`, which allows zooming out
