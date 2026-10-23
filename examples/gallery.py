@@ -40,6 +40,7 @@ _REQUIRED = {
     "RGBA": "the alpha colour pickers",
     "HSVA": "the non-RGB colour pickers",
     "drag_angle": "the angle dials",
+    "Rect": "image_uv option",
 }
 
 # Snapshot the names once. Do not call bare `dir()` inside the comprehension:
@@ -248,6 +249,44 @@ def page_numbers(ctx):
     add_space(8)
     progress(0.6)
     spinner()
+
+
+@page("image")
+def page_image(ctx):
+    heading("Image and image_and_text")
+    separator()
+    add_space(8)
+
+    cat = "https://picsum.photos/seed/pyegui/160/120"
+
+    image(cat)
+    add_space(8)
+
+    image_response(cat, corner_radius=8.0, bg_fill=RGBA(0.1, 0.1, 0.3, 1.0))
+    add_space(8)
+
+    image(cat, fit_to_exact_size=(160.0, 120.0))
+    add_space(8)
+
+    image(cat, shrink_to_fit=True, corner_radius=4.0)
+    add_space(8)
+
+    image(cat, uv=Rect((20.0, 20.0), (120.0, 80.0)))
+    label("uv crops the visible region of the source")
+    add_space(8)
+
+    with Layout(LayoutType.Horizontal):
+        label("loading spinner:  ")
+        image(cat, show_loading_spinner=True, max_height=80.0)
+    add_space(8)
+
+    image_and_text_clicked(cat, "with an icon", selected=True)
+    label("the button above uses selected=True")
+    add_space(8)
+
+    image_and_text_clicked(cat, "tinted icon", shortcut_text="R")
+    label("the button above uses shortcut_text")
+
 
 
 @page("colours")

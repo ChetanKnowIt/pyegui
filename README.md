@@ -62,7 +62,7 @@ where possible to accomplish more smooth experience in Python.
 - No dependencies which destroy you project when you distribute it. Just
   pure giant Rust binary
 
-The API surface is **188 names** today: 19 classes, 157 functions and 47
+The API surface is **188 names** today: 22 classes, 119 functions and 47
 `*_response` variants. This number comes from the `check` job, which builds
 the wheel and asserts the module's exports against
 [tests/expected_exports.py](https://github.com/ChetanKnowIT/pyegui/blob/main/tests/expected_exports.py)
@@ -110,7 +110,11 @@ pyegui is five egui minor releases behind. egui 0.36 requires Rust 1.95
   `_srgba_unmultiplied`, `_srgba_premultiplied` — every colour space
   egui 0.31.1 offers
 - Dates: `date_picker_button`
-- Images: `image` (`max_width` / `max_height`)
+- Images: `image` and `image_response` (`max_height`, `max_width`, `tint`,
+  `alt_text`, `fit_to_exact_size`, `fit_to_original_size`, `fit_to_fraction`,
+  `maintain_aspect_ratio`, `shrink_to_fit`, `show_loading_spinner`, `bg_fill`,
+  `corner_radius`, `sense`, `uv`, `rotate`); `image_and_text_clicked` with
+  `selected`, `shortcut_text`
 - Layout: `horizontal`, `horizontal_centered`, `horizontal_top`,
   `horizontal_wrapped`, `vertical`, `vertical_centered`,
   `vertical_centered_justified`, `centered_and_justified`, `indent`
@@ -406,8 +410,11 @@ is the set egui cannot hand to Python as it stands:
   inside the popup's own draw, and the popup's fields are
   `pub(crate)`.
 - `Button`: `selected`, `min_size`, `atoms`, `shortcut_text`, `wrap`
-- `Image`: `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
-  `corner_radius`, `sense`, `alt_text`
+- `Image`: `max_height`, `max_width`, `tint`, `alt_text`,
+  `fit_to_exact_size`, `fit_to_original_size`, `fit_to_fraction`,
+  `maintain_aspect_ratio`, `shrink_to_fit`, `show_loading_spinner`,
+  `bg_fill`, `corner_radius`, `sense`, `uv`, `rotate`.
+  `size` does not exist in egui 0.31.1 (no such setter on `Image`).
 - `ProgressBar`: text, `animate`
 - `eframe` `NativeOptions`: renderer choice, `glow_options`,
   `wgpu_options`, `depth_buffer`, `dithering`, and `App::save` (state

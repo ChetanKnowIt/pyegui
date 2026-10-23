@@ -150,15 +150,15 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 'pypy3.10'
+      - uses: astral-sh/setup-uv@v5
 
       - name: Build PyPy wheel
         run: |
           set -euo pipefail
-          python -m pip install "maturin>=1.8,<2.0"
-          maturin build --release --out dist
+          uv python install pypy3.11
+          uv venv --python pypy3.11 .venv
+          uv pip install "maturin>=1.8,<2.0"
+          .venv/bin/maturin build --release --interpreter .venv/bin/python --out dist
 
       - uses: actions/upload-artifact@v4
         with:
@@ -180,6 +180,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: release-dist
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-dist-pypy
           path: dist
 
       - name: List what will be published

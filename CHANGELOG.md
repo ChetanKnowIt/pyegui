@@ -9,7 +9,7 @@ and this project uses [semantic versioning](https://semver.org/spec/v2.0.0.html)
 
 Built on egui 0.31.1. This entry adds one class (`RichText`), one function
 (`colored_label`) and one `*_response` variant (`colored_label_response`) —
-the module now exports 188 names (19 classes, 158 functions and 47
+the module now exports 188 names (22 classes, 119 functions and 47
 `*_response` variants). The previous entry changed *signatures* only.
 
 ### Added
@@ -52,6 +52,18 @@ text_edit_singleline* / text_edit_multiline*
 date_picker_button*
   keyword   show_icon, highlight_weekends, id_salt
   **options combo_boxes, arrows, calendar, calendar_week
+
+image / image_response*
+  **options max_height, max_width, tint, alt_text,
+            fit_to_exact_size, fit_to_original_size, fit_to_fraction,
+            maintain_aspect_ratio, shrink_to_fit, show_loading_spinner,
+            bg_fill, corner_radius, sense, uv, rotate
+  Unknown option names raise ValueError. `uv` takes a Rect; `rotate`
+  takes (angle_rad, origin_x, origin_y); `corner_radius` takes an int
+  or a 2/4-sequence. `size` does not exist in egui 0.31.1.
+
+image_and_text_clicked / image_and_text_response*
+  keyword   selected, shortcut_text
 
 run_native (viewport)
   title, app_id, position, visible, active, decorations, always_on_top,
@@ -100,6 +112,10 @@ measure what a fully configured widget costs.
 
 The README's list of missing builder options described an API that had
 already changed. It is derived from what the code does now.
+
+- `image_and_text_clicked` and `image_and_text_response` made their
+  second and third parameters optional, fixing a TypeError when callers
+  pass only the source and label arguments.
 
 ## [0.5.1]
 
