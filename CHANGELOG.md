@@ -101,6 +101,10 @@ measure what a fully configured widget costs.
 The README's list of missing builder options described an API that had
 already changed. It is derived from what the code does now.
 
+- `image_and_text_clicked` and `image_and_text_response` made their
+  second and third parameters optional, fixing a TypeError when callers
+  pass only the source and label arguments.
+
 ## [0.5.1]
 
 Released 2026-10-02. Built on egui 0.31.1.

@@ -164,15 +164,15 @@ and `push_id`.
       `is_rect_visible`
 - [x] `push_id` — gives a subtree its own id space, which is what makes a list
       of repeated widgets work at all
-- [ ] `with_layout`, `wrap_mode`, `wrap_text`. `with_layout` takes a whole
-      `egui::Layout`; the existing `Layout`/`LayoutType` classes are a
-      different, narrower thing and do not cover it
-- [ ] `unique_id`, `make_persistent_id`, `next_auto_id`, `auto_id_with`,
-      `skip_ahead_auto_ids`, `id` — these return egui's `Id`, which has no
-      Python equivalent and no useful Python-facing operation
-- [ ] `scope_builder`, `new_child`, `child_ui`, `UiBuilder` support
-- [ ] `interact`, `interact_opt` — take a `Rect`, an `Id` and a `Sense`
-- [ ] `painter` access for custom painting (shapes, text layout)
+- [x] `with_layout`, `unique_id`, `make_persistent_id`, `id`, `scope_builder`,
+      `child_ui`, `interact`, `painter` — all shipped (see the appendix's
+      "deferred" list for the ones that genuinely do not exist in 0.31.1)
+- [ ] `wrap_mode`, `wrap_text` — `wrap_text` is a deprecated 0.30-era name in
+      0.31.1; `wrap_mode` needs source verification before a setter is written
+- [ ] `next_auto_id`, `auto_id_with`, `skip_ahead_auto_ids` — return `Id`, but
+      `Id` now has a Python wrapper so these are reachable
+- [ ] `new_child`, `UiBuilder` support
+- [ ] `interact_opt` — does not exist in egui 0.31.1 (only `interact`)
 
 The measurement functions return plain tuples for points and sizes, and a
 `Rect` for rectangles. They are in egui points, not pixels — multiply by
