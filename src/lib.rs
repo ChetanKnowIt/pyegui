@@ -3270,6 +3270,36 @@ unsafe fn opt_margin(
     }
 }
 
+/// Read an optional `egui::Sense` from `opts`, under the key `name`.
+///
+/// The Python `Sense` pyclass has `click`, `drag`, `focusable`, and `hover`
+/// booleans. egui 0.31.1's `Sense` only has `click`, `drag`, and `hover` —
+/// `focusable` is not a `Sense` constructor variant and is silently dropped.
+unsafe fn opt_sense(
+    opts: &Bound<'_, PyDict>,
+    name: &str,
+    used: &mut OptNames,
+) -> PyResult<Option<egui::Sense>> {
+    used.insert(name.to_string());
+    let value = match opts.get_item(name)? {
+        Some(value) => value,
+        None => return Ok(None),
+    };
+    let py_sense = value.downcast::<Sense>()?;
+    let s = py_sense.borrow();
+    let mut egui_sense = egui::Sense::empty();
+    if s.click {
+        egui_sense |= egui::Sense::click();
+    }
+    if s.drag {
+        egui_sense |= egui::Sense::drag();
+    }
+    if s.hover {
+        egui_sense |= egui::Sense::hover();
+    }
+    Ok(Some(egui_sense))
+}
+
 /// Read an optional `egui::Stroke` from `opts`.
 ///
 /// egui's is a width in points plus a colour. Accepts `(width, color)` where
@@ -6543,7 +6573,23 @@ unsafe fn image(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> PyResult<()
 
 /// Returns the Response of the image. An image is not interactive by default,
 /// so this is mainly useful for its rect and for enabling a sense via
-/// interact.
+/// `sense`.
+///
+/// Options:
+///     max_height, max_width — clamp display size (ints).
+///     tint — `(r, g, b, a)` tuple or Color32, tints the image.
+///     alt_text — accessibility description string.
+///     fit_to_exact_size(size) — stretch to fit `size`, a (w, h) tuple.
+///     fit_to_original_size(scale) — scale to the texture's native aspect.
+///     fit_to_fraction(fraction) — scale to a fraction of the original size.
+///     maintain_aspect_ratio(bool) — keep aspect ratio when scaling.
+///     shrink_to_fit — shrink to available width.
+///     show_loading_spinner(bool) — show a spinner while loading.
+///     bg_fill — `(r, g, b, a)` tuple or Color32, image background color.
+///     corner_radius — int or (nw, ne, sw, se) tuple.
+///     sense — a Sense (click / drag / hover) to make the image interactive.
+///     uv — a Rect giving UV coordinates to sample from the texture.
+///     rotate — `(angle, origin_x, origin_y)` tuple; angle in radians.
 ///
 /// Example::
 ///
@@ -6560,9 +6606,6 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
     let mut used = OptNames::new();
 
     if let Some(kwargs) = kwargs {
-        // Recorded by hand: `reject_unknown_options` would read the untouched
-        // `get_item` as an unknown option, so this insert is required by that
-        // check.
         used.insert("max_height".to_string());
         if let Some(height) = kwargs.get_item("max_height")? {
             img = img.max_height(height.downcast::<PyInt>()?.extract()?);
@@ -6580,6 +6623,71 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
         if let Some(alt) = kwargs.get_item("alt_text")? {
             img = img.alt_text(alt.extract::<String>()?);
         }
+        if let Some(size) = opt_vec2(kwargs, "fit_to_exact_size", &mut used)? {
+            img = img.fit_to_exact_size(size);
+        }
+        if let Some(scale) = opt_f32(kwargs, "fit_to_original_size", &mut used)? {
+            img = img.fit_to_original_size(scale);
+        }
+        if let Some(fraction) = opt_vec2(kwargs, "fit_to_fraction", &mut used)? {
+            img = img.fit_to_fraction(fraction);
+        }
+        if let Some(maintain) = opt_bool(kwargs, "maintain_aspect_ratio", &mut used)? {
+            if maintain {
+                img = img.maintain_aspect_ratio(true);
+            }
+        }
+        if let Some(shrink) = opt_bool(kwargs, "shrink_to_fit", &mut used)? {
+            if shrink {
+                img = img.shrink_to_fit();
+            }
+        }
+        if let Some(show) = opt_bool(kwargs, "show_loading_spinner", &mut used)? {
+            img = img.show_loading_spinner(show);
+        }
+        used.insert("bg_fill".to_string());
+        if let Some(bg) = kwargs.get_item("bg_fill")? {
+            let c = color32_from_any(&bg)?;
+            img = img.bg_fill(c);
+        }
+        if let Some(cr) = opt_corner_radius(kwargs, "corner_radius", &mut used)? {
+            img = img.corner_radius(cr);
+        }
+        if let Some(sense) = opt_sense(kwargs, "sense", &mut used)? {
+            img = img.sense(sense);
+        }
+        used.insert("uv".to_string());
+        if let Some(uv) = kwargs.get_item("uv")? {
+            let rect = uv.downcast::<Rect>().map_err(|_| {
+                let type_name: String = uv.get_type()
+                    .name()
+                    .map(|n| n.to_string())
+                    .unwrap_or_else(|_| "value".to_string());
+                PyValueError::new_err(format!("uv must be a Rect, not a {type_name}"))
+            })?;
+            let r = rect.borrow();
+            let egui_rect = egui::Rect::from_min_max(
+                egui::pos2(r.min_x, r.min_y),
+                egui::pos2(r.max_x, r.max_y),
+            );
+            img = img.uv(egui_rect);
+        }
+        used.insert("rotate".to_string());
+        if let Some(rotate) = kwargs.get_item("rotate")? {
+            let triple: Vec<f32> = rotate.extract().map_err(|_| {
+                PyValueError::new_err(format!(
+                    "rotate must be a 3-sequence of numbers: (angle, origin_x, origin_y)"
+                ))
+            })?;
+            if triple.len() != 3 {
+                return Err(PyValueError::new_err(format!(
+                    "rotate must have exactly 3 components (angle, origin_x, origin_y), got {}",
+                    triple.len()
+                )));
+            }
+            img = img.rotate(triple[0], egui::vec2(triple[1], triple[2]));
+        }
+        reject_unknown_options(kwargs, &used, "image_response")?;
     }
 
     Ok(Response {

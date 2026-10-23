@@ -80,11 +80,18 @@ were dropped rather than shipped as stubs:
       `srgb`, `srgba`, `rgba_premultiplied`, `rgba_unmultiplied`,
       `srgba_premultiplied`, `srgba_unmultiplied`. Backed by the `RGBA`,
       `HSVA`, `Color32` and `SRGB` classes
-- [~] `combo_box` — width, wrap added; icon, popup_style, from_id_salt remain
-- [~] `image` — missing `tint`, `size`, `fit_to_exact_size`, `rotate`, `uv`,
-      `corner_radius`, `sense`, `alt_text`
-- [~] `image_and_text_clicked` — missing `Button` options: `selected`, `min_size`, `sense`, `corner_radius`, `shortcut_text` (selected + shortcut_text now shipped)
-- [~] `progress` — missing text/format and `animate`
+- [~] `combo_box` — width, wrap added. `icon` and `from_id_salt` remain;
+      `popup_style` does not exist in egui 0.31.1 (no such setter on
+      `ComboBox`)
+-[x] `image` — full set of image options reaches the builder: `max_height`,
+      `max_width`, `tint`, `alt_text`, `fit_to_exact_size`, `fit_to_original_size`,
+      `fit_to_fraction`, `maintain_aspect_ratio`, `shrink_to_fit`,
+      `show_loading_spinner`, `bg_fill`, `corner_radius`, `sense`, `uv`, `rotate`.
+      `size` does not exist in egui 0.31.1 (no such setter on `Image`). Unknown
+      options raise `ValueError`.
+-[~] `image_and_text_clicked` — `selected` and `shortcut_text` now shipped.
+      `min_size`, `sense`, `corner_radius` remain
+-[x] `progress` — `text` and `animate` are keyword parameters, shipped
 - [x] `close_menu`
 
 ## 3. Missing containers
@@ -143,8 +150,9 @@ TODO section 3 is closed apart from the two names that do not exist in 0.31.1.
 
 ## 4. Layout, sizing and geometry
 
-egui 0.31.1 exposes 174 public methods on `Ui`. These are the layout, sizing and
-measurement ones pyegui did not reach.
+egui 0.31.1 exposes 174 public methods on `Ui`. This section tracks the
+layout, sizing and geometry ones — most are now shipped; the `[ ]` items
+below remain.
 
 Shipped: the twelve sizing calls, multi-column layout, the measurement queries,
 and `push_id`.
@@ -453,14 +461,9 @@ belongs to.
 ### 6 follow-ups, found while doing the above
 
 **Should `reject_unknown_options` cover the container options too?** The
-answer today is no, and the reason is worth writing down because it looks
-like an oversight and is not. It is wired into every option path this
-section added -- the slider, drag-value, text-edit and date-picker
-families, and `run_native` -- and deliberately not into the container
-options (`window`, `frame`, the panels, `scroll_area`, `collapsing`,
-`image`), which pyegui shipped before this section.
-
-Two reasons, and the second is the one that decides it:
+answer today is: it now covers `image` (wired in alongside the new image
+builder options, with all names enumerated and tested by
+`tests/test_image_options.py`), but the rest remain opt-in:
 
 1. It is a behaviour change on the release API. A caller who passes a
    container option name that pyegui happens not to implement -- a name
@@ -468,11 +471,10 @@ Two reasons, and the second is the one that decides it:
    `ValueError` tomorrow. That trade is defensible for the new families,
    where the check and the option list landed together, and it is not
    defensible retrofitted onto names that have worked since 0.5.
-2. Those paths read their options through different helpers, and two of
-   them read keys that are never option names at all. `collapsing_response`
+2. Those remaining paths read their options through different helpers, and
+   one of them reads keys that are never option names at all. `collapsing_response`
    and `apply_scroll_area_options` read `id_salt` / `id_source` in loops
-   whose names differ per iteration, and `image_response` reads
-   `max_height` then `max_width`. Wiring the check in without
+   whose names differ per iteration. Wiring the check in without
    enumerating those would falsely reject names pyegui *does* accept --
    which is the specific failure a false rejection is, and there is no
    test that would not itself have to be written by the same person who
@@ -620,10 +622,22 @@ helpers are unchanged and now delegate to them.
 Widgets added: `selectable_label`, `radio`, `drag_angle`, `drag_angle_tau`,
 `close_menu`.
 
-Colours: all seven non-RGB pickers — `color_edit_button_hsva`, `_srgb`,
-`_srgba`, `_rgba_unmultiplied`, `_rgba_premultiplied`,
-`_srgba_unmultiplied`, `_srgba_premultiplied` — plus the `RGBA`, `HSVA`,
-`Color32` and `SRGB` classes.
+Image options: `tint`, `alt_text`, `fit_to_exact_size`, `fit_to_original_size`,
+`fit_to_fraction`, `maintain_aspect_ratio`, `shrink_to_fit`,
+`show_loading_spinner`, `bg_fill`, `corner_radius`, `sense`, `uv`, `rotate`.
+Unknown options raise `ValueError` (`reject_unknown_options` is wired into
+`image_response`).
+
+Layout, sizing and geometry: `columns`, `end_row`, `set_row_height`,
+`set_width`, `set_height`, `set_min_width`, `set_max_width`, `set_min_height`,
+`set_max_height`, `set_min_size`, `set_max_size`, `set_width_range`,
+`set_height_range`, `shrink_width_to_current`, `shrink_height_to_current`,
+`push_id`, `with_layout`, `unique_id`, `make_persistent_id`, `id`,
+`scope_builder`, `child_ui`, `interact`, `painter`, and 8 measurement
+queries (`available_size`, `available_width`, `available_height`,
+`available_size_before_wrap`, `available_rect_before_wrap`, `cursor`,
+`min_rect`, `max_rect`, `min_size`, `pixels_per_point`,
+`next_widget_position`, `is_rect_visible`).
 
 ### Shipped in 0.5.0
 
@@ -650,26 +664,30 @@ sections above or by the exclusions below, so nothing falls through the
 cracks.
 
 **Not planned:** allocation internals (`allocate_*`, `expand_to_include_*`),
-paint/layer internals (`painter`, `painter_at`, `layer_id`, `opacity`,
+paint/layer internals (`painter_at`, `layer_id`, `opacity`,
 `multiply_opacity`, `reset_style`, `set_clip_rect`, `shrink_clip_rect`,
-`rect_contains_pointer`, `ui_contains_pointer`, `is_rect_visible`,
+`rect_contains_pointer`, `ui_contains_pointer`,
 `is_sizing_pass`, `debug_paint_cursor`), bookkeeping
-(`skip_ahead_auto_ids`, `make_persistent_id`, `text_style_height`,
-`text_valign`), and deprecated 0.30-era names (`add_enabled_ui`,
-`close_menu`, `set_sizing_pass`, `wrap_text`, `with_layer_id`,
-`interact_bg`, `interact_with_hovered`, `child_ui_with_id_source`,
-`allocate_new_ui`, `allocate_ui_at_rect`, `child_ui`, `data`, `data_mut`,
-`input`, `input_mut`, `output`, `output_mut`, `memory`, `memory_mut`,
-`fonts`, `new`, `put`, `with_visual_transform`).
+(`skip_ahead_auto_ids`, `text_style_height`, `text_valign`), and deprecated
+0.30-era names (`add_enabled_ui`, `close_menu`, `set_sizing_pass`,
+`wrap_text`, `with_layer_id`, `interact_bg`, `interact_with_hovered`,
+`child_ui_with_id_source`, `allocate_new_ui`, `allocate_ui_at_rect`,
+`child_ui`, `data`, `data_mut`, `input`, `input_mut`, `output`,
+`output_mut`, `memory`, `memory_mut`, `fonts`, `new`, `put`,
+`with_visual_transform`).
 
-**Deferred to §4/§5 as listed:** `add`, `add_sized`, `add_visible`, `auto_id_with`,
-`available_*`, `ctx`, `cursor`, `id`, `interact*`, `is_enabled`, `is_visible`,
-`layout`, `max_rect`, `min_rect`, `min_size`, `next_auto_id`,
-`next_widget_position`, `pixels_per_point`, `push_id`, `scope_builder`,
-`scope_dyn`, `new_child`, `scroll_*`, `set_height*`, `set_max_*`,
-`set_min_*`, `set_row_height`, `set_style`, `set_width*`, `shrink_*`,
-`spacing*`, `stack`, `style*`, `unique_id`, `visuals*`, `with_layout`,
-`wrap_mode`, `columns`, `columns_const`, `end_row`.
+Three deprecated names are nevertheless shipped through wrapper functions:
+`add_enabled_ui` (via `add_enabled`), `close_menu` (as `close_menu`), and
+`child_ui` (as `child_ui`, which calls `Ui::new_child()` internally). They
+remain classified here as deprecated; the wrappers carry a deprecation path
+into the next egui pin.
+
+**Deferred to §4/§5 as listed:** `add`, `add_sized`, `add_visible`,
+`auto_id_with`, `ctx`, `interact_opt` (does not exist in 0.31.1; only
+`interact` ships), `is_enabled`, `is_visible`, `layout`, `next_auto_id`,
+`scope_dyn`, `new_child`, `scroll_*` (individual methods; `scroll_area_*`
+ship), `set_style`, `spacing*`, `stack`, `style*`, `visuals*`, `wrap_mode`
+(needs source verification before a setter is written).
 
 ### Upstream egui 0.36 upgrade
 

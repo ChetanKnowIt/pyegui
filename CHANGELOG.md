@@ -53,6 +53,18 @@ date_picker_button*
   keyword   show_icon, highlight_weekends, id_salt
   **options combo_boxes, arrows, calendar, calendar_week
 
+image / image_response*
+  **options max_height, max_width, tint, alt_text,
+            fit_to_exact_size, fit_to_original_size, fit_to_fraction,
+            maintain_aspect_ratio, shrink_to_fit, show_loading_spinner,
+            bg_fill, corner_radius, sense, uv, rotate
+  Unknown option names raise ValueError. `uv` takes a Rect; `rotate`
+  takes (angle_rad, origin_x, origin_y); `corner_radius` takes an int
+  or a 2/4-sequence. `size` does not exist in egui 0.31.1.
+
+image_and_text_clicked / image_and_text_response*
+  keyword   selected, shortcut_text
+
 run_native (viewport)
   title, app_id, position, visible, active, decorations, always_on_top,
   window_level, taskbar, window_type, minimize_button, maximize_button,
