@@ -6594,6 +6594,7 @@ unsafe fn image_response(source: &str, kwargs: Option<&Bound<'_, PyDict>>) -> Py
 ///     if image_and_text_clicked("https://picsum.photos/480", "click me"):
 ///       print("clicked")
 #[pyfunction]
+#[pyo3(signature = (source, text, selected=None, shortcut_text=None))]
 unsafe fn image_and_text_clicked(source: &str, text: &str, selected: Option<bool>, shortcut_text: Option<String>) -> PyResult<bool> {
     Ok(image_and_text_response(source, text, selected, shortcut_text)?.clicked())
 }
@@ -6606,6 +6607,7 @@ unsafe fn image_and_text_clicked(source: &str, text: &str, selected: Option<bool
 ///     if response.clicked:
 ///       print("clicked")
 #[pyfunction]
+#[pyo3(signature = (source, text, selected=None, shortcut_text=None))]
 unsafe fn image_and_text_response(source: &str, text: &str, selected: Option<bool>, shortcut_text: Option<String>) -> PyResult<Response> {
     let ui = current_ui(&UI)?;
 

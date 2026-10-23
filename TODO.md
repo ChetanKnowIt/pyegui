@@ -14,7 +14,7 @@ not reachable) · `[ ]` not implemented
 
 Version 0.5.1, built on egui 0.31.1. See `CHANGELOG.md`.
 
-188 names exported (`src/lib.rs`): 19 classes, 158 functions and 47
+188 names exported (`src/lib.rs`): 22 classes, 119 functions and 47
 `*_response` variants. The response variants return a `Response`; they exist
 alongside the original boolean helpers, which are unchanged. egui 0.31.1
 exposes 174 inherent methods on `Ui` and 61 on `Response`.
@@ -54,9 +54,10 @@ are now thin wrappers over them, so `if button_clicked("x"):` is unchanged.
       `is_pointer_button_down_on`, `mark_changed`, `is_tooltip_open`,
       `context_menu_opened`
 - [x] `*_response` variants for existing widgets (47 of them)
-- [ ] `interact`, `interact_opt`, `highlight`, `widget_info`, `union`,
-      `scroll_to_me`, `output_event`, `labelled_by` — builder-style methods
-      that consume or replace the `Response`
+- [x] `interact`, `highlight` — shipped. `interact` takes a `Rect`, `Id` and
+      `Sense`; `highlight` flags the producing widget
+- [ ] `interact_opt`, `widget_info`, `union`, `scroll_to_me`, `output_event`,
+      `labelled_by` — builder-style methods that consume or replace the `Response`
 - [ ] `dnd_set_drag_payload`, `dnd_hover_payload`, `dnd_release_payload` —
       deferred: `Arc<dyn Any + Send + Sync>` has no clean Python mapping
 - [ ] Drag-and-drop containers: `dnd_drag_source`, `dnd_drop_zone`
@@ -612,7 +613,7 @@ of `bench/hello_egui.rs` and `bench/hello_pyegui.py` rather than asserted.
 
 Everything in the 0.5.0 appendix below, plus:
 
-Interaction state: the `Response` class (40 methods) and 45
+Interaction state: the `Response` class (41 methods) and 47
 `*_response` variants covering every widget that has a binding. The boolean
 helpers are unchanged and now delegate to them.
 
